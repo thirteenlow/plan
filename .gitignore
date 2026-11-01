@@ -49,3 +49,6 @@ yarn-error.*
 
 # Supabase CLI state
 supabase/.temp/
+
+# Local Claude tool settings (machine-specific)
+.claude/
