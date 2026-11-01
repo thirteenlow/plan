@@ -85,6 +85,11 @@ export default function SettingsScreen() {
         <Item icon="cash-outline" label="Currency & formats" value={`${data.settings.currency.code} · ${formatMoney(1234567, { c: data.settings.currency })} · ${shortDate(today(), data.settings.dateFormat)}`} onPress={() => router.push('/format')} />
       </Group>
 
+      <Group title="Automation">
+        <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone" onPress={() => router.push('/apple-pay')} />
+        <Item icon="scan-outline" label="Screenshot capture" value="iPhone" onPress={() => router.push('/screenshot-capture')} />
+      </Group>
+
       <Group title="Data">
         <Item icon="shield-checkmark-outline" label="Privacy policy" onPress={() => router.push('/privacy')} />
         <Item icon="share-outline" label="Export" value="Plan & Register CSV" onPress={() => void exportData()} />

@@ -157,6 +157,8 @@ export interface BudgetSettings {
   ownerName?: string;
   pinnedCategoryIds?: string[];
   currentGoalId?: string;
+  /** Apple Pay auto-logging: account used when a Wallet card's name doesn't match an account */
+  payAccountId?: string;
 }
 
 export interface BudgetData {

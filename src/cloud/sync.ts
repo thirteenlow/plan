@@ -8,6 +8,7 @@ import { isValidBudget } from '@/utils/validation';
 import { friendlyError, useCloud } from './cloudStore';
 import { getIdentity } from './identity';
 import { deepEqual, mergeBudgets, type SharedBudget, sharedPart, withPersonal } from './merge';
+import { importPayments } from './inbox';
 import { getSupabase } from './supabase';
 
 /*
@@ -202,6 +203,8 @@ export async function pullAll() {
     }
     useCloud.setState({ lastSyncAt: new Date().toISOString() });
     uploadUnsynced();
+    // Apple Pay payments logged by the iPhone Shortcut while the app was closed.
+    await importPayments().catch(setError);
   } catch (e) {
     setError(e);
   } finally {

@@ -28,6 +28,8 @@ const SECTIONS: [string, string[]][] = [
       'Account: your email address and, if provided by Google, your name, used to sign you in and to let others invite you by email.',
       'Encryption keys: your public key, and your private key encrypted with your password. We cannot decrypt it.',
       'Budgets: encrypted data we cannot read, plus who has access to each budget and when it was last changed.',
+      'Apple Pay auto-logging (optional, iPhone): your Shortcut sends each payment’s amount, merchant and card name. These wait unencrypted, with no other details, until Plan next opens and imports them, then they’re deleted. Turning the feature off deletes anything still waiting.',
+      'Screenshot capture (optional, iPhone): the screenshot you send is passed to Anthropic’s Claude to read the amount and merchant, and is not stored by us. The result waits in the same way as Apple Pay payments.',
       'Data is hosted by Supabase (our database and sign-in provider). Google processes sign-in if you choose “Continue with Google”.',
     ],
   ],

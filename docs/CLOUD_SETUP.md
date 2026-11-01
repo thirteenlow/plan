@@ -60,3 +60,33 @@ Edits push about 1.5 s after you stop typing; other devices update live (Supabas
 check every minute and whenever the app comes to the foreground. If two people edit at once, changes are
 merged item by item (transactions, categories, assigned amounts…); if both changed the same item, the
 last device to save keeps its version.
+
+## Apple Pay auto-logging (optional)
+
+Lets an iPhone Shortcuts automation log every Apple Pay payment into Plan.
+
+1. In the Supabase SQL editor, run `supabase/003_payment_inbox.sql`.
+2. In the app: Settings → Automation → Apple Pay auto-log, then follow the steps. It creates a personal key and
+   shows the address and fields to paste into the Shortcut, plus a test button.
+
+Payments wait in `payment_inbox` (amount, merchant, card name only, not encrypted) until the app claims and
+deletes them on its next sync.
+
+## Screenshot capture (optional)
+
+A "Scan Payment" Shortcut screenshots a payment confirmation and sends it to the `scan-payment` Edge Function,
+which asks Claude to read the amount and merchant and puts the result in the same payment inbox. Uses the
+inbox key from above.
+
+1. Run `supabase/003_payment_inbox.sql` (if you haven't), then `supabase/004_screenshot_scan.sql`.
+2. Store the Claude credentials as function secrets (never in `.env` or the app):
+
+   ```bash
+   supabase secrets set ANTHROPIC_AUTH_TOKEN=<your gateway key> ANTHROPIC_BASE_URL=https://llm-gateway.aisg.sg/ ANTHROPIC_MODEL=claude-sonnet-4-6
+   ```
+
+   For the regular Anthropic API, set `ANTHROPIC_API_KEY` instead and leave out the base URL.
+3. Deploy without JWT checks (the inbox key is the auth): `supabase functions deploy scan-payment --no-verify-jwt`
+4. In the app: Settings → Automation → Screenshot capture.
+
+Each user gets 30 scans a day (`SCAN_DAILY_LIMIT` secret to change it). Screenshots aren't stored.

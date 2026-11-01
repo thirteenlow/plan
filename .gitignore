@@ -46,3 +46,6 @@ yarn-error.*
 
 # Netlify CLI link (local)
 .netlify/
+
+# Supabase CLI state
+supabase/.temp/
