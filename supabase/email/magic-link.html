@@ -1,0 +1,462 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>Your Plan sign-in code</title>
+
+  <style>
+    :root {
+      color-scheme: light only;
+      supported-color-schemes: light;
+    }
+
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: #F3F4F9;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .otp-code {
+      color: #1E2640 !important;
+      -webkit-text-fill-color: #1E2640;
+    }
+
+    @media screen and (max-width: 480px) {
+      .email-wrapper {
+        padding: 24px 12px !important;
+      }
+
+      .content-padding {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
+      }
+
+      .otp-code {
+        font-size: 30px !important;
+        letter-spacing: 7px !important;
+        padding-left: 7px !important;
+      }
+    }
+  </style>
+</head>
+
+<body
+  style="
+    margin:0;
+    padding:0;
+    background-color:#F3F4F9;
+    -webkit-text-size-adjust:100%;
+  "
+>
+
+  <!-- Inbox preview text -->
+  <div
+    style="
+      display:none;
+      max-height:0;
+      overflow:hidden;
+      opacity:0;
+      color:#F3F4F9;
+    "
+  >
+    Your sign-in code is {{ .Token }}.
+    It expires in 1 hour.
+  </div>
+
+  <!-- Main background -->
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    bgcolor="#F3F4F9"
+    style="background-color:#F3F4F9;"
+  >
+    <tr>
+      <td
+        align="center"
+        class="email-wrapper"
+        style="padding:40px 16px;"
+      >
+
+        <!-- Email container -->
+        <table
+          role="presentation"
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="max-width:480px;"
+        >
+
+          <!-- Logo + wordmark -->
+          <tr>
+            <td
+              align="center"
+              style="padding-bottom:24px;"
+            >
+
+              <table
+                role="presentation"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+              >
+                <tr>
+
+                  <!-- Logo -->
+                  <td
+                    width="44"
+                    height="44"
+                    align="center"
+                    valign="middle"
+                    bgcolor="#B65CF4"
+                    style="
+                      width:44px;
+                      height:44px;
+                      border-radius:14px;
+                      background-color:#B65CF4;
+                      background-image:linear-gradient(
+                        135deg,
+                        #3DB6F5 0%,
+                        #B65CF4 55%,
+                        #FF9A6A 100%
+                      );
+                    "
+                  >
+
+                    <table
+                      role="presentation"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="margin:0 auto;"
+                    >
+
+                      <tr>
+                        <td
+                          colspan="3"
+                          style="padding:0 0 3px 0;"
+                        >
+                          <div
+                            style="
+                              width:22px;
+                              height:5px;
+                              border-radius:3px;
+                              background-color:#FFFFFF;
+                            "
+                          ></div>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td
+                          colspan="3"
+                          style="padding:0 0 3px 0;"
+                        >
+                          <div
+                            style="
+                              width:16px;
+                              height:5px;
+                              border-radius:3px;
+                              background-color:#FFFFFF;
+                            "
+                          ></div>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td style="padding:0;">
+                          <div
+                            style="
+                              width:11px;
+                              height:5px;
+                              border-radius:3px;
+                              background-color:#FFFFFF;
+                            "
+                          ></div>
+                        </td>
+
+                        <td style="padding:0 0 0 4px;">
+                          <div
+                            style="
+                              width:5px;
+                              height:5px;
+                              border-radius:3px;
+                              background-color:#FFFFFF;
+                              opacity:0.85;
+                            "
+                          ></div>
+                        </td>
+
+                        <td style="width:2px;"></td>
+                      </tr>
+
+                    </table>
+                  </td>
+
+                  <!-- Brand name -->
+                  <td
+                    style="
+                      padding-left:12px;
+                      font-family:-apple-system,
+                        BlinkMacSystemFont,
+                        'Segoe UI',
+                        Roboto,
+                        Helvetica,
+                        Arial,
+                        sans-serif;
+                      font-size:24px;
+                      font-weight:800;
+                      letter-spacing:-0.5px;
+                      color:#1E2640;
+                    "
+                  >
+                    Plan
+                  </td>
+
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Main card -->
+          <tr>
+            <td
+              bgcolor="#FFFFFF"
+              style="
+                background-color:#FFFFFF;
+                border-radius:28px;
+                box-shadow:0 12px 32px rgba(91,99,134,0.10);
+                overflow:hidden;
+              "
+            >
+
+              <!-- Card contents -->
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+              >
+
+                <!-- Gradient top strip -->
+                <tr>
+                  <td
+                    height="6"
+                    bgcolor="#B65CF4"
+                    style="
+                      height:6px;
+                      line-height:6px;
+                      font-size:0;
+                      background-color:#B65CF4;
+                      background-image:linear-gradient(
+                        90deg,
+                        #3DB6F5 0%,
+                        #B65CF4 50%,
+                        #FF9A6A 100%
+                      );
+                    "
+                  >
+                    &nbsp;
+                  </td>
+                </tr>
+
+                <!-- Heading -->
+                <tr>
+                  <td
+                    class="content-padding"
+                    style="
+                      padding:36px 32px 8px 32px;
+                      font-family:-apple-system,
+                        BlinkMacSystemFont,
+                        'Segoe UI',
+                        Roboto,
+                        Helvetica,
+                        Arial,
+                        sans-serif;
+                    "
+                  >
+
+                    <h1
+                      style="
+                        margin:0 0 10px 0;
+                        font-size:24px;
+                        line-height:30px;
+                        font-weight:800;
+                        letter-spacing:-0.4px;
+                        color:#1E2640;
+                      "
+                    >
+                      Here’s your sign-in code
+                    </h1>
+
+                    <p
+                      style="
+                        margin:0;
+                        font-size:15px;
+                        line-height:23px;
+                        color:#4A536B;
+                      "
+                    >
+                      Enter this code in Plan to sign in.
+                      It works once and expires in 1 hour.
+                    </p>
+
+                  </td>
+                </tr>
+
+                <!-- OTP verification code -->
+                <tr>
+                  <td
+                    class="content-padding"
+                    style="padding:24px 32px;"
+                  >
+
+                    <table
+                      role="presentation"
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td
+                          align="center"
+                          bgcolor="#F4E9FE"
+                          style="
+                            padding:22px 12px;
+                            border-radius:20px;
+                            background-color:#F4E9FE;
+                            border:1px solid #EADCFD;
+                          "
+                        >
+
+                          <!-- OTP text -->
+                          <span
+                            class="otp-code"
+                            style="
+                              display:inline-block;
+                              font-family:'SF Mono',
+                                ui-monospace,
+                                Menlo,
+                                Consolas,
+                                'Courier New',
+                                monospace;
+                              font-size:34px;
+                              line-height:40px;
+                              font-weight:700;
+                              letter-spacing:10px;
+                              color:#1E2640 !important;
+                              -webkit-text-fill-color:#1E2640;
+                              padding-left:10px;
+                              white-space:nowrap;
+                            "
+                          >
+                            {{ .Token }}
+                          </span>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <!-- Security notice -->
+                <tr>
+                  <td
+                    class="content-padding"
+                    style="
+                      padding:0 32px 32px 32px;
+                      font-family:-apple-system,
+                        BlinkMacSystemFont,
+                        'Segoe UI',
+                        Roboto,
+                        Helvetica,
+                        Arial,
+                        sans-serif;
+                    "
+                  >
+
+                    <table
+                      role="presentation"
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="border-top:1px solid #E9EBF2;"
+                    >
+                      <tr>
+                        <td
+                          style="
+                            padding-top:20px;
+                            font-size:13px;
+                            line-height:20px;
+                            color:#9AA2B6;
+                          "
+                        >
+                          Didn’t ask for this?
+                          You can safely ignore this email.
+                          Nobody can sign in without this code.
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td
+              align="center"
+              style="
+                padding:24px 16px 0 16px;
+                font-family:-apple-system,
+                  BlinkMacSystemFont,
+                  'Segoe UI',
+                  Roboto,
+                  Helvetica,
+                  Arial,
+                  sans-serif;
+                font-size:12px;
+                line-height:18px;
+                color:#9AA2B6;
+              "
+            >
+
+              <strong style="color:#4A536B;">
+                Plan
+              </strong>
+
+              · Give every dollar a job
+
+              <br />
+
+              Your budgets are end-to-end encrypted.
+              We’ll never ask for your code.
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

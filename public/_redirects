@@ -1,0 +1,2 @@
+# Single-page app: every path loads the app, which then routes.
+/*  /index.html  200

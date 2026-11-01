@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Plan",
+    "slug": "plan-budget",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.planbudget.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#B65CF4",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.planbudget.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Plan",
+      "shortName": "Plan",
+      "themeColor": "#B65CF4",
+      "backgroundColor": "#F3F4F9"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Plan lets you attach receipt photos to transactions.",
+          "cameraPermission": "Plan uses the camera to photograph receipts."
+        }
+      ],
+      "expo-sharing"
+    ],
+    "scheme": "planbudget",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "38981fb8-f1c1-4c46-8be3-5c60b860da2e"
+      }
+    }
+  }
+}

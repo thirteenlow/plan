@@ -1,0 +1,8 @@
+# Netlify: free static hosting for the web app.
+# Option A (no Git): run `npm run build:web` locally and drag the `dist` folder onto https://app.netlify.com/drop
+# Option B (Git): connect the repo; set EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY in Site settings → Environment variables.
+# Routing and security headers live in public/_redirects and public/_headers (copied into dist), so both options use them.
+
+[build]
+  command = "npx expo export --platform web"
+  publish = "dist"
