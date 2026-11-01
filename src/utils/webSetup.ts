@@ -9,6 +9,24 @@ if (typeof document !== 'undefined') {
   const content = meta?.getAttribute('content') ?? '';
   if (ios && meta && !content.includes('maximum-scale')) meta.setAttribute('content', `${content}, maximum-scale=1`);
 
+  // Home Screen app on iPhone/iPad: iOS can report the page as shorter than the screen (by about the status bar's
+  // height), leaving a gap under the tab bar. The app fills the whole screen there, so size the page to it.
+  const standalone = (navigator as { standalone?: boolean }).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
+  if (ios && standalone) {
+    const fit = () => {
+      // iPhone apps are always full screen; iPad ones can be in a resizable window, so trust the window there.
+      const portrait = window.matchMedia('(orientation: portrait)').matches;
+      const screenH = /iPhone|iPod/.test(navigator.userAgent) ? (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) : 0;
+      const full = Math.max(window.innerHeight, document.documentElement.clientHeight, screenH);
+      document.documentElement.style.setProperty('--app-height', `${full}px`);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', () => setTimeout(fit, 250));
+    window.addEventListener('pageshow', fit);
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && fit());
+  }
+
   // When the keyboard closes, iOS can leave the page scrolled up. Put it back once focus leaves all text boxes.
   if (ios) {
     document.addEventListener('focusout', () => {

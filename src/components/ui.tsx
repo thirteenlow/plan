@@ -197,7 +197,7 @@ export function Button({
   const content = (
     <Row style={{ justifyContent: 'center', gap: 8, height: h, paddingHorizontal: small ? 14 : 20 }}>
       {loading ? <ActivityIndicator color={fg} /> : icon ? <Ionicons name={icon} size={small ? 16 : 18} color={fg} /> : null}
-      <Txt variant={small ? 'label' : 'strong'} style={{ color: fg }}>
+      <Txt variant={small ? 'label' : 'strong'} numberOfLines={1} style={{ color: fg, textAlign: 'center', flexShrink: 1 }}>
         {title}
       </Txt>
     </Row>

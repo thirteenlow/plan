@@ -1,6 +1,10 @@
 // Plan: screenshot capture. The "Scan Payment" iPhone Shortcut posts a screenshot of a payment screen here
 // (multipart form: token + image). Claude reads the amount and merchant, and the result lands in the same
 // payment inbox the app already imports from. The screenshot is never stored.
+// The app's "Scan receipt" button sends JSON instead ({ token, image: base64 or data URL, mode: 'read', categories,
+// accounts }) and gets the result back to fill in the transaction form, without anything going to the inbox. The
+// lists are just the names of the user's categories and accounts, so Claude can pick from them; the shortcut can't
+// send them (the server can't read the encrypted budget), so it gets a general category the app matches later.
 //
 // Deploy:  supabase functions deploy scan-payment --no-verify-jwt
 // Secrets: supabase secrets set ANTHROPIC_AUTH_TOKEN=… ANTHROPIC_BASE_URL=https://llm-gateway.aisg.sg/ ANTHROPIC_MODEL=claude-sonnet-4-6
@@ -10,7 +14,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const MAX_BYTES = 3_700_000; // Claude takes images up to 5 MB once base64-encoded
 const DAILY_LIMIT = Number(Deno.env.get('SCAN_DAILY_LIMIT') ?? 30);
-const SCREENSHOT_CARD = 'Screenshot'; // marks inbox rows that came from a scan (see src/cloud/inbox.ts)
+const SCREENSHOT_SOURCE = 'screenshot'; // marks inbox rows that came from a scan (see src/cloud/inbox.ts)
+const SCREENSHOT_CARD = 'Screenshot'; // the older marker, used until 008_scan_details.sql is run
 
 const anthropic = new Anthropic({
   apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? null,
@@ -29,13 +34,29 @@ const cors = {
 
 const reply = (status: number, body: Record<string, unknown>) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-const PROMPT = `This is a phone screenshot taken right after a payment (a payment confirmation, receipt, banking or wallet app, or checkout screen).
+/** The instructions; with the user's own category and account names when the app sends them. */
+function prompt(categories: string[], accounts: string[]) {
+  const category = categories.length
+    ? `the best fit for this purchase from the user's categories below, copied exactly, or "" if none fits.\n  Categories: ${JSON.stringify(categories)}`
+    : 'a short, everyday spending category in English, such as "Groceries", "Dining out", "Transport", "Shopping", "Bills", "Entertainment", "Health" or "Travel"';
+  const account = accounts.length
+    ? `which of the user's accounts below paid, copied exactly, judged from the card, bank or wallet shown (name or last 4 digits), or "" if the screen doesn't say.\n  Accounts: ${JSON.stringify(accounts)}`
+    : 'the card, bank or wallet shown as paying, short (e.g. "DBS Visa 1234", "GrabPay"), or "" if not shown';
+  return `This is a screenshot taken right after a payment (a payment confirmation, banking or wallet app, or checkout screen) or a photo of a receipt.
 Find the payment that was just made and return:
 - is_payment: false if the screen doesn't show a completed or pending payment
 - amount: the total paid as a plain number with a dot for decimals and no currency symbol or thousands separators (e.g. "1234.50")
 - currency: the ISO code if shown or obvious, otherwise ""
 - merchant: who was paid, as a short clean name (e.g. "Grab", "FairPrice Finest"), or "" if not shown
+- date: the payment date as YYYY-MM-DD if shown, otherwise ""
+- category: ${category}
+- account: ${account}
 If several amounts appear, use the final total actually charged, not subtotals, balances or rewards.`;
+}
+
+/** Names from the app: strings only, trimmed, short, and not too many. */
+const names = (v: unknown, max: number) =>
+  Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, 60)).filter(Boolean))].slice(0, max) : [];
 
 const SCHEMA = {
   type: 'object',
@@ -44,12 +65,15 @@ const SCHEMA = {
     amount: { type: 'string' },
     currency: { type: 'string' },
     merchant: { type: 'string' },
+    date: { type: 'string' },
+    category: { type: 'string' },
+    account: { type: 'string' },
   },
-  required: ['is_payment', 'amount', 'currency', 'merchant'],
+  required: ['is_payment', 'amount', 'currency', 'merchant', 'date', 'category', 'account'],
   additionalProperties: false,
 };
 
-type Scan = { is_payment: boolean; amount: string; currency: string; merchant: string };
+type Scan = { is_payment: boolean; amount: string; currency: string; merchant: string; date?: string; category?: string; account?: string };
 type Usage = { model: string; input_tokens: number; output_tokens: number };
 
 /** Claude accepts PNG, JPEG, GIF and WebP; Shortcuts doesn't always label the file, so sniff the bytes. */
@@ -67,7 +91,7 @@ function toBase64(bytes: Uint8Array) {
   return btoa(s);
 }
 
-async function readScreenshot(bytes: Uint8Array): Promise<{ scan: Scan; usage: Usage }> {
+async function readScreenshot(bytes: Uint8Array, categories: string[], accounts: string[]): Promise<{ scan: Scan; usage: Usage }> {
   const type = mediaType(bytes);
   if (!type) throw new Error('unsupported image');
   const res = await anthropic.messages.create({
@@ -79,7 +103,7 @@ async function readScreenshot(bytes: Uint8Array): Promise<{ scan: Scan; usage: U
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: type, data: toBase64(bytes) } },
-          { type: 'text', text: PROMPT },
+          { type: 'text', text: prompt(categories, accounts) },
         ],
       },
     ],
@@ -87,7 +111,7 @@ async function readScreenshot(bytes: Uint8Array): Promise<{ scan: Scan; usage: U
   // Real token counts, as billed (thinking tokens are included in output_tokens).
   const usage: Usage = { model: res.model, input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens };
   console.log(JSON.stringify({ event: 'scan_usage', ...usage }));
-  if (res.stop_reason === 'refusal') return { scan: { is_payment: false, amount: '', currency: '', merchant: '' }, usage };
+  if (res.stop_reason === 'refusal') return { scan: { is_payment: false, amount: '', currency: '', merchant: '', date: '' }, usage };
   const text = res.content.find((b) => b.type === 'text')?.text ?? '';
   return { scan: JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')) as Scan, usage };
 }
@@ -98,11 +122,24 @@ Deno.serve(async (req) => {
 
   let token = '';
   let bytes: Uint8Array | null = null;
+  let readOnly = false;
+  let categories: string[] = [];
+  let accounts: string[] = [];
   try {
-    const form = await req.formData();
-    token = String(form.get('token') ?? '').trim();
-    const image = form.get('image');
-    if (image instanceof File) bytes = new Uint8Array(await image.arrayBuffer());
+    if ((req.headers.get('content-type') ?? '').includes('application/json')) {
+      const body = (await req.json()) as { token?: string; image?: string; mode?: string; categories?: unknown; accounts?: unknown };
+      token = String(body.token ?? '').trim();
+      readOnly = body.mode === 'read';
+      categories = names(body.categories, 150);
+      accounts = names(body.accounts, 40);
+      const b64 = String(body.image ?? '').replace(/^data:[^,]*,/, '');
+      if (b64) bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+    } else {
+      const form = await req.formData();
+      token = String(form.get('token') ?? '').trim();
+      const image = form.get('image');
+      if (image instanceof File) bytes = new Uint8Array(await image.arrayBuffer());
+    }
   } catch {
     return reply(400, { error: 'Send a form with token and image.' });
   }
@@ -115,6 +152,7 @@ Deno.serve(async (req) => {
   if (error || !uid) {
     const msg = error?.message ?? '';
     if (/invalid key/.test(msg)) return reply(401, { error: 'Key not accepted. Copy the key from Plan again.' });
+    if (/pro required/.test(msg)) return reply(402, { error: 'Screenshot capture needs Plan Pro.' });
     if (/limit|full/.test(msg)) return reply(429, { error: msg.charAt(0).toUpperCase() + msg.slice(1) + '.' });
     console.error('begin_scan', msg);
     return reply(500, { error: 'Server error.' });
@@ -123,7 +161,7 @@ Deno.serve(async (req) => {
   let scan: Scan;
   let usage: Usage;
   try {
-    ({ scan, usage } = await readScreenshot(bytes));
+    ({ scan, usage } = await readScreenshot(bytes, categories, accounts));
   } catch (e) {
     if (e instanceof Error && e.message === 'unsupported image') return reply(415, { error: 'Send a PNG or JPEG screenshot.' });
     if (e instanceof Anthropic.RateLimitError) return reply(429, { error: 'Scanning is busy. Try again in a minute.' });
@@ -142,7 +180,21 @@ Deno.serve(async (req) => {
   if (!scan.is_payment || !Number(amount)) return reply(422, { error: 'No payment found on that screen.', usage });
 
   const merchant = scan.merchant.trim().slice(0, 120) || null;
-  const { error: insertError } = await admin.from('payment_inbox').insert({ user_id: uid, amount: amount.slice(0, 40), merchant, card: SCREENSHOT_CARD });
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(scan.date ?? '') ? scan.date : null;
+  // Only names that were actually offered (or, for the shortcut, a short free-form suggestion).
+  const pick = (v: string | undefined, list: string[]) => {
+    const t = (v ?? '').trim().slice(0, 60);
+    return list.length ? (list.find((x) => x === t) ?? null) : t || null;
+  };
+  const category = pick(scan.category, categories);
+  const account = pick(scan.account, accounts);
+  // From the app's Scan receipt button: just send back what was read.
+  if (readOnly) return reply(200, { ok: true, amount, currency: scan.currency, merchant, date, category, account, usage });
+
+  const row = { user_id: uid, amount: amount.slice(0, 40), merchant, card: account?.slice(0, 120) ?? null, category, paid_on: date, source: SCREENSHOT_SOURCE };
+  let { error: insertError } = await admin.from('payment_inbox').insert(row);
+  // 008_scan_details.sql not run yet: store it the old way.
+  if (insertError && /column/i.test(insertError.message)) ({ error: insertError } = await admin.from('payment_inbox').insert({ user_id: uid, amount: row.amount, merchant, card: SCREENSHOT_CARD }));
   if (insertError) {
     console.error('insert', insertError.message);
     return reply(500, { error: 'Server error.' });

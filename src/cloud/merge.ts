@@ -1,11 +1,14 @@
 import type { BudgetData } from '@/store/types';
 
-/** Fields that belong to each person rather than the shared budget (never uploaded). */
+/**
+ * Fields that belong to each person/device rather than the shared budget (never uploaded): the greeting name,
+ * the companion and notification choices. Everything else syncs, including pinned categories and the goal.
+ */
 export type SharedBudget = Omit<BudgetData, 'lastOpenedAt'>;
 
 export function sharedPart(b: BudgetData): SharedBudget {
   const { lastOpenedAt: _l, ...rest } = b;
-  const { ownerName: _o, pinnedCategoryIds: _p, currentGoalId: _g, ...settings } = b.settings;
+  const { ownerName: _o, pet: _pet, reminders: _rem, ...settings } = b.settings;
   return { ...rest, settings };
 }
 
@@ -17,8 +20,9 @@ export function withPersonal(shared: SharedBudget, local: BudgetData | undefined
     settings: {
       ...shared.settings,
       ownerName: local?.settings.ownerName,
-      pinnedCategoryIds: local?.settings.pinnedCategoryIds,
-      currentGoalId: local?.settings.currentGoalId,
+      // Personal: an older upload may still carry a pet, but this device's choice always wins.
+      pet: local?.settings.pet,
+      reminders: local?.settings.reminders,
     },
   };
 }
@@ -38,6 +42,17 @@ function pick<T>(base: T | undefined, local: T | undefined, remote: T | undefine
   if (deepEqual(local, base)) return remote;
   if (deepEqual(remote, base)) return local;
   return local;
+}
+
+/** Every shared setting, field by field (so new ones like the companion or Apple Pay account survive a sync). */
+function mergeSettings(base: SharedBudget['settings'], local: SharedBudget['settings'], remote: SharedBudget['settings']): SharedBudget['settings'] {
+  const keys = new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)] as (keyof SharedBudget['settings'])[]);
+  const out: Record<string, unknown> = {};
+  for (const k of keys) {
+    const v = pick(base[k], local[k], remote[k]);
+    if (v !== undefined) out[k] = v;
+  }
+  return { ...out, currency: out.currency ?? local.currency, dateFormat: out.dateFormat ?? local.dateFormat } as SharedBudget['settings'];
 }
 
 function mergeById<T extends { id: string }>(base: T[], local: T[], remote: T[]): T[] {
@@ -78,10 +93,7 @@ export function mergeBudgets(base: SharedBudget, local: SharedBudget, remote: Sh
     id: local.id,
     name: pick(base.name, local.name, remote.name)!,
     createdAt: pick(base.createdAt, local.createdAt, remote.createdAt)!,
-    settings: {
-      currency: pick(base.settings.currency, local.settings.currency, remote.settings.currency)!,
-      dateFormat: pick(base.settings.dateFormat, local.settings.dateFormat, remote.settings.dateFormat)!,
-    },
+    settings: mergeSettings(base.settings, local.settings, remote.settings),
     accounts: mergeById(base.accounts, local.accounts, remote.accounts),
     groups: mergeById(base.groups, local.groups, remote.groups),
     categories: mergeById(base.categories, local.categories, remote.categories),

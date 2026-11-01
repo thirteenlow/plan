@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import { FormatEditor, type FormatValue, guessFormat } from '@/components/FormatEditor';
 import { Screen } from '@/components/Screen';
 import { Button, notify, TextField, Txt } from '@/components/ui';
@@ -79,7 +80,7 @@ export default function Onboarding() {
   return (
     <Screen back={hasBudgets ? 'close' : undefined} maxWidth={420}>
       <View style={{ alignItems: 'center', marginTop: 12, marginBottom: 28 }}>
-        <Image source={require('../../assets/icon.png')} style={{ width: 64, height: 64, borderRadius: 20 }} accessibilityIgnoresInvertColors />
+        <BrandMark size={64} />
         <Txt variant="title" center style={{ marginTop: 18 }}>
           Name your plan
         </Txt>

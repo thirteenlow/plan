@@ -44,7 +44,20 @@
           "cameraPermission": "Plan uses the camera to photograph receipts."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F3F4F9",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0E111C"
+          }
+        }
+      ]
     ],
     "scheme": "planbudget",
     "extra": {

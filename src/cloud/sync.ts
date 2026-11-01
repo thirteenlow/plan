@@ -7,6 +7,8 @@ import type { SyncMeta } from '@/store/types';
 import { isValidBudget } from '@/utils/validation';
 import { friendlyError, useCloud } from './cloudStore';
 import { getIdentity } from './identity';
+import { syncReminders } from '@/notifications/reminders';
+import { refreshPlan, usePlan } from './pro';
 import { deepEqual, mergeBudgets, type SharedBudget, sharedPart, withPersonal } from './merge';
 import { importPayments } from './inbox';
 import { getSupabase } from './supabase';
@@ -115,6 +117,7 @@ export function startSync() {
 
 export function stopSync() {
   running = false;
+  usePlan.setState({ plan: 'free', expiresAt: null });
   unsubscribeStore?.();
   unsubscribeStore = null;
   if (channel) void getSupabase()?.removeChannel(channel);
@@ -176,6 +179,8 @@ function applyRemote(fn: () => void) {
 
 export async function pullAll() {
   if (!running) return;
+  // Pro is granted on the server; pick up changes on every sync.
+  void refreshPlan();
   try {
     const { user } = me();
     useCloud.setState({ syncing: true, error: null });
@@ -205,6 +210,8 @@ export async function pullAll() {
     uploadUnsynced();
     // Apple Pay payments logged by the iPhone Shortcut while the app was closed.
     await importPayments().catch(setError);
+    // Keep this device's upcoming reminders current (they depend on what's due, logged and overspent).
+    void syncReminders().catch(() => {});
   } catch (e) {
     setError(e);
   } finally {

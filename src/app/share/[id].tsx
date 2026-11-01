@@ -5,6 +5,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, IconBadge, IconButton, Row, TextField, Txt } from '@/components/ui';
 import { friendlyError, useCloud } from '@/cloud/cloudStore';
+import { requirePro } from '@/cloud/pro';
 import { inviteMember, leaveBudget, listMembers, type Member, removeMember, shareBudget, stopSharing } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { useTheme } from '@/theme';
@@ -119,6 +120,7 @@ export default function ShareBudgetScreen() {
             disabled={!EMAIL.test(email)}
             loading={busy === 'invite'}
             onPress={() =>
+              requirePro('sharing') &&
               run(
                 'invite',
                 async () => {

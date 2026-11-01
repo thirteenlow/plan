@@ -7,8 +7,9 @@ import { CopyRow } from '@/components/CopyRow';
 import { ActivationScreen, AddActionsScreen, AllSetScreen, NameScreen, NewShortcutScreen, ScanFieldsScreen, ScanLinkScreen } from '@/components/ScanMocks';
 import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
-import { Button, Card, FieldRow, haptic, notify, Row, Tap, Txt } from '@/components/ui';
+import { Button, Card, FieldRow, haptic, notify, Row, SectionTitle, Tap, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
+import { requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, scanPaymentUrl, scanScreenshot } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -60,6 +61,7 @@ export default function ScreenshotCaptureScreen() {
       notify('Sign in first', 'Screenshot capture works through your Plan account.');
       return false;
     }
+    if (!requirePro('screenshot')) return false;
     setBusy(true);
     try {
       setKey(await createInboxKey());
@@ -73,20 +75,29 @@ export default function ScreenshotCaptureScreen() {
   };
 
   const start = async () => {
+    if (!requirePro('screenshot')) return;
     if (!key && !(await makeKey())) return;
     haptic();
     setStep(1);
   };
 
+  /** Pick a screenshot or receipt photo and scan it, exactly like the Shortcut does. Works on any device. */
   const runTest = async () => {
-    if (!key) return;
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!requirePro('screenshot')) return;
+    let token = key;
+    if (!token) {
+      if (!(await makeKey())) return;
+      token = await getInboxKey();
+      if (!token) return;
+    }
+    // JPEG at 0.6 keeps receipt photos well under the size limit.
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6 });
     const asset = res.canceled ? null : res.assets[0];
     if (!asset) return;
     setTest('sending');
     setTestText(null);
     try {
-      const read = await scanScreenshot(key, { uri: asset.uri, name: asset.fileName ?? 'screenshot.jpg', type: asset.mimeType ?? 'image/jpeg', file: asset.file });
+      const read = await scanScreenshot(token, { uri: asset.uri, name: asset.fileName ?? 'screenshot.jpg', type: asset.mimeType ?? 'image/jpeg', file: asset.file });
       await importPayments();
       setTest('ok');
       setTestText(`Read ${read.currency ? `${read.currency} ` : ''}${read.amount}${read.merchant ? ` at ${read.merchant}` : ''}. It’s in Spending to review.${read.usage ? ` Used ${read.usage.input_tokens.toLocaleString()} input + ${read.usage.output_tokens.toLocaleString()} output tokens (${read.usage.model}).` : ''}`);
@@ -114,7 +125,7 @@ export default function ScreenshotCaptureScreen() {
     <Screen
       back="close"
       modal
-      title="Screenshot capture"
+      title="AI receipt scan"
       maxWidth={560}
       footer={
         step > 0 ? (
@@ -123,7 +134,7 @@ export default function ScreenshotCaptureScreen() {
             <Button title={isDone ? 'Done' : 'Next'} style={{ flex: 1.4 }} onPress={() => (isDone ? goBack() : setStep(step + 1))} />
           </Row>
         ) : (
-          <Button title={key ? 'Show me the steps' : 'Set it up'} loading={busy} onPress={() => void start()} />
+          <Button title={key ? 'Show me the iPhone steps' : 'Set up one-tap on iPhone'} loading={busy} onPress={() => void start()} />
         )
       }
     >
@@ -143,10 +154,23 @@ export default function ScreenshotCaptureScreen() {
               Screenshot it, and it’s logged
             </Txt>
           </View>
+          <Card style={{ gap: 10 }}>
+            <Row style={{ gap: 10 }}>
+              <Ionicons name={test === 'ok' ? 'checkmark-circle' : test === 'failed' ? 'alert-circle' : 'image-outline'} size={22} color={test === 'ok' ? colors.positive : test === 'failed' ? colors.danger : colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Txt variant="strong">Scan one now</Txt>
+                <Txt variant="caption" tone="soft">
+                  {testText ?? 'Upload a payment screenshot or a photo of a receipt. Works on any phone or computer.'}
+                </Txt>
+              </View>
+            </Row>
+            <Button title={test === 'sending' ? 'Reading…' : 'Choose image'} small variant="soft" icon="image-outline" loading={test === 'sending'} onPress={() => void runTest()} />
+          </Card>
+          <SectionTitle title="One tap on iPhone" />
           <Card style={{ gap: 14 }}>
             {(
               [
-                ['phone-portrait-outline', 'Capture any payment screen'],
+                ['hand-left-outline', 'Triple-tap the back of your iPhone (or press the Action Button) on any payment screen'],
                 ['sparkles-outline', 'AI reads the amount and merchant'],
                 ['flash-outline', 'Logged to Plan instantly'],
               ] as const
@@ -157,13 +181,19 @@ export default function ScreenshotCaptureScreen() {
               </Row>
             ))}
           </Card>
+          <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
+            <Txt variant="caption" tone="soft">
+              One-tap needs iPhone 8 or later · iOS 14+
+            </Txt>
+          </Row>
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              The screenshot goes to Claude (Anthropic) to read, and is never stored. Only the amount and merchant wait on the server until Plan picks them up.
+              The image goes to Claude (Anthropic) to read, and is never stored. Only what it read (amount, merchant, date, a suggested category and the card used) waits on the server until Plan picks it up.
             </Txt>
           </Row>
         </View>

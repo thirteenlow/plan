@@ -10,6 +10,7 @@ import { useUi } from '@/hooks/useBudget';
 import { useBudgetData } from '@/store/store';
 import { GRADIENT, RADIUS, useTheme } from '@/theme';
 import type { IconName } from '@/utils/icons';
+import { BrandMark } from './BrandMark';
 import { haptic, Tap, Txt } from './ui';
 
 export const TABS: { href: Href; path: string; label: string; icon: IconName; iconActive: IconName }[] = [
@@ -47,9 +48,9 @@ export function AppNav({ variant }: { variant: 'bar' | 'rail' }) {
   if (variant === 'rail') {
     return (
       <View style={{ width: 96, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20, alignItems: 'center', backgroundColor: colors.surface, borderRightWidth: 1, borderRightColor: colors.border }}>
-        <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
-          <Ionicons name="leaf" size={22} color="#FFF" />
-        </LinearGradient>
+        <View style={{ marginBottom: 28 }}>
+          <BrandMark size={44} />
+        </View>
         <View style={{ gap: 10 }}>
           {TABS.map((t) => {
             const active = isActive(t.path);

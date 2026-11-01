@@ -35,9 +35,10 @@
     <title>%WEB_TITLE%</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
+      /* --app-height: the real screen height, set by src/utils/webSetup.ts in the iPhone Home Screen app. */
       html,
       body {
-        height: 100%;
+        height: var(--app-height, 100%);
         min-height: 100dvh;
         margin: 0;
         background-color: #f3f4f9;
@@ -49,7 +50,7 @@
 
       #root {
         display: flex;
-        height: 100%;
+        height: var(--app-height, 100%);
         min-height: 100dvh;
         flex: 1;
         background-color: #f3f4f9;

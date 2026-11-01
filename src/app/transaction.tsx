@@ -2,7 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/utils/nav';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, TextInput, View } from 'react-native';
+import { useCloud } from '@/cloud/cloudStore';
+import { readReceipt } from '@/cloud/inbox';
+import { matchAccount, matchCategory, scanHints } from '@/utils/scanMatch';
+import { requirePro, useIsPro } from '@/cloud/pro';
 import { CalendarSheet } from '@/components/Calendar';
 import { useCalculator, useInputRef } from '@/components/Calculator';
 import { Screen } from '@/components/Screen';
@@ -33,7 +37,7 @@ interface SplitLine {
 /** Picker key for the "Refund" choice on inflows (opens the category list). */
 const REFUND = '__refund';
 
-type Picker = { kind: 'payee' } | { kind: 'category'; split?: string } | { kind: 'account' } | { kind: 'from' } | { kind: 'to' } | { kind: 'repeat' } | { kind: 'type' } | { kind: 'photo' } | null;
+type Picker = { kind: 'payee' } | { kind: 'category'; split?: string } | { kind: 'account' } | { kind: 'from' } | { kind: 'to' } | { kind: 'repeat' } | { kind: 'type' } | { kind: 'photo' } | { kind: 'scan' } | null;
 
 /** What the user is recording. Card payments and transfers are both transfers underneath. */
 type TxKind = 'spending' | 'inflow' | 'ccPayment' | 'transfer';
@@ -226,6 +230,53 @@ export default function TransactionScreen() {
     setPicker(null);
   };
 
+  // Scan receipt: AI reads a photo or screenshot and fills in the form; the image is kept as the receipt photo.
+  const [scanning, setScanning] = useState(false);
+  const cloudReady = useCloud((s) => s.status === 'ready');
+  const pro = useIsPro();
+  const startScan = () => {
+    if (!cloudReady) return notify('Sign in first', 'Receipt scanning works through your Plan account.');
+    if (requirePro('screenshot')) setPicker({ kind: 'scan' });
+  };
+  const scanReceipt = async (source: 'camera' | 'library') => {
+    setPicker(null);
+    try {
+      const d = await pickPhoto(source);
+      if (!d) return;
+      setScanning(true);
+      const r = await readReceipt(d, scanHints(data));
+      const milli = Math.round(Number(r.amount) * 1000);
+      if (milli > 0) setAmount(milliToInput(milli));
+      setDirection('out');
+      if (r.merchant) {
+        const known = data.payees.find((x) => x.name.toLowerCase() === r.merchant!.toLowerCase());
+        if (known) selectPayee(known.id);
+        else {
+          setTransferId(undefined);
+          setPayeeId(null);
+          setPayeeName(sanitizeText(r.merchant, LIMITS.payeeName));
+        }
+      }
+      // Category: this payee's usual one if it has one, otherwise the AI's pick from your categories.
+      const known = r.merchant ? data.payees.find((x) => x.name.toLowerCase() === r.merchant!.toLowerCase()) : undefined;
+      const usual = known?.lastCategoryId && known.lastCategoryId !== RTA ? known.lastCategoryId : null;
+      const cat = usual ?? matchCategory(data, r.category);
+      if (cat && !splits) setCategoryId(cat);
+      // Account: the card or wallet the receipt shows, if it's one of yours.
+      const acct = matchAccount(data, r.account);
+      if (acct) setAccountId(acct);
+      if (r.date && r.date <= today()) setDate(r.date);
+      setPhoto((p) => ({ ...p, pending: d }));
+      haptic('success');
+      if (r.currency && r.currency !== c.code) notify('Check the amount', `The receipt is in ${r.currency}, and this budget uses ${c.code}.`);
+    } catch (e) {
+      haptic('warning');
+      notify('Couldn’t read that', e instanceof Error ? e.message : undefined);
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const save = async () => {
     if (!account) return notify('Choose an account');
     const parsed = parseMoney(amount);
@@ -337,6 +388,27 @@ export default function TransactionScreen() {
       }
     >
 
+      {!existing && !sched && kind === 'spending' && (
+        <Tap
+          onPress={startScan}
+          disabled={scanning}
+          accessibilityRole="button"
+          accessibilityLabel="Scan a receipt or screenshot"
+          style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: colors.accentSoft }}
+        >
+          {scanning ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="scan-outline" size={16} color={colors.accent} />}
+          <Txt variant="label" tone="accent">
+            {scanning ? 'Reading…' : 'Scan receipt'}
+          </Txt>
+          {!pro && (
+            <View style={{ backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
+              <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
+                PRO
+              </Txt>
+            </View>
+          )}
+        </Tap>
+      )}
       <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: RADIUS.pill, paddingHorizontal: 30, marginVertical: 22, minWidth: 220, justifyContent: 'center' }}>
         <Txt variant="h2" tone="muted">
           {direction === 'out' ? '−' : '+'}
@@ -563,6 +635,15 @@ export default function TransactionScreen() {
           setTo(k);
           setPicker(null);
         }}
+      />
+      <ActionSheet
+        visible={picker?.kind === 'scan'}
+        onClose={() => setPicker(null)}
+        title="Scan a receipt"
+        actions={[
+          { label: 'Take photo', icon: 'camera-outline', onPress: () => void scanReceipt('camera') },
+          { label: 'Choose screenshot or photo', icon: 'images-outline', onPress: () => void scanReceipt('library') },
+        ]}
       />
       <ActionSheet
         visible={picker?.kind === 'photo'}

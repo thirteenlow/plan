@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandMark } from '@/components/BrandMark';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, ProgressBar, Row, Tap, TextField, Txt } from '@/components/ui';
 import { completeSetup, completeUnlock, deleteAccount, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
@@ -183,7 +184,7 @@ function SignIn() {
       >
         <View style={{ flex: 1, width: '100%', maxWidth: 400, alignSelf: 'center' }}>
           <View style={{ flex: 1, minHeight: 260, alignItems: 'center', justifyContent: 'center' }}>
-            <Image source={require('../../assets/icon.png')} style={{ width: 84, height: 84, borderRadius: 26 }} accessibilityIgnoresInvertColors />
+            <BrandMark size={84} />
             <Txt variant="display" style={{ marginTop: 20 }}>
               Plan
             </Txt>

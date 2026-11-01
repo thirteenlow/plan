@@ -6,12 +6,14 @@ import { Screen } from '@/components/Screen';
 import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
-import { Button, Card, Divider, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
+import { Button, Card, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
+import { requirePro, usePlan } from '@/cloud/pro';
+import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
 import { LIMITS } from '@/utils/validation';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { ThemePref } from '@/store/types';
-import { useTheme } from '@/theme';
+import { RADIUS, useTheme } from '@/theme';
 import { shortDate, today } from '@/utils/date';
 import { exportBudget, pickImport } from '@/utils/importExport';
 import { formatMoney } from '@/utils/money';
@@ -19,6 +21,7 @@ import type { IconName } from '@/utils/icons';
 
 export default function SettingsScreen() {
   const data = useActiveBudget();
+  const { colors } = useTheme();
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -50,9 +53,41 @@ export default function SettingsScreen() {
   };
 
   const unapproved = data.transactions.filter((t) => !t.approved).length;
+  const { plan, expiresAt } = usePlan();
+  const pro = plan !== 'free';
+  const planUntil = expiresAt ? shortDate(expiresAt.slice(0, 10), data.settings.dateFormat) : null;
 
   return (
     <Screen back="back" title="Settings">
+      {pro ? (
+        // Pro members get a membership card instead of an upgrade row.
+        <Tap scale accessibilityRole="button" accessibilityLabel="Plan Pro membership" onPress={() => router.push('/pro')} style={{ marginTop: 18 }}>
+          <GradientCard style={{ padding: 18 }}>
+            <Row style={{ gap: 14 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="sparkles" size={22} color={colors.onGradient} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt variant="label" style={{ color: colors.onGradient, opacity: 0.85 }}>
+                  {plan === 'trial' ? 'PRO TRIAL' : 'PRO MEMBER'}
+                </Txt>
+                <Txt variant="h3" style={{ color: colors.onGradient }}>
+                  Plan Pro
+                </Txt>
+                <Txt variant="caption" style={{ color: colors.onGradient, opacity: 0.9 }}>
+                  {plan === 'trial' ? (planUntil ? `Trial ends ${planUntil}` : 'Trial active') : planUntil ? `Active until ${planUntil}` : 'Active · no end date'}
+                </Txt>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.onGradient} />
+            </Row>
+          </GradientCard>
+        </Tap>
+      ) : (
+        <Group title="Plan Pro">
+          <Item icon="sparkles-outline" label="Plan Pro" value="Upgrade" onPress={() => router.push('/pro')} />
+        </Group>
+      )}
+
       <Group title="Budget">
         <Item icon="albums-outline" label="Budgets" value={data.name} onPress={() => router.push('/budgets')} />
         <Item icon="grid-outline" label="Categories & groups" value={`${data.categories.length}`} onPress={() => router.push('/categories')} />
@@ -69,6 +104,7 @@ export default function SettingsScreen() {
       </Group>
 
       <Group title="Preferences">
+        <Item icon="notifications-outline" label="Notifications" value={data.settings.reminders?.on ? 'On' : 'Off'} onPress={() => router.push('/notifications')} />
         <Item icon="person-outline" label="Your name" value={data.settings.ownerName || 'Not set'} onPress={() => setNameDraft(data.settings.ownerName ?? '')} />
         <View style={{ paddingVertical: 10, gap: 10 }}>
           <Txt variant="body">Appearance</Txt>
@@ -85,9 +121,18 @@ export default function SettingsScreen() {
         <Item icon="cash-outline" label="Currency & formats" value={`${data.settings.currency.code} · ${formatMoney(1234567, { c: data.settings.currency })} · ${shortDate(today(), data.settings.dateFormat)}`} onPress={() => router.push('/format')} />
       </Group>
 
+      <Group title="Companion">
+        <Item
+          icon="paw-outline"
+          label={data.settings.pet ? data.settings.pet.name : 'Pick a companion'}
+          value={data.settings.pet ? `${petInfo(data.settings.pet.kind).label} · ${data.settings.pet.hidden ? 'Hidden' : 'Roaming'}` : 'A pet that reacts to your spending'}
+          onPress={() => router.push('/pet')}
+        />
+      </Group>
+
       <Group title="Automation">
-        <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone" onPress={() => router.push('/apple-pay')} />
-        <Item icon="scan-outline" label="Screenshot capture" value="iPhone" onPress={() => router.push('/screenshot-capture')} />
+        <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
+        <Item icon="scan-outline" label="AI receipt scan" value="Any device" pro={!pro} onPress={() => requirePro('screenshot') && router.push('/screenshot-capture')} />
       </Group>
 
       <Group title="Data">
@@ -143,7 +188,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Item({ icon, label, value, onPress }: { icon: IconName; label: string; value?: string; onPress?: () => void }) {
+function Item({ icon, label, value, onPress, pro }: { icon: IconName; label: string; value?: string; onPress?: () => void; pro?: boolean }) {
   const { colors } = useTheme();
   return (
     <Tap onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 }}>
@@ -153,6 +198,13 @@ function Item({ icon, label, value, onPress }: { icon: IconName; label: string; 
       <Txt variant="body" style={{ flex: 1 }}>
         {label}
       </Txt>
+      {pro && (
+        <View style={{ backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 7, paddingVertical: 1 }}>
+          <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
+            PRO
+          </Txt>
+        </View>
+      )}
       {!!value && (
         <Txt variant="caption" tone="muted" numberOfLines={1} style={{ maxWidth: '45%' }}>
           {value}

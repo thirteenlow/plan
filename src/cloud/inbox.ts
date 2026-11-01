@@ -9,6 +9,8 @@ import { secretStore } from '@/security/deviceKey';
 import { useStore } from '@/store/store';
 import { RTA, type BudgetData } from '@/store/types';
 import { parseAmountText } from '@/utils/budgetCsv';
+import { addDays } from '@/utils/date';
+import { matchAccount, matchCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
 import { useCloud } from './cloudStore';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
@@ -66,7 +68,9 @@ export async function sendTestPayment(token: string) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(/invalid key/i.test(text) ? 'The key wasn’t accepted. Create a new one and update your Shortcut.' : `The server said no (${res.status}).`);
+    throw new Error(
+      /pro required/i.test(text) ? 'Apple Pay auto-log needs Plan Pro.' : /invalid key/i.test(text) ? 'The key wasn’t accepted. Create a new one and update your Shortcut.' : `The server said no (${res.status}).`,
+    );
   }
 }
 
@@ -90,6 +94,26 @@ export async function scanScreenshot(token: string, image: { uri: string; name: 
   if (res.status === 404) throw new Error('The scan-payment function isn’t deployed yet.');
   if (!res.ok) throw new Error(body.error ?? `The server said no (${res.status}).`);
   return body;
+}
+
+/**
+ * The Add transaction screen's "Scan receipt": reads a photo or screenshot (a JPEG data URL) and returns what it
+ * found, without logging anything. Creates this device's key the first time.
+ */
+export type ReceiptRead = { amount: string; merchant: string | null; currency: string; date: string | null; category: string | null; account: string | null };
+
+/** `hints`: the names of the user's categories and accounts, so the AI picks from them (see scanHints). */
+export async function readReceipt(dataUrl: string, hints?: { categories: string[]; accounts: string[] }): Promise<ReceiptRead> {
+  const token = (await getInboxKey()) ?? (await createInboxKey());
+  const res = await fetch(scanPaymentUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, image: dataUrl, mode: 'read', ...hints }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { error?: string } & Partial<Record<keyof ReceiptRead, string | null>>;
+  if (res.status === 404) throw new Error('Receipt scanning isn’t set up on the server yet.');
+  if (!res.ok || !body.amount) throw new Error(body.error ?? `The server said no (${res.status}).`);
+  return { amount: body.amount, merchant: body.merchant ?? null, currency: body.currency ?? '', date: body.date ?? null, category: body.category ?? null, account: body.account ?? null };
 }
 
 /** Picks the account for a Wallet card: a name match, then the chosen default, then the first card/checking account. */
@@ -123,25 +147,32 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
     }
     let imported = 0;
     let tests = 0;
-    for (const row of (rows ?? []) as { amount: string; merchant: string | null; card: string | null; created_at: string }[]) {
+    type Row = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
+    for (const row of (rows ?? []) as Row[]) {
       if (row.merchant === TEST_MERCHANT) {
         tests++;
         continue;
       }
       const amount = Math.abs(parseAmountText(row.amount));
-      const accountId = accountForCard(data, row.card === SCREENSHOT_CARD ? null : row.card);
+      const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
+      const cardName = row.card === SCREENSHOT_CARD ? null : row.card;
+      // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
+      const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
       if (!amount || !accountId) continue;
       const when = new Date(row.created_at);
-      const date = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
-      const scanned = row.card === SCREENSHOT_CARD;
+      const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
+      // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
+      const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
       const merchant = row.merchant?.trim() || (scanned ? 'Payment' : 'Apple Pay');
       const payee = useStore.getState().budgets[data.id]?.payees.find((p) => p.name.toLowerCase() === merchant.toLowerCase());
+      // Category: what this payee was last filed under; otherwise the scan's suggestion matched to your categories.
+      const known = payee?.lastCategoryId && payee.lastCategoryId !== RTA ? payee.lastCategoryId : null;
       useStore.getState().saveTransaction({
         accountId,
         date,
         amount: -amount,
         payeeName: merchant,
-        categoryId: payee?.lastCategoryId && payee.lastCategoryId !== RTA ? payee.lastCategoryId : null,
+        categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
         memo: scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay',
         cleared: 'uncleared',
         approved: false,

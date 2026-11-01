@@ -78,7 +78,8 @@ A "Scan Payment" Shortcut screenshots a payment confirmation and sends it to the
 which asks Claude to read the amount and merchant and puts the result in the same payment inbox. Uses the
 inbox key from above.
 
-1. Run `supabase/003_payment_inbox.sql` (if you haven't), then `supabase/004_screenshot_scan.sql`.
+1. Run `supabase/003_payment_inbox.sql` (if you haven't), then `supabase/004_screenshot_scan.sql` and
+   `supabase/008_scan_details.sql` (lets shortcut scans carry a suggested category, the date and the card used).
 2. Store the Claude credentials as function secrets (never in `.env` or the app):
 
    ```bash
@@ -90,3 +91,56 @@ inbox key from above.
 4. In the app: Settings → Automation → Screenshot capture.
 
 Each user gets 30 scans a day (`SCAN_DAILY_LIMIT` secret to change it). Screenshots aren't stored.
+
+## Plan Pro (optional)
+
+Pro unlocks Apple Pay auto-log, AI receipt scan, inviting people to shared budgets, unlimited budgets (free: 2)
+and every companion (free: cat, dog, bunny). People can start a 14-day free trial themselves (once, no card).
+
+1. Run `supabase/005_pro.sql`, then `supabase/007_stripe_trial.sql`. The server then requires Pro for the
+   automation features and for invites.
+2. Stripe (free to set up; Stripe takes a fee per payment):
+   - Create a product "Plan Pro" with two recurring prices: monthly and yearly. Copy their `price_…` IDs.
+   - Developers → API keys: copy the secret key (`sk_live_…`, or `sk_test_…` to try it first).
+   - Settings → Billing → Customer portal: turn it on (lets people cancel, switch plans and update cards).
+   - Deploy the two functions and set their secrets:
+
+     ```bash
+     supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_PRICE_MONTHLY=price_... STRIPE_PRICE_YEARLY=price_... APP_URL=https://dearplan.netlify.app
+     supabase functions deploy stripe-checkout --no-verify-jwt
+     supabase functions deploy stripe-webhook --no-verify-jwt
+     ```
+
+   - Developers → Webhooks → Add endpoint: `https://YOUR-PROJECT.supabase.co/functions/v1/stripe-webhook`, events
+     `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`,
+     `customer.subscription.deleted`. Copy its signing secret, then
+     `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
+   - For the payment form inside the web app (no redirect), put the publishable key (`pk_…`) in `.env` as
+     `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` and rebuild. Without it, Subscribe opens Stripe's own page. Phones always
+     use Stripe's page in an in-app browser. Cancelling (and resuming) happens inside Plan: it cancels at the end of
+     the paid period through the Stripe API. "Manage billing" opens Stripe for cards and invoices.
+3. Pro turns on as soon as Stripe confirms the payment, stays on until the end of each paid period (plus 3 days'
+   grace if a renewal fails while Stripe retries), and turns off when the subscription ends. Keep the prices
+   shown in `src/cloud/pro.ts` in step with Stripe.
+4. To give someone Pro without paying (friends, testers), use the lines at the bottom of `005_pro.sql`. Change the
+   trial length in `pro_trial_days()` (0 turns trials off).
+
+## Notifications and reminders (optional, free)
+
+Web push for the web app: Android, desktop browsers, and iPhone/iPad from iOS 16.4 once Plan is added to the
+Home Screen. Each device works out its own reminders (bills due, payments to review, money to assign,
+overspending, a daily nudge, a monthly recap) and uploads only the times and short, generic text.
+
+1. Run `supabase/006_reminders.sql`.
+2. Make a key pair once: `npx web-push generate-vapid-keys`.
+3. Function secrets, then deploy:
+
+   ```bash
+   supabase secrets set VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com CRON_SECRET=<any long random string>
+   supabase functions deploy send-reminders --no-verify-jwt
+   ```
+
+4. Put the public key in `.env` as `EXPO_PUBLIC_VAPID_PUBLIC_KEY`, and rebuild the web app.
+5. Turn on the pg_cron and pg_net extensions, fill in your project URL and `CRON_SECRET` in the cron block at the
+   bottom of `006_reminders.sql`, and run it.
+6. In the app: Settings → Notifications.

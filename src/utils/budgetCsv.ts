@@ -101,8 +101,18 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // ---------- export ----------
 
 export function csvFileStem(data: BudgetData, today: string): string {
-  const safe = data.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Budget';
-  return `${safe} as of ${today}`;
+  return `${safeFileName(data.name) || 'Budget'} as of ${today}`;
+}
+
+/** A budget name made safe and tidy for a file name: plain apostrophes, no stray brackets or symbols, single spaces. */
+export function safeFileName(name: string): string {
+  let out = name
+    .normalize('NFC')
+    .replace(/[‘’`´]/g, "'")
+    .replace(/[^\p{L}\p{N}\s'&.,_()+-]/gu, ' ');
+  // Drop brackets that don't pair up (e.g. a lone ")").
+  while (/\([^()]*$/.test(out) || /^[^(]*\)/.test(out)) out = out.replace(/\(([^()]*)$/, '$1').replace(/^([^(]*)\)/, '$1');
+  return out.replace(/\(\s*\)/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[.\s]+|[.\s]+$/g, '');
 }
 
 /** Builds Register.csv and Plan.csv for a budget. */

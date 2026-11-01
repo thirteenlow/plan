@@ -15,6 +15,7 @@ import { initCloud } from '@/cloud';
 import { DialogHost } from '@/components/Dialog';
 import '@/utils/webSetup';
 import { useStore } from '@/store/store';
+import { useWebChrome } from '@/hooks/useWebChrome';
 import { useTheme } from '@/theme';
 
 export default function RootLayout() {
@@ -28,6 +29,7 @@ export default function RootLayout() {
   const hydrated = useStore((s) => s.hydrated);
   const activeBudgetId = useStore((s) => s.activeBudgetId);
   const { colors, isDark } = useTheme();
+  useWebChrome(isDark, colors.bg);
 
   // Restore the cloud session (if configured) once local data has loaded.
   useEffect(() => {
@@ -71,6 +73,9 @@ export default function RootLayout() {
           <Stack.Screen name="target/[id]" options={modal} />
           <Stack.Screen name="apple-pay" options={modal} />
           <Stack.Screen name="screenshot-capture" options={modal} />
+          <Stack.Screen name="pet" options={modal} />
+          <Stack.Screen name="pro" options={modal} />
+          <Stack.Screen name="notifications" options={modal} />
           <Stack.Screen name="move-money" options={modal} />
           <Stack.Screen name="reconcile/[id]" options={modal} />
         </Stack>

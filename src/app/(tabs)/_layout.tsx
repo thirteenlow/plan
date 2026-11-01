@@ -4,6 +4,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNav, TAB_BAR_HEIGHT, TransactionButton } from '@/components/AppNav';
+import { RoamingPet } from '@/components/Pet';
 import { useAccountGate } from '@/cloud/gate';
 import { useBudgetData } from '@/store/store';
 import { useLayout, useTheme } from '@/theme';
@@ -30,9 +31,11 @@ export default function TabsLayout() {
           <Tabs.Screen name="reflect" options={{ title: 'Reflect' }} />
         </Tabs>
         {isTablet && <TransactionButton bottom={insets.bottom + 24} />}
+        {isTablet && <RoamingPet bottom={insets.bottom + 24} right={200} />}
       </View>
       {!isTablet && <AppNav variant="bar" />}
       {!isTablet && <TransactionButton bottom={barHeight + 12} />}
+      {!isTablet && <RoamingPet bottom={barHeight + 14} right={180} />}
     </View>
   );
 }

@@ -8,6 +8,7 @@ import { PickerSheet } from '@/components/Sheet';
 import { SHORTCUT_MOCKS } from '@/components/ShortcutMocks';
 import { Button, Card, confirm, Divider, FieldRow, haptic, notify, Row, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
+import { requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, removeInboxKey, sendTestPayment } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -55,6 +56,7 @@ export default function ApplePayScreen() {
 
   const start = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
+    if (!requirePro('applePay')) return;
     if (!key) {
       setBusy(true);
       try {
@@ -71,6 +73,7 @@ export default function ApplePayScreen() {
 
   const makeKey = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
+    if (!requirePro('applePay')) return;
     setBusy(true);
     try {
       setKey(await createInboxKey());
@@ -156,6 +159,12 @@ export default function ApplePayScreen() {
             <Txt tone="soft" center>
               An iPhone automation sends each Apple Pay payment to Plan. It shows up in Spending to review the next time you open the app.
             </Txt>
+            <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
+              <Txt variant="caption" tone="soft">
+                iPhone only · iOS 17 or later
+              </Txt>
+            </Row>
           </View>
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />

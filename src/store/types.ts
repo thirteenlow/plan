@@ -150,6 +150,8 @@ export interface CurrencyFormat {
   showSymbol?: boolean;
 }
 
+export type PetKind = 'cat' | 'dog' | 'bunny' | 'fox' | 'panda' | 'frog' | 'penguin' | 'hamster';
+
 export interface BudgetSettings {
   currency: CurrencyFormat;
   dateFormat: DateFormat;
@@ -159,6 +161,28 @@ export interface BudgetSettings {
   currentGoalId?: string;
   /** Apple Pay auto-logging: account used when a Wallet card's name doesn't match an account */
   payAccountId?: string;
+  /** Companion that roams the app and reacts to the budget (src/engine/pet.ts). Personal: kept on this device, never synced. */
+  pet?: { kind: PetKind; name: string; hidden?: boolean };
+  /** Notification choices (src/notifications/reminders.ts). Personal: kept on this device, never synced. */
+  reminders?: ReminderPrefs;
+}
+
+export interface ReminderPrefs {
+  on: boolean;
+  daily: boolean;
+  /** HH:MM, local time */
+  dailyTime: string;
+  bills: boolean;
+  review: boolean;
+  assign: boolean;
+  overspent: boolean;
+  recap: boolean;
+  /** No notifications between quietStart and quietEnd (HH:MM, local; may wrap past midnight) */
+  quiet: boolean;
+  quietStart?: string;
+  quietEnd?: string;
+  /** Include amounts and names (off: generic text only) */
+  details: boolean;
 }
 
 export interface BudgetData {
