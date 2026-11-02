@@ -92,7 +92,7 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
   if (prefs.daily) {
     const loggedToday = data.transactions.some((t) => t.date === todayISO);
     for (let d = loggedToday ? 1 : 0; d < 7; d++) {
-      add(at(addDays(todayISO, d), prefs.dailyTime), 'daily', 'Log today’s spending', pet ? `${pet.name} wants to hear how today went. It takes 10 seconds.` : 'Anything spent today? It takes 10 seconds.', undefined, '/transaction');
+      add(at(addDays(todayISO, d), prefs.dailyTime), 'daily', 'Log today’s spending', pet ? `${pet.name} wants to hear about today.` : 'Anything spent today?', undefined, '/transaction');
     }
   }
 
@@ -101,26 +101,26 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
     for (const s of data.scheduled) {
       if (s.amount >= 0 || s.nextDate < todayISO || s.nextDate > addDays(todayISO, 8)) continue;
       const payee = s.payeeId ? data.payees.find((p) => p.id === s.payeeId)?.name : undefined;
-      add(at(addDays(s.nextDate, -1), '09:00'), 'bill', 'Bill due tomorrow', 'A scheduled payment is due tomorrow.', `${payee ?? 'A payment'} · ${fmt(-s.amount)} is due tomorrow.`, '/scheduled');
+      add(at(addDays(s.nextDate, -1), '09:00'), 'bill', 'Bill due tomorrow', 'A scheduled payment is coming up.', `${payee ?? 'Payment'} · ${fmt(-s.amount)}`, '/scheduled');
     }
   }
 
   // Auto-logged or scanned payments waiting for review.
   const waiting = data.transactions.filter((t) => !t.approved).length;
   if (prefs.review && waiting > 0) {
-    add(nextAt(now, '18:00'), 'review', 'Payments to review', 'Some logged payments are waiting for you to check.', `${waiting} ${waiting === 1 ? 'payment is' : 'payments are'} waiting for you to check.`, '/spending');
+    add(nextAt(now, '18:00'), 'review', 'Payments to review', 'Tap to check them in Spending.', `${waiting} waiting in Spending`, '/spending');
   }
 
   const month = currentMonth();
   const mb = getMonth(computeBudget(data, month), month);
   if (prefs.assign && mb.readyToAssign > 0) {
-    add(nextAt(now, '10:00'), 'assign', 'Money to assign', 'You have money waiting for a job.', `${fmt(mb.readyToAssign)} is waiting for a job.`, '/plan');
+    add(nextAt(now, '10:00'), 'assign', 'Money to assign', 'Give your new money a job.', `${fmt(mb.readyToAssign)} ready to assign`, '/plan');
   }
 
   if (prefs.overspent) {
     const mood = petMood(data, month, today(), fmt);
     if (mb.overspentCount > 0 || mood.mood === 'worried' || mood.mood === 'stressed') {
-      add(nextAt(now, '19:00'), 'overspent', pet ? `${pet.name} is worried` : 'Budget needs a look', 'Something went over budget this month. Tap to sort it out.', mood.reasons[0]?.text, '/plan');
+      add(nextAt(now, '19:00'), 'overspent', pet ? `${pet.name} is worried` : 'Over budget', 'A category went over. Tap to fix it.', mood.reasons[0]?.text, '/plan');
     }
   }
 

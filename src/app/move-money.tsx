@@ -117,8 +117,22 @@ export default function MoveMoneyScreen() {
       {calc.bar && <View style={{ marginTop: -12, marginBottom: 18 }}>{calc.bar}</View>}
       <View style={{ gap: 10 }}>
         <FieldRow icon="arrow-up-circle-outline" label="From" value={nameOf(from) ? `${nameOf(from)} · ${formatMoney(availableOf(from))}` : undefined} placeholder="Choose where the money comes from" onPress={() => setPicker('from')} />
-        <View style={{ alignItems: 'center' }}>
-          <Ionicons name="arrow-down" size={18} color={colors.muted} />
+        {/* Tap to swap From and To. */}
+        <View style={{ alignItems: 'center', marginVertical: -4, zIndex: 1 }}>
+          <Tap
+            scale
+            onPress={() => {
+              haptic();
+              setFrom(to);
+              setTo(from);
+            }}
+            disabled={!from && !to}
+            accessibilityRole="button"
+            accessibilityLabel="Swap from and to"
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft, borderWidth: 3, borderColor: colors.bg }}
+          >
+            <Ionicons name="swap-vertical" size={18} color={colors.accent} />
+          </Tap>
         </View>
         <FieldRow icon="arrow-down-circle-outline" label="To" value={nameOf(to) ? `${nameOf(to)} · ${formatMoney(availableOf(to))}` : undefined} placeholder="Choose a category" onPress={() => setPicker('to')} />
       </View>

@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
     const results = await Promise.all(
       ((data ?? []) as (Target & { details: boolean })[]).map((d) =>
         push(d, {
-          title: test ? 'Plan is connected' : body.scanned ? 'Receipt logged' : 'Payment logged',
-          body: test ? 'Test payment received. Real payments will show up like this.' : d.details && what ? `${what}. Tap to review.` : 'A payment was added to Plan. Tap to review.',
+          title: test ? 'Notifications work' : body.scanned ? 'Receipt logged' : 'Payment logged',
+          body: test ? 'Your payments will show up here.' : d.details && what ? what : 'Tap to review it in Spending.',
           url: '/spending',
         }),
       ),

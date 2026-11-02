@@ -111,7 +111,7 @@ and every companion (free: cat, dog, bunny). People can start a 14-day free tria
    - Deploy the two functions and set their secrets:
 
      ```bash
-     supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_PRICE_MONTHLY=price_... STRIPE_PRICE_YEARLY=price_... APP_URL=https://dearplan.netlify.app
+     supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_PRICE_MONTHLY=price_... STRIPE_PRICE_YEARLY=price_... APP_URL=https://dearplan.vercel.app
      supabase functions deploy stripe-checkout --no-verify-jwt
      supabase functions deploy stripe-webhook --no-verify-jwt
      ```

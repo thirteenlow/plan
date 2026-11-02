@@ -9,7 +9,7 @@
 // it's APP_URL or a localhost address; anything else falls back to APP_URL.
 //
 // Deploy:  supabase functions deploy stripe-checkout --no-verify-jwt   (it checks the user's session itself)
-// Secrets: supabase secrets set STRIPE_SECRET_KEY=sk_… STRIPE_PRICE_MONTHLY=price_… STRIPE_PRICE_YEARLY=price_… APP_URL=https://dearplan.netlify.app
+// Secrets: supabase secrets set STRIPE_SECRET_KEY=sk_… STRIPE_PRICE_MONTHLY=price_… STRIPE_PRICE_YEARLY=price_… APP_URL=https://dearplan.vercel.app
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@23';
 

@@ -18,22 +18,20 @@ Total cost: **$25 one-time** (Google Play). Everything else is free.
       (free plan) → SMTP & API → create SMTP key; verify your sender email. Then
       **Authentication → Emails → SMTP Settings**: host `smtp-relay.brevo.com`, port `587`, your Brevo login + SMTP key.
 - [ ] **Authentication → URL Configuration**:
-  - Site URL: your Netlify URL (e.g. `https://dearplan.netlify.app`)
-  - Redirect URLs: `https://dearplan.netlify.app/**`, `http://localhost:8081/**`, `planbudget://**`, `exp://**`
+  - Site URL: your Vercel URL (`https://dearplan.vercel.app`)
+  - Redirect URLs: `https://dearplan.vercel.app/**`, `http://localhost:8081/**`, `planbudget://**`, `exp://**`
 - [ ] Free projects pause after ~1 week without activity: unpause from the dashboard if sign-in stops working.
 
-## 2. Web app on Netlify (free)
+## 2. Web app on Vercel (free)
 
-- [ ] Make sure `.env` has your Supabase URL and **publishable** key.
-- [ ] Build: `npm run build:web` (creates the `dist` folder).
-- [ ] Go to <https://app.netlify.com/drop>, sign up (free), drag the **`dist`** folder in.
-- [ ] Site configuration → change the site name (e.g. `plan-budget`) → your URL becomes `https://dearplan.netlify.app`.
+- [ ] In Vercel, import the GitHub repo. `vercel.json` sets the build (`npx expo export --platform web`, output `dist`),
+      page routing and security headers.
+- [ ] Project → Settings → Environment Variables: add every `EXPO_PUBLIC_…` value from `.env` (Supabase URL and
+      **publishable** key, VAPID public key, Stripe **publishable** key). Never a secret key.
+- [ ] Every push to `main` deploys to `https://dearplan.vercel.app`.
 - [ ] Add that URL to Supabase (section 1) and open it on your phone:
   - iPhone (Safari): Share → **Add to Home Screen**
   - Android (Chrome): ⋮ → **Install app**
-- [ ] To update later: rebuild and drag `dist` onto *Deploys* in your Netlify site.
-
-Page routing and security headers are included automatically (`public/_redirects`, `public/_headers`).
 
 ## 3. Android on Google Play ($25)
 
@@ -44,8 +42,8 @@ Page routing and security headers are included automatically (`public/_redirects
 - [ ] Store build: `npx eas-cli@latest build -p android --profile production` (creates an `.aab`).
 - [ ] Google Play Console (<https://play.google.com/console>): pay $25, verify your identity, create app **Plan**.
 - [ ] Required listing items:
-  - Privacy policy URL: `https://dearplan.netlify.app/privacy`
-  - Account deletion URL: `https://dearplan.netlify.app/account` (in-app: Settings → Account & sharing → Delete account)
+  - Privacy policy URL: `https://dearplan.vercel.app/privacy`
+  - Account deletion URL: `https://dearplan.vercel.app/account` (in-app: Settings → Account & sharing → Delete account)
   - Data safety form: email address (account), app activity is not collected; data is encrypted in transit; users can request deletion.
   - App icon (512×512: `public/logo512.png`), screenshots, short and full description.
 - [ ] **New personal developer accounts must run a closed test first** (at the time of writing: at least 12 testers

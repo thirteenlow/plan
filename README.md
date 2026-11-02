@@ -90,7 +90,7 @@ All rules live in `src/utils/validation.ts`; the UI checks as you type and the s
 
 ## Launching
 
-See [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md): web app on Netlify (free, installable on iPhone and Android)
+See [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md): web app on Vercel (free, installable on iPhone and Android)
 and Android on Google Play ($25 one-time). Sign-in: Google and email code (Apple is optional and off by default).
 
 ## Accounts & sync
