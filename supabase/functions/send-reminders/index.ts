@@ -22,6 +22,26 @@ if (!setupProblem) webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
 type Target = { endpoint: string; p256dh: string; auth: string };
 type Message = { title: string; body: string; url: string };
 
+type Currency = { symbol?: string; decimals?: number; symbolFirst?: boolean; group?: string; decimal?: string; showSymbol?: boolean };
+
+/**
+ * Writes a bare amount ("61.93") the way the user's budget does ("S$61.93", "61,93 €"). Amounts that already carry
+ * a symbol or letters are left as they came.
+ */
+export function formatAmount(raw: string | undefined, c: Currency | null | undefined): string {
+  const text = (raw ?? '').trim();
+  if (!text || !c || !/^-?\d+(?:[.,]\d+)?$/.test(text)) return text;
+  const n = Math.abs(Number(text.replace(',', '.')));
+  if (!Number.isFinite(n)) return text;
+  const decimals = Math.min(Math.max(c.decimals ?? 2, 0), 4);
+  const [whole, frac] = n.toFixed(decimals).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, c.group ?? ',');
+  const number = frac ? `${grouped}${c.decimal ?? '.'}${frac}` : grouped;
+  const symbol = c.showSymbol === false ? '' : (c.symbol ?? '');
+  if (!symbol) return number;
+  return c.symbolFirst === false ? `${number} ${symbol}` : `${symbol}${number}`;
+}
+
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Sends one message; forgets devices that have unsubscribed. Returns 'sent' | 'dropped' | the error. */
@@ -56,20 +76,23 @@ Deno.serve(async (req) => {
 
   // A payment was just logged: tell that person's devices that want it.
   if (body.type === 'logged' && body.user_id) {
-    const { data, error } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth, details').eq('user_id', body.user_id).eq('notify_logged', true);
+    const subs = (cols: string) => admin.from('push_subscriptions').select(cols).eq('user_id', body.user_id).eq('notify_logged', true);
+    let { data, error } = await subs('endpoint, p256dh, auth, details, currency');
+    // 011_push_currency.sql not run yet: no currency column.
+    if (error && /currency/.test(error.message)) ({ data, error } = await subs('endpoint, p256dh, auth, details'));
     if (error) return json(500, { error: error.message });
     const test = body.merchant === 'Plan connection test';
-    const what = [body.amount, body.merchant ? `at ${body.merchant}` : ''].filter(Boolean).join(' ');
     const lead = body.scanned ? 'Receipt logged' : 'Payment logged';
     // One title line, no message: iOS adds "from Plan" underneath, so this reads as two tidy lines.
     const results = await Promise.all(
-      ((data ?? []) as (Target & { details: boolean })[]).map((d) =>
-        push(d, {
+      ((data ?? []) as unknown as (Target & { details: boolean; currency?: Currency | null })[]).map((d) => {
+        const what = [formatAmount(body.amount, d.currency), body.merchant ? `at ${body.merchant}` : ''].filter(Boolean).join(' ');
+        return push(d, {
           title: (test ? 'Notifications are working' : d.details && what ? `${lead} · ${what}` : lead).slice(0, 80),
           body: '',
           url: '/spending',
-        }),
-      ),
+        });
+      }),
     );
     return json(200, { type: 'logged', ...tally(results) });
   }

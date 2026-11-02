@@ -155,10 +155,10 @@ export async function syncReminders() {
   if (!sb || !data || useCloud.getState().status !== 'ready') return;
   const prefs = { ...DEFAULT_REMINDERS, ...data.settings.reminders };
   // Instant "payment logged" notifications are sent by the server; it only needs this device's choices.
-  const pushPrefs = JSON.stringify([prefs.on && prefs.logged !== false, prefs.details]);
+  const pushPrefs = JSON.stringify([prefs.on && prefs.logged !== false, prefs.details, data.settings.currency]);
   if (pushPrefs !== lastPushPrefs) {
     lastPushPrefs = pushPrefs;
-    void syncPushPrefs(prefs.on && prefs.logged !== false, prefs.details).catch(() => (lastPushPrefs = ''));
+    void syncPushPrefs(prefs.on && prefs.logged !== false, prefs.details, data.settings.currency).catch(() => (lastPushPrefs = ''));
   }
   const items = computeReminders(data, prefs);
   const payload = JSON.stringify(items);

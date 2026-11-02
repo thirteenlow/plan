@@ -4,6 +4,7 @@
  * iPhone/iPad only support web push from iOS 16.4, and only once Plan is added to the Home Screen.
  */
 import { getSupabase } from '@/cloud/supabase';
+import type { CurrencyFormat } from '@/store/types';
 
 export type PushStatus = 'unsupported' | 'needsInstall' | 'denied' | 'off' | 'on';
 
@@ -60,12 +61,20 @@ export async function disablePush() {
   await sub.unsubscribe();
 }
 
-/** Tells the server this device's choices for instant "payment logged" notifications. */
-export async function syncPushPrefs(logged: boolean, details: boolean) {
+/**
+ * Tells the server this device's choices for instant "payment logged" notifications, and how to write money in
+ * them (Apple Pay sends a bare number, and the server can't read the budget's currency).
+ */
+export async function syncPushPrefs(logged: boolean, details: boolean, currency?: CurrencyFormat) {
   if (!supported() || Notification.permission !== 'granted') return;
   const sub = await (await navigator.serviceWorker.getRegistration('/'))?.pushManager.getSubscription();
-  if (!sub) return;
-  const { error } = (await getSupabase()?.rpc('set_push_prefs', { p_endpoint: sub.endpoint, p_logged: logged, p_details: details })) ?? {};
+  const sb = getSupabase();
+  if (!sub || !sb) return;
+  const base = { p_endpoint: sub.endpoint, p_logged: logged, p_details: details };
+  const fmt = currency && { symbol: currency.symbol, decimals: currency.decimals, symbolFirst: currency.symbolFirst, group: currency.group, decimal: currency.decimal, showSymbol: currency.showSymbol !== false };
+  let { error } = await sb.rpc('set_push_prefs', fmt ? { ...base, p_currency: fmt } : base);
+  // 011_push_currency.sql not run yet: save the rest without the currency.
+  if (error && fmt && /Could not find the function|does not exist/i.test(error.message)) ({ error } = await sb.rpc('set_push_prefs', base));
   if (error && !/function .* does not exist|Could not find the function/i.test(error.message)) console.warn('[push] prefs', error.message);
 }
 

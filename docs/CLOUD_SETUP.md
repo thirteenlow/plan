@@ -150,6 +150,7 @@ overspending, a daily nudge, a monthly recap) and uploads only the times and sho
    bottom of `006_reminders.sql`, and run it.
 6. For a notification the moment Apple Pay or a scan logs a payment, run `supabase/010_instant_push.sql` and fill
    in the two settings at its bottom (the function URL and the same `CRON_SECRET`).
+   Then `supabase/011_push_currency.sql`, so amounts show in your currency ("S$61.93", not "61.93").
 7. In the app: Settings → Notifications.
 
 Checking it works (SQL editor):
