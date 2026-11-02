@@ -7,10 +7,10 @@
 import { randomToken, sha256Hex } from '@/security/crypto';
 import { secretStore } from '@/security/deviceKey';
 import { useStore } from '@/store/store';
-import { RTA, type BudgetData } from '@/store/types';
+import type { BudgetData } from '@/store/types';
 import { parseAmountText } from '@/utils/budgetCsv';
 import { addDays } from '@/utils/date';
-import { matchAccount, matchCategory } from '@/utils/scanMatch';
+import { matchAccount, matchCategory, payeeCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
 import { useCloud } from './cloudStore';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
@@ -164,9 +164,9 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
       const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
       const merchant = row.merchant?.trim() || (scanned ? 'Payment' : 'Apple Pay');
-      const payee = useStore.getState().budgets[data.id]?.payees.find((p) => p.name.toLowerCase() === merchant.toLowerCase());
-      // Category: what this payee was last filed under; otherwise the scan's suggestion matched to your categories.
-      const known = payee?.lastCategoryId && payee.lastCategoryId !== RTA ? payee.lastCategoryId : null;
+      // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
+      // suggestion matched to your categories.
+      const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
       useStore.getState().saveTransaction({
         accountId,
         date,

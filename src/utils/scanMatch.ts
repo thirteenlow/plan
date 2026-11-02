@@ -52,6 +52,41 @@ export function matchCategory(data: BudgetData, name: string | null | undefined)
   return bySynonym?.id ?? null;
 }
 
+// Words that vary between receipts of the same shop and say nothing about it.
+const NOISE = new Set(['the', 'pte', 'ltd', 'inc', 'llc', 'co', 'corp', 'company', 'limited', 'sdn', 'bhd', 'gmbh', 'store', 'shop', 'outlet', 'branch']);
+// Words too general to tie two shops together on their own ("Cafe" shouldn't match "Cafe Nero").
+const GENERIC = new Set(['cafe', 'coffee', 'restaurant', 'bar', 'market', 'mart', 'food', 'foods', 'kitchen', 'bakery', 'pharmacy', 'station', 'hotel', 'taxi', 'parking', 'grocery', 'supermarket', 'pizza', 'sushi', 'noodle', 'noodles', 'chicken', 'burger']);
+
+/** A merchant name reduced to the words that identify the shop ("STARBUCKS #1234 Pte Ltd" → "starbucks"). */
+export const merchantKey = (name: string) =>
+  norm(name)
+    .split(' ')
+    .filter((w) => w && !/\d/.test(w) && !NOISE.has(w))
+    .join(' ');
+
+/**
+ * The category a merchant was last filed under, from a payee with the same or a close name: "Starbucks" matches
+ * "STARBUCKS #1234" and "Starbucks Raffles Place". Null when there's no confident match.
+ */
+export function payeeCategory(data: BudgetData, merchant: string | null | undefined): string | null {
+  if (!merchant) return null;
+  const key = merchantKey(merchant);
+  if (!key) return null;
+  const valid = new Set(data.categories.map((c) => c.id));
+  const known = data.payees.filter((p) => p.lastCategoryId && p.lastCategoryId !== RTA && valid.has(p.lastCategoryId));
+  const exact = known.find((p) => p.name.toLowerCase() === merchant.toLowerCase()) ?? known.find((p) => merchantKey(p.name) === key);
+  if (exact) return exact.lastCategoryId!;
+  // One name starts with the other, word for word, and the shared part is distinctive enough (not just "the cafe").
+  let best: { id: string; len: number } | null = null;
+  for (const p of known) {
+    const other = merchantKey(p.name);
+    const [short, long] = other.length < key.length ? [other, key] : [key, other];
+    if (short.length < 4 || GENERIC.has(short) || !`${long} `.startsWith(`${short} `)) continue;
+    if (!best || short.length > best.len) best = { id: p.lastCategoryId!, len: short.length };
+  }
+  return best?.id ?? null;
+}
+
 /** The account a scanned card/bank/wallet name refers to (by name or last 4 digits), or null. */
 export function matchAccount(data: BudgetData, name: string | null | undefined): string | null {
   if (!name) return null;

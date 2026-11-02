@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, TextInput, View } from 'react-native';
 import { useCloud } from '@/cloud/cloudStore';
 import { readReceipt } from '@/cloud/inbox';
-import { matchAccount, matchCategory, scanHints } from '@/utils/scanMatch';
+import { matchAccount, matchCategory, payeeCategory, scanHints } from '@/utils/scanMatch';
 import { requirePro, useIsPro } from '@/cloud/pro';
 import { CalendarSheet } from '@/components/Calendar';
 import { useCalculator, useInputRef } from '@/components/Calculator';
@@ -258,8 +258,7 @@ export default function TransactionScreen() {
         }
       }
       // Category: this payee's usual one if it has one, otherwise the AI's pick from your categories.
-      const known = r.merchant ? data.payees.find((x) => x.name.toLowerCase() === r.merchant!.toLowerCase()) : undefined;
-      const usual = known?.lastCategoryId && known.lastCategoryId !== RTA ? known.lastCategoryId : null;
+      const usual = payeeCategory(data, r.merchant);
       const cat = usual ?? matchCategory(data, r.category);
       if (cat && !splits) setCategoryId(cat);
       // Account: the card or wallet the receipt shows, if it's one of yours.

@@ -541,6 +541,9 @@ export const useStore = create<AppState>()(
               if (t.transferAccountId && onBudget.has(t.transferAccountId)) continue;
               t.categoryId = categoryId;
               t.approved = true;
+              // Remember it for the payee, like saving a transaction does, so its next payment is filed the same way.
+              const p = t.payeeId ? b.payees.find((x) => x.id === t.payeeId) : undefined;
+              if (p && !t.transferAccountId) p.lastCategoryId = categoryId;
             }
           }),
         deleteTransactions: (ids) =>
