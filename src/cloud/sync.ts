@@ -187,31 +187,36 @@ export async function pullAll() {
   try {
     const { user } = me();
     useCloud.setState({ syncing: true, error: null });
-    const { data: mems, error } = await sb().from('budget_members').select('budget_id, role, wrapped_key, key_version').eq('user_id', user.id);
-    if (error) throw error;
-    const memberships = (mems ?? []) as Membership[];
-    const ids = memberships.map((m) => m.budget_id);
-    let rows: RemoteRow[] = [];
-    if (ids.length) {
-      const res = await sb().from('shared_budgets').select('id, owner_id, version, key_version, ciphertext').in('id', ids);
-      if (res.error) throw res.error;
-      rows = res.data as RemoteRow[];
+    // Budgets first; a problem here mustn't stop payments logged while the app was closed from being imported.
+    try {
+      const { data: mems, error } = await sb().from('budget_members').select('budget_id, role, wrapped_key, key_version').eq('user_id', user.id);
+      if (error) throw error;
+      const memberships = (mems ?? []) as Membership[];
+      const ids = memberships.map((m) => m.budget_id);
+      let rows: RemoteRow[] = [];
+      if (ids.length) {
+        const res = await sb().from('shared_budgets').select('id, owner_id, version, key_version, ciphertext').in('id', ids);
+        if (res.error) throw res.error;
+        rows = res.data as RemoteRow[];
+      }
+      for (const row of rows) {
+        const mem = memberships.find((m) => m.budget_id === row.id);
+        if (mem) await reconcile(row, mem).catch(setError);
+      }
+      // Budgets deleted on another device, or no longer shared with us, are removed here too.
+      // (Keeping them would re-upload them, bringing deleted budgets back.)
+      const gone = Object.entries(useStore.getState().sync).filter(([, m]) => !rows.some((r) => r.id === m.remoteId));
+      for (const [localId, m] of gone) {
+        const name = useStore.getState().budgets[localId]?.name;
+        applyRemote(() => useStore.getState().deleteBudget(localId));
+        useCloud.setState({ notice: m.role === 'owner' ? `“${name}” was deleted on another device.` : `You no longer have access to “${name}”.` });
+      }
+      useCloud.setState({ lastSyncAt: new Date().toISOString() });
+      uploadUnsynced();
+    } catch (e) {
+      setError(e);
     }
-    for (const row of rows) {
-      const mem = memberships.find((m) => m.budget_id === row.id);
-      if (mem) await reconcile(row, mem).catch(setError);
-    }
-    // Budgets deleted on another device, or no longer shared with us, are removed here too.
-    // (Keeping them would re-upload them, bringing deleted budgets back.)
-    const gone = Object.entries(useStore.getState().sync).filter(([, m]) => !rows.some((r) => r.id === m.remoteId));
-    for (const [localId, m] of gone) {
-      const name = useStore.getState().budgets[localId]?.name;
-      applyRemote(() => useStore.getState().deleteBudget(localId));
-      useCloud.setState({ notice: m.role === 'owner' ? `“${name}” was deleted on another device.` : `You no longer have access to “${name}”.` });
-    }
-    useCloud.setState({ lastSyncAt: new Date().toISOString() });
-    uploadUnsynced();
-    // Apple Pay payments logged by the iPhone Shortcut while the app was closed.
+    // Apple Pay payments and scans logged while the app was closed.
     await importPayments().catch(setError);
     // Name, companion and notification choices saved to the account (before reminders, which depend on them).
     await pullPersonal().catch(setError);

@@ -128,21 +128,45 @@ export function accountForCard(data: BudgetData, card: string | null): string | 
 
 let importing = false;
 
+// Opened from a "Payment logged" notification (?logged=1): a payment should be waiting. If none is, say so,
+// since another device with Plan open most likely took it first.
+let expectingSince = 0;
+if (typeof window !== 'undefined' && typeof window.location?.search === 'string' && /[?&]logged=1\b/.test(window.location.search)) {
+  expectingSince = Date.now();
+  const url = new URL(window.location.href);
+  url.searchParams.delete('logged');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 /**
- * Claims everything waiting in the inbox and saves it to the active budget as unapproved spending
- * (category from the merchant's last use). Returns how many were imported and whether a test arrived.
+ * The budget automatic payments go into: the one Apple Pay was set up in (it has a "Log to" account), so they
+ * don't land in whichever budget happens to be open, e.g. the demo. Otherwise the open budget.
  */
-export async function importPayments(): Promise<{ imported: number; tests: number }> {
+function inboxBudget(): BudgetData | undefined {
+  const { budgets, activeBudgetId } = useStore.getState();
+  const active = activeBudgetId ? budgets[activeBudgetId] : undefined;
+  const hasPayAccount = (b: BudgetData) => !!b.settings.payAccountId && b.accounts.some((a) => a.id === b.settings.payAccountId && !a.closed);
+  if (active && hasPayAccount(active)) return active;
+  const configured = Object.values(budgets)
+    .filter(hasPayAccount)
+    .sort((a, b) => (a.lastOpenedAt < b.lastOpenedAt ? 1 : -1))[0];
+  return configured ?? active;
+}
+
+/**
+ * Claims everything waiting in the inbox and saves it as unapproved spending (category from the merchant's last
+ * use) in the Apple Pay budget. Returns how many were imported, whether a test arrived, and how many rows came.
+ */
+export async function importPayments(): Promise<{ imported: number; tests: number; claimed: number }> {
   const sb = getSupabase();
-  const state = useStore.getState();
-  const data = state.activeBudgetId ? state.budgets[state.activeBudgetId] : undefined;
-  if (!sb || !data || importing) return { imported: 0, tests: 0 };
+  const data = inboxBudget();
+  if (!sb || !data || importing) return { imported: 0, tests: 0, claimed: 0 };
   importing = true;
   try {
     const { data: rows, error } = await sb.rpc('claim_payments');
     if (error) {
       // Not set up on the server yet: nothing to import.
-      if (/function .* does not exist|Could not find the function/i.test(error.message)) return { imported: 0, tests: 0 };
+      if (/function .* does not exist|Could not find the function/i.test(error.message)) return { imported: 0, tests: 0, claimed: 0 };
       throw error;
     }
     let imported = 0;
@@ -175,25 +199,33 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
       // suggestion matched to your categories.
       const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
-      useStore.getState().saveTransaction({
-        accountId,
-        date,
-        amount: amount ? -amount : 0,
-        payeeName: merchant,
-        categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
-        memo: [scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay', !amount ? `amount unreadable: “${String(row.amount ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
-        cleared: 'uncleared',
-        approved: false,
-      });
+      useStore.getState().saveTransaction(
+        {
+          accountId,
+          date,
+          amount: amount ? -amount : 0,
+          payeeName: merchant,
+          categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
+          memo: [scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay', !amount ? `amount unreadable: “${String(row.amount ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
+          cleared: 'uncleared',
+          approved: false,
+        },
+        data.id,
+      );
       imported++;
     }
     const notes = [
-      imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
+      imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically${data.id !== useStore.getState().activeBudgetId ? ` in “${data.name}”` : ''}. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
       unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
       noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
     ].filter(Boolean);
     if (notes.length) useCloud.setState({ notice: notes.join(' ') });
-    return { imported, tests };
+    if (expectingSince && Date.now() - expectingSince < 120_000) {
+      if (!(rows ?? []).length) notes.push('Nothing new was waiting. If Plan is open on another device, it may have logged this payment there; it’ll appear here after syncing.');
+      expectingSince = 0;
+      if (notes.length) useCloud.setState({ notice: notes.join(' ') });
+    }
+    return { imported, tests, claimed: (rows ?? []).length };
   } finally {
     importing = false;
   }

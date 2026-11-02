@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
         return push(d, {
           title: (test ? 'Notifications are working' : d.details && what ? `${lead} · ${what}` : lead).slice(0, 80),
           body: '',
-          url: '/spending',
+          // ?logged=1 tells the app a payment should be waiting (it says so if another device already took it).
+          url: test ? '/spending' : '/spending?logged=1',
         });
       }),
     );

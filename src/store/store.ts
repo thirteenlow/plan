@@ -78,7 +78,8 @@ interface AppState {
   reconcileAccount: (id: string, statementCleared: Milli) => void;
 
   // transactions
-  saveTransaction: (draft: TxDraft) => string;
+  /** Saves into the active budget, or `budgetId` when given. */
+  saveTransaction: (draft: TxDraft, budgetId?: string) => string;
   deleteTransaction: (id: string) => void;
   toggleCleared: (id: string) => void;
   approveTransactions: (ids: string[]) => void;
@@ -310,10 +311,12 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => {
       /** Applies an immer recipe to the active budget. */
-      const mutate = (recipe: (b: Draft<BudgetData>) => void) => {
+      /** Changes the active budget (or `budgetId`, for imports that belong to a particular budget). */
+      const mutate = (recipe: (b: Draft<BudgetData>) => void, budgetId?: string) => {
         const { activeBudgetId, budgets } = get();
-        if (!activeBudgetId || !budgets[activeBudgetId]) return;
-        set({ budgets: { ...budgets, [activeBudgetId]: produce(budgets[activeBudgetId], recipe) } });
+        const id = budgetId ?? activeBudgetId;
+        if (!id || !budgets[id]) return;
+        set({ budgets: { ...budgets, [id]: produce(budgets[id], recipe) } });
       };
 
       return {
@@ -496,7 +499,7 @@ export const useStore = create<AppState>()(
             acct.lastReconciledAt = today();
           }),
 
-        saveTransaction: (draft) => {
+        saveTransaction: (draft, budgetId) => {
           // Reject before touching anything, so an invalid edit never deletes the original.
           if (!isValidDraft(draft)) return draft.id ?? '';
           const id = draft.id ?? uid('t');
@@ -511,7 +514,7 @@ export const useStore = create<AppState>()(
               }
             }
             insertTx(b, draft, id, mirrorCleared, mirrorId);
-          });
+          }, budgetId);
           return id;
         },
         deleteTransaction: (id) => mutate((b) => void removeTx(b, id)),
