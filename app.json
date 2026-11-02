@@ -28,7 +28,7 @@
       "favicon": "./assets/favicon.png",
       "name": "Plan",
       "shortName": "Plan",
-      "themeColor": "#B65CF4",
+      "themeColor": "#F3F4F9",
       "backgroundColor": "#F3F4F9"
     },
     "plugins": [
