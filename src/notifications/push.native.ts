@@ -8,4 +8,5 @@ export const pushConfigured = () => false;
 export const pushStatus = async (): Promise<PushStatus> => 'unsupported';
 export const enablePush = async (): Promise<PushStatus> => 'unsupported';
 export const disablePush = async () => {};
+export const syncPushPrefs = async (_logged: boolean, _details: boolean) => {};
 export const showTestNotification = async (_title: string, _body: string) => {};

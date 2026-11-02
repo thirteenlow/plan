@@ -66,6 +66,7 @@ export default function NotificationsScreen() {
   const active = status === 'on' && prefs.on;
 
   const rows: { key: keyof ReminderPrefs; title: string; text: string }[] = [
+    { key: 'logged', title: 'Payments logged automatically', text: 'Right away, when Apple Pay or a scan adds a payment' },
     { key: 'bills', title: 'Bills due', text: 'The day before a scheduled payment' },
     { key: 'review', title: 'Payments to review', text: 'When auto-logged or scanned payments are waiting' },
     { key: 'assign', title: 'Money to assign', text: 'After income arrives' },
@@ -167,7 +168,7 @@ export default function NotificationsScreen() {
                       {r.text}
                     </Txt>
                   </View>
-                  <Toggle label={r.title} value={prefs[r.key] as boolean} onChange={(v) => update({ [r.key]: v })} />
+                  <Toggle label={r.title} value={prefs[r.key] !== false} onChange={(v) => update({ [r.key]: v })} />
                 </Row>
               </View>
             ))}

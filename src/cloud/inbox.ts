@@ -147,6 +147,9 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
     }
     let imported = 0;
     let tests = 0;
+    // Rows are already off the server once claimed, so never drop one silently.
+    let unreadable = 0;
+    let noAccount = 0;
     type Row = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
     for (const row of (rows ?? []) as Row[]) {
       if (row.merchant === TEST_MERCHANT) {
@@ -158,7 +161,12 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       const cardName = row.card === SCREENSHOT_CARD ? null : row.card;
       // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
       const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
-      if (!amount || !accountId) continue;
+      if (!accountId) {
+        noAccount++;
+        continue;
+      }
+      // An amount we can't read is still logged (at 0, with what came through) so it can be fixed in Spending.
+      if (!amount) unreadable++;
       const when = new Date(row.created_at);
       const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
       // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
@@ -170,16 +178,21 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       useStore.getState().saveTransaction({
         accountId,
         date,
-        amount: -amount,
+        amount: amount ? -amount : 0,
         payeeName: merchant,
         categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
-        memo: scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay',
+        memo: [scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay', !amount ? `amount unreadable: “${String(row.amount ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
         cleared: 'uncleared',
         approved: false,
       });
       imported++;
     }
-    if (imported) useCloud.setState({ notice: `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically. Review ${imported === 1 ? 'it' : 'them'} in Spending.` });
+    const notes = [
+      imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
+      unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
+      noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
+    ].filter(Boolean);
+    if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     return { imported, tests };
   } finally {
     importing = false;

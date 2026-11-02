@@ -69,7 +69,8 @@ they're saved separately to your account, encrypted, and follow you to every dev
 
 Lets an iPhone Shortcuts automation log every Apple Pay payment into Plan.
 
-1. In the Supabase SQL editor, run `supabase/003_payment_inbox.sql`.
+1. In the Supabase SQL editor, run `supabase/003_payment_inbox.sql`, then `supabase/009_log_payment_flexible.sql`
+   (accepts the shortcut's fields in any capitalisation; without it, "Amount" instead of "amount" silently fails).
 2. In the app: Settings → Automation → Apple Pay auto-log, then follow the steps. It creates a personal key and
    shows the address and fields to paste into the Shortcut, plus a test button.
 
@@ -147,4 +148,16 @@ overspending, a daily nudge, a monthly recap) and uploads only the times and sho
 4. Put the public key in `.env` as `EXPO_PUBLIC_VAPID_PUBLIC_KEY`, and rebuild the web app.
 5. Turn on the pg_cron and pg_net extensions, fill in your project URL and `CRON_SECRET` in the cron block at the
    bottom of `006_reminders.sql`, and run it.
-6. In the app: Settings → Notifications.
+6. For a notification the moment Apple Pay or a scan logs a payment, run `supabase/010_instant_push.sql` and fill
+   in the two settings at its bottom (the function URL and the same `CRON_SECRET`).
+7. In the app: Settings → Notifications.
+
+Checking it works (SQL editor):
+
+```sql
+select count(*) from public.push_subscriptions;                                         -- your devices
+select send_at, title from public.reminders order by send_at limit 5;                   -- what's queued
+select status_code, content from net._http_response order by created desc limit 5;      -- what the function replied
+```
+
+`{"error": …}` in the replies names what's missing (keys, `VAPID_SUBJECT`); `"errors"` lists what Apple/Google refused.

@@ -60,6 +60,15 @@ export async function disablePush() {
   await sub.unsubscribe();
 }
 
+/** Tells the server this device's choices for instant "payment logged" notifications. */
+export async function syncPushPrefs(logged: boolean, details: boolean) {
+  if (!supported() || Notification.permission !== 'granted') return;
+  const sub = await (await navigator.serviceWorker.getRegistration('/'))?.pushManager.getSubscription();
+  if (!sub) return;
+  const { error } = (await getSupabase()?.rpc('set_push_prefs', { p_endpoint: sub.endpoint, p_logged: logged, p_details: details })) ?? {};
+  if (error && !/function .* does not exist|Could not find the function/i.test(error.message)) console.warn('[push] prefs', error.message);
+}
+
 /** Shows a notification right away from this device (checks permission and how it looks; no server involved). */
 export async function showTestNotification(title: string, body: string) {
   const reg = await registration();

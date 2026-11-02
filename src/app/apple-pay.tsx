@@ -23,7 +23,7 @@ const STEPS: { title: string; text: string }[] = [
   { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, then set Method to POST and Request Body to JSON.' },
   {
     title: 'Add the fields',
-    text: 'For each row below: tap Add new field, choose Text, and type the name. For amount, merchant and card, tap the value, tap Shortcut Input above the keyboard, tap it again and pick the item.',
+    text: 'For each row below: tap Add new field, choose Text, and type the name in lowercase. For amount, merchant and card, tap the value, tap Shortcut Input above the keyboard, tap it again and pick the item.',
   },
   { title: 'Save', text: 'Tap ✓. Every tap-to-pay now goes to Plan.' },
 ];
@@ -260,6 +260,8 @@ export default function ApplePayScreen() {
               ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change “Log to” on the first screen.'],
               ['No merchant name', 'Some payments don’t include one. They’re logged as “Apple Pay”; edit the payee in Spending.'],
               ['See it run', 'In the automation, turn on Notify When Run to get a banner each time.'],
+              ['See what the server said', 'Add Show Notification after Get Contents of URL and pick Contents of URL. “ok” means it reached Plan; anything else is the reason it didn’t.'],
+              ['When it shows up', 'Payments wait on the server and appear in Spending the next time Plan is open and syncs (within a minute).'],
             ].map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>

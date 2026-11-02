@@ -169,6 +169,8 @@ export interface BudgetSettings {
 
 export interface ReminderPrefs {
   on: boolean;
+  /** A notification the moment Apple Pay or a scan logs a payment (sent by the server, not scheduled) */
+  logged?: boolean;
   daily: boolean;
   /** HH:MM, local time */
   dailyTime: string;

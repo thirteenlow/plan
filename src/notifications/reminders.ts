@@ -6,6 +6,7 @@ import { getMonth, computeBudget } from '@/engine/budget';
 import { petMood } from '@/engine/pet';
 import { useCloud } from '@/cloud/cloudStore';
 import { getSupabase } from '@/cloud/supabase';
+import { syncPushPrefs } from '@/notifications/push';
 import { useStore } from '@/store/store';
 import type { BudgetData, ReminderPrefs } from '@/store/types';
 import { addDays, currentMonth, toISO, today } from '@/utils/date';
@@ -13,6 +14,7 @@ import { formatMoney } from '@/utils/money';
 
 export const DEFAULT_REMINDERS: ReminderPrefs = {
   on: false,
+  logged: true,
   daily: true,
   dailyTime: '20:00',
   bills: true,
@@ -135,6 +137,7 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
 }
 
 let lastSent = '';
+let lastPushPrefs = '';
 
 /** Uploads this device's reminders for the active budget (only when they've changed). */
 export async function syncReminders() {
@@ -142,7 +145,13 @@ export async function syncReminders() {
   const state = useStore.getState();
   const data = state.activeBudgetId ? state.budgets[state.activeBudgetId] : undefined;
   if (!sb || !data || useCloud.getState().status !== 'ready') return;
-  const prefs = data.settings.reminders ?? DEFAULT_REMINDERS;
+  const prefs = { ...DEFAULT_REMINDERS, ...data.settings.reminders };
+  // Instant "payment logged" notifications are sent by the server; it only needs this device's choices.
+  const pushPrefs = JSON.stringify([prefs.on && prefs.logged !== false, prefs.details]);
+  if (pushPrefs !== lastPushPrefs) {
+    lastPushPrefs = pushPrefs;
+    void syncPushPrefs(prefs.on && prefs.logged !== false, prefs.details).catch(() => (lastPushPrefs = ''));
+  }
   const items = computeReminders(data, prefs);
   const payload = JSON.stringify(items);
   // Nothing on and nothing sent yet: no need to touch the server.
