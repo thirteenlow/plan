@@ -60,11 +60,13 @@ Deno.serve(async (req) => {
     if (error) return json(500, { error: error.message });
     const test = body.merchant === 'Plan connection test';
     const what = [body.amount, body.merchant ? `at ${body.merchant}` : ''].filter(Boolean).join(' ');
+    const lead = body.scanned ? 'Receipt logged' : 'Payment logged';
+    // One title line, no message: iOS adds "from Plan" underneath, so this reads as two tidy lines.
     const results = await Promise.all(
       ((data ?? []) as (Target & { details: boolean })[]).map((d) =>
         push(d, {
-          title: test ? 'Notifications work' : body.scanned ? 'Receipt logged' : 'Payment logged',
-          body: test ? 'Your payments will show up here.' : d.details && what ? what : 'Tap to review it in Spending.',
+          title: (test ? 'Notifications are working' : d.details && what ? `${lead} · ${what}` : lead).slice(0, 80),
+          body: '',
           url: '/spending',
         }),
       ),

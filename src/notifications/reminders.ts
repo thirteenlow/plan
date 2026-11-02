@@ -2,7 +2,7 @@
  * Works out the next week of reminders on this device (the server can't read the encrypted budget) and uploads
  * just the queue: times plus short text, generic unless "Show details" is on. send-reminders pushes them.
  */
-import { getMonth, computeBudget } from '@/engine/budget';
+import { categoryMonth, computeBudget, getMonth } from '@/engine/budget';
 import { petMood } from '@/engine/pet';
 import { useCloud } from '@/cloud/cloudStore';
 import { getSupabase } from '@/cloud/supabase';
@@ -82,17 +82,19 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
   const todayISO = toISO(now);
   const pet = data.settings.pet && !data.settings.pet.hidden ? data.settings.pet : undefined;
   const out: (Reminder & { at: Date })[] = [];
-  const add = (time: Date, kind: string, title: string, generic: string, detail: string | undefined, url: string) => {
+  // Each notification is a single title line with no message (iOS adds "from Plan" under it, so this keeps it to
+  // two tidy lines). `detailed` is used instead when "Show amounts and names" is on.
+  const add = (time: Date, kind: string, title: string, detailed: string | undefined, url: string) => {
     const t = prefs.quiet ? outOfQuiet(time, prefs.quietStart ?? DEFAULT_REMINDERS.quietStart!, prefs.quietEnd ?? DEFAULT_REMINDERS.quietEnd!) : time;
     if (t <= now) return;
-    out.push({ at: t, send_at: t.toISOString(), kind, title, body: (prefs.details && detail) || generic, url });
+    out.push({ at: t, send_at: t.toISOString(), kind, title: ((prefs.details && detailed) || title).slice(0, 80), body: '', url });
   };
 
   // Daily nudge, skipping today if something's already logged.
   if (prefs.daily) {
     const loggedToday = data.transactions.some((t) => t.date === todayISO);
     for (let d = loggedToday ? 1 : 0; d < 7; d++) {
-      add(at(addDays(todayISO, d), prefs.dailyTime), 'daily', 'Log today’s spending', pet ? `${pet.name} wants to hear about today.` : 'Anything spent today?', undefined, '/transaction');
+      add(at(addDays(todayISO, d), prefs.dailyTime), 'daily', pet ? `Log today’s spending · ${pet.name} is waiting` : 'Log today’s spending', undefined, '/transaction');
     }
   }
 
@@ -101,33 +103,39 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
     for (const s of data.scheduled) {
       if (s.amount >= 0 || s.nextDate < todayISO || s.nextDate > addDays(todayISO, 8)) continue;
       const payee = s.payeeId ? data.payees.find((p) => p.id === s.payeeId)?.name : undefined;
-      add(at(addDays(s.nextDate, -1), '09:00'), 'bill', 'Bill due tomorrow', 'A scheduled payment is coming up.', `${payee ?? 'Payment'} · ${fmt(-s.amount)}`, '/scheduled');
+      add(at(addDays(s.nextDate, -1), '09:00'), 'bill', 'Bill due tomorrow', `Bill due tomorrow · ${payee ? `${payee} ` : ''}${fmt(-s.amount)}`, '/scheduled');
     }
   }
 
   // Auto-logged or scanned payments waiting for review.
   const waiting = data.transactions.filter((t) => !t.approved).length;
   if (prefs.review && waiting > 0) {
-    add(nextAt(now, '18:00'), 'review', 'Payments to review', 'Tap to check them in Spending.', `${waiting} waiting in Spending`, '/spending');
+    add(nextAt(now, '18:00'), 'review', 'Payments to review', `${waiting} ${waiting === 1 ? 'payment' : 'payments'} to review`, '/spending');
   }
 
   const month = currentMonth();
   const mb = getMonth(computeBudget(data, month), month);
   if (prefs.assign && mb.readyToAssign > 0) {
-    add(nextAt(now, '10:00'), 'assign', 'Money to assign', 'Give your new money a job.', `${fmt(mb.readyToAssign)} ready to assign`, '/plan');
+    add(nextAt(now, '10:00'), 'assign', 'Money to assign', `${fmt(mb.readyToAssign)} to assign`, '/plan');
   }
 
   if (prefs.overspent) {
     const mood = petMood(data, month, today(), fmt);
     if (mb.overspentCount > 0 || mood.mood === 'worried' || mood.mood === 'stressed') {
-      add(nextAt(now, '19:00'), 'overspent', pet ? `${pet.name} is worried` : 'Over budget', 'A category went over. Tap to fix it.', mood.reasons[0]?.text, '/plan');
+      // Detailed: the category that's furthest over.
+      const worst = data.categories
+        .map((c) => ({ name: c.name, over: -categoryMonth(mb, c.id).available }))
+        .filter((c) => c.over > 0)
+        .sort((a, b) => b.over - a.over)[0];
+      const lead = pet ? `${pet.name} is worried` : 'Over budget';
+      add(nextAt(now, '19:00'), 'overspent', pet ? lead : 'A category is over budget', worst ? `${lead} · ${worst.name} is over by ${fmt(worst.over)}` : undefined, '/plan');
     }
   }
 
   // Monthly recap on the 1st.
   if (prefs.recap) {
     const first = new Date(now.getFullYear(), now.getMonth() + 1, 1, 9, 0);
-    add(first, 'recap', 'Your month in review', 'See how last month went.', undefined, '/reflect');
+    add(first, 'recap', 'Your month in review is ready', undefined, '/reflect');
   }
 
   return out

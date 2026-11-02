@@ -12,9 +12,11 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'Plan';
+  // Plan sends single-line titles; only include a message when there is one.
+  const options = data.body ? { body: data.body } : {};
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: data.body || '',
+      ...options,
       icon: '/logo192.png',
       badge: '/logo192.png',
       tag: data.tag || undefined,
