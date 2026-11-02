@@ -5,9 +5,10 @@ import React, { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useCalculator, useInputRef } from '@/components/Calculator';
 import { Screen } from '@/components/Screen';
-import { PickerSheet } from '@/components/Sheet';
-import { Button, FieldRow, haptic, notify, Txt } from '@/components/ui';
+import { PickerSheet, type PickerItem } from '@/components/Sheet';
+import { Button, Card, Divider, FieldRow, haptic, notify, Row, Tap, Txt } from '@/components/ui';
 import { categoryMonth } from '@/engine/budget';
+import { moneyPlan } from '@/engine/moveSuggestions';
 import { sortedGroups, useMonthBudget, useUi } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RTA } from '@/store/types';
@@ -35,16 +36,45 @@ export default function MoveMoneyScreen() {
   const availableOf = (id: string | null) => (id === RTA ? mb.readyToAssign : id ? categoryMonth(mb, id).available : 0);
   const nameOf = (id: string | null) => (id === RTA ? 'Ready to Assign' : data.categories.find((c) => c.id === id)?.name);
 
+  const plan = useMemo(() => moneyPlan(data, mb), [data, mb]);
+  const needOf = (id: string | null) => plan.needs.find((n) => n.id === id);
+  const spareOf = (id: string | null) => plan.spares.find((s) => s.id === id);
+
   const items = useMemo(() => {
-    const list = [{ key: RTA, title: 'Ready to Assign', section: 'Budget', right: <Txt variant="label" tone={mb.readyToAssign < 0 ? 'danger' : 'positive'}>{formatMoney(mb.readyToAssign)}</Txt> }];
+    const list: PickerItem[] = [{ key: RTA, title: 'Ready to Assign', section: 'Budget', right: <Txt variant="label" tone={mb.readyToAssign < 0 ? 'danger' : 'positive'}>{formatMoney(mb.readyToAssign)}</Txt> }];
     for (const { group, categories } of sortedGroups(data)) {
       for (const c of categories) {
         const a = categoryMonth(mb, c.id).available;
-        list.push({ key: c.id, title: c.name, section: group.name, right: <Txt variant="label" tone={a < 0 ? 'danger' : a > 0 ? 'positive' : 'muted'}>{formatMoney(a)}</Txt> });
+        const need = plan.needs.find((n) => n.id === c.id);
+        const spare = plan.spares.find((s) => s.id === c.id);
+        list.push({
+          key: c.id,
+          title: c.name,
+          subtitle: need ? (need.overspent ? `Overspent · needs ${formatMoney(need.amount)}` : `Underfunded · needs ${formatMoney(need.amount)}`) : spare ? `${formatMoney(spare.amount)} spare` : undefined,
+          section: group.name,
+          right: <Txt variant="label" tone={a < 0 ? 'danger' : a > 0 ? 'positive' : 'muted'}>{formatMoney(a)}</Txt>,
+        });
       }
     }
     return list;
-  }, [data, mb]);
+  }, [data, mb, plan]);
+
+  /** Picking where money goes: suggest the amount it needs (as much as the source can give). */
+  const pickTo = (id: string) => {
+    setTo(id);
+    const need = needOf(id)?.amount ?? 0;
+    if (need <= 0 || (parseMoney(amount) ?? 0) > 0) return;
+    const can = from === RTA ? Math.max(mb.readyToAssign, 0) : from ? Math.max(availableOf(from), 0) : need;
+    const fill = Math.min(need, can || need);
+    if (fill > 0) setAmount(milliToInput(fill));
+  };
+
+  const applySuggestion = (s: { from: string; to: string; amount: number }) => {
+    haptic('light');
+    setFrom(s.from);
+    setTo(s.to);
+    setAmount(milliToInput(s.amount));
+  };
 
   const amt = parseMoney(amount) ?? 0;
   const valid = amt > 0 && from && to && from !== to;
@@ -92,9 +122,87 @@ export default function MoveMoneyScreen() {
         </View>
         <FieldRow icon="arrow-down-circle-outline" label="To" value={nameOf(to) ? `${nameOf(to)} · ${formatMoney(availableOf(to))}` : undefined} placeholder="Choose a category" onPress={() => setPicker('to')} />
       </View>
+      {!!to && !!needOf(to) && (
+        <Txt variant="caption" tone="soft" center style={{ marginTop: 10 }}>
+          {nameOf(to)} needs {formatMoney(needOf(to)!.amount)}
+          {from && spareOf(from) ? ` · ${nameOf(from)} has ${formatMoney(spareOf(from)!.amount)} spare` : ''}
+        </Txt>
+      )}
       <Txt variant="caption" tone="muted" center style={{ marginTop: 18 }}>
         Moving money changes the assigned amounts for {monthLabel(month)}.
       </Txt>
+
+      {plan.needs.length === 0 ? (
+        <Row style={{ gap: 8, justifyContent: 'center', marginTop: 22 }}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.positive} />
+          <Txt variant="caption" tone="soft">
+            Nothing is overspent or underfunded this month.
+          </Txt>
+        </Row>
+      ) : (
+        <Card style={{ marginTop: 22, gap: 12 }}>
+          <Row style={{ gap: 10 }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="caption" tone="muted">
+                Short this month
+              </Txt>
+              <Txt variant="strong" tone="danger">
+                {formatMoney(plan.totalNeeded)}
+              </Txt>
+            </View>
+            <View style={{ flex: 1, gap: 2, alignItems: 'flex-end' }}>
+              <Txt variant="caption" tone="muted">
+                Spare to move
+              </Txt>
+              <Txt variant="strong" tone={plan.totalSpare > 0 ? 'positive' : 'muted'}>
+                {formatMoney(plan.totalSpare)}
+              </Txt>
+            </View>
+          </Row>
+          {/* Covered share of what's needed */}
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.sunken, overflow: 'hidden' }}>
+            <View style={{ width: `${Math.min(100, (plan.totalSpare / plan.totalNeeded) * 100)}%`, height: 6, backgroundColor: colors.positive }} />
+          </View>
+
+          {plan.suggestions.length > 0 && (
+            <>
+              <Divider />
+              <Txt variant="overline" tone="muted">
+                Suggested moves · tap to fill in
+              </Txt>
+              {plan.suggestions.slice(0, 8).map((s) => {
+                const active = s.from === from && s.to === to;
+                return (
+                  <Tap
+                    key={`${s.from}-${s.to}`}
+                    onPress={() => applySuggestion(s)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move ${formatMoney(s.amount)} from ${nameOf(s.from)} to ${nameOf(s.to)}`}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: RADIUS.md, backgroundColor: active ? colors.accentSoft : colors.sunken }}
+                  >
+                    <Txt variant="body" numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {nameOf(s.from)}
+                    </Txt>
+                    <Ionicons name="arrow-forward" size={14} color={colors.muted} />
+                    <Txt variant="body" numberOfLines={1} style={{ flex: 1 }}>
+                      {nameOf(s.to)}
+                    </Txt>
+                    <Txt variant="label" tone="accent">
+                      {formatMoney(s.amount)}
+                    </Txt>
+                  </Tap>
+                );
+              })}
+            </>
+          )}
+          {plan.totalSpare < plan.totalNeeded && (
+            <Txt variant="caption" tone="soft">
+              {plan.totalSpare > 0 ? `Even after these moves you’re ${formatMoney(plan.totalNeeded - plan.totalSpare)} short. ` : 'There’s no spare money to move right now. '}
+              Add income, or lower a target.
+            </Txt>
+          )}
+        </Card>
+      )}
       <PickerSheet
         visible={picker !== null}
         onClose={() => setPicker(null)}
@@ -103,7 +211,7 @@ export default function MoveMoneyScreen() {
         selectedKey={picker === 'from' ? from : to}
         onSelect={(k) => {
           if (picker === 'from') setFrom(k);
-          else setTo(k);
+          else pickTo(k);
           setPicker(null);
         }}
       />

@@ -11,7 +11,8 @@ import { ActionSheet, PickerSheet } from '@/components/Sheet';
 import { TabMenu } from '@/components/TabMenu';
 import { AvailablePill, Button, Card, Divider, GradientCard, haptic, IconBadge, IconButton, ProgressBar, Row, Tap, Txt, useToneColors } from '@/components/ui';
 import { availableTone, categoryMonth, type CategoryMonth, type MonthBudget } from '@/engine/budget';
-import { AUTO_ASSIGN_OPTIONS, autoAssign } from '@/engine/autoAssign';
+import { AUTO_ASSIGN_OPTIONS, assignUpTo, autoAssign } from '@/engine/autoAssign';
+import { AssignFlash, type AssignFlashInfo } from '@/components/AssignFlash';
 import { blurActiveField, useKeyboard } from '@/hooks/useKeyboard';
 import { MAX_FUTURE_MONTHS, type PlanFilter, sortedGroups, useBudgetResult, useMonthBudget, useUi } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
@@ -40,6 +41,8 @@ export default function PlanScreen() {
   const applyAssignments = useStore((s) => s.applyAssignments);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [sheet, setSheet] = useState<'auto' | 'filter' | 'month' | null>(null);
+  const [flash, setFlash] = useState<AssignFlashInfo | null>(null);
+  const closeFlash = useCallback(() => setFlash(null), []);
   const [selected, setSelected] = useState<string | null>(null);
   // Editing an Assigned amount right in the list (like a spreadsheet cell).
   const [edit, setEdit] = useState<{ id: string; text: string } | null>(null);
@@ -78,11 +81,34 @@ export default function PlanScreen() {
   };
   const overspent = allCats.filter(matchers.overspent);
 
+  const deltaOf = (changes: Record<string, number>) => Object.entries(changes).reduce((s, [id, v]) => s + v - categoryMonth(mb, id).assigned, 0);
+  const rta = mb.readyToAssign;
   const autoOptions = AUTO_ASSIGN_OPTIONS.map((o) => {
     const changes = autoAssign(data, result, month, o.value, allCats.map((c) => c.id));
-    const delta = Object.entries(changes).reduce((s, [id, v]) => s + v - categoryMonth(mb, id).assigned, 0);
-    return { ...o, changes, delta };
+    const delta = deltaOf(changes);
+    // Not enough to fund every target: say so, and offer to assign just what there is (below).
+    const hint = o.value === 'underfunded' && rta > 0 && delta > rta ? `Needs ${formatMoney(delta - rta)} more than you have` : o.hint;
+    return { ...o, hint, changes, delta };
   });
+  const fullDelta = autoOptions.find((o) => o.value === 'underfunded')?.delta ?? 0;
+  const partial = rta > 0 ? assignUpTo(result, month, allCats.map((c) => c.id), rta) : {};
+  const partialDelta = deltaOf(partial);
+  const partialOption =
+    partialDelta > 0 && (fullDelta > rta || Object.keys(partial).some((id) => categoryMonth(mb, id).available < 0))
+      ? [{ value: 'partial', label: `Assign the ${formatMoney(partialDelta)} you have`, hint: 'Covers overspending first, then targets from the top of your list', changes: partial, delta: partialDelta }]
+      : [];
+
+  /** Applies auto-assigned amounts, celebrating whatever got money. */
+  const applyAuto = (changes: Record<string, number>, delta: number) => {
+    if (Object.keys(changes).length === 0) return;
+    applyAssignments(month, changes);
+    const gains = Object.entries(changes)
+      .map(([id, v]) => ({ name: data.categories.find((c) => c.id === id)?.name ?? '', amount: v - categoryMonth(mb, id).assigned }))
+      .filter((g) => g.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    if (delta > 0 && gains.length) setFlash({ total: delta, items: gains });
+    else haptic('success');
+  };
 
   // Hide the floating "+ Transaction" button while editing; leaving the tab saves the amount.
   const latest = useRef({ edit, save });
@@ -248,18 +274,18 @@ export default function PlanScreen() {
         visible={sheet === 'auto'}
         onClose={() => setSheet(null)}
         title="Auto-assign"
-        actions={autoOptions.map((o) => ({
-          label: `${o.label}${o.delta !== 0 ? `  ·  ${formatMoney(o.delta, { sign: true })}` : ''}`,
-          hint: o.hint,
-          icon: o.value.startsWith('reset') ? 'refresh' : o.value === 'underfunded' ? 'flash' : o.value === 'reduceOverfunding' ? 'remove-circle-outline' : 'copy-outline',
-          destructive: o.value.startsWith('reset'),
-          onPress: () => {
-            if (Object.keys(o.changes).length === 0) return;
-            haptic('success');
-            applyAssignments(month, o.changes);
-          },
-        }))}
+        actions={[
+          ...partialOption.map((o) => ({ label: o.label, hint: o.hint, icon: 'wallet-outline' as const, onPress: () => applyAuto(o.changes, o.delta) })),
+          ...autoOptions.map((o) => ({
+            label: `${o.label}${o.delta !== 0 ? `  ·  ${formatMoney(o.delta, { sign: true })}` : ''}`,
+            hint: o.hint,
+            icon: o.value.startsWith('reset') ? ('refresh' as const) : o.value === 'underfunded' ? ('flash' as const) : o.value === 'reduceOverfunding' ? ('remove-circle-outline' as const) : ('copy-outline' as const),
+            destructive: o.value.startsWith('reset'),
+            onPress: () => applyAuto(o.changes, o.delta),
+          })),
+        ]}
       />
+      {flash && <AssignFlash info={flash} onDone={closeFlash} />}
       <PickerSheet
         visible={sheet === 'filter'}
         onClose={() => setSheet(null)}
@@ -357,8 +383,32 @@ function Column({ label, value, pill }: { label: string; value: number; pill?: b
   );
 }
 
+/** Rolls a number to its new value instead of jumping (e.g. Ready to Assign counting down as money is assigned). */
+function useRolling(value: number, duration = 700) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    if (start === value) return;
+    const began = Date.now();
+    let frame = 0;
+    const step = () => {
+      const t = Math.min((Date.now() - began) / duration, 1);
+      const eased = 1 - (1 - t) ** 3;
+      const v = Math.round(start + (value - start) * eased);
+      from.current = v;
+      setShown(v);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+  return shown;
+}
+
 function ReadyToAssignCard({ mb, onAssign }: { mb: MonthBudget; onAssign: () => void }) {
   const rta = mb.readyToAssign;
+  const rolling = useRolling(rta);
   const status = rta > 0 ? 'Ready to Assign' : rta < 0 ? 'You assigned more than you have' : 'All money assigned';
   return (
     <GradientCard>
@@ -368,7 +418,7 @@ function ReadyToAssignCard({ mb, onAssign }: { mb: MonthBudget; onAssign: () => 
             {status}
           </Txt>
           <Txt variant="title" tone="inverse" numberOfLines={1} adjustsFontSizeToFit>
-            {formatMoney(rta)}
+            {formatMoney(rolling)}
           </Txt>
         </View>
         {rta !== 0 && (

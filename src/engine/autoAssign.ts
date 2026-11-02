@@ -24,6 +24,29 @@ export const AUTO_ASSIGN_OPTIONS: { value: AutoAssignStrategy; label: string; hi
 ];
 
 /**
+ * When there isn't enough to fund everything: spreads `amount` over what's short, covering overspending first,
+ * then underfunded targets in list order, until the money runs out. Returns only the categories that change.
+ */
+export function assignUpTo(result: BudgetResult, month: MonthKey, categoryIds: string[], amount: Milli): Record<string, Milli> {
+  const cur = getMonth(result, month);
+  const out: Record<string, Milli> = {};
+  let left = Math.max(amount, 0);
+  const give = (id: string, want: Milli) => {
+    const take = Math.min(Math.max(want, 0), left);
+    if (take <= 0) return;
+    out[id] = (out[id] ?? categoryMonth(cur, id).assigned) + take;
+    left -= take;
+  };
+  for (const id of categoryIds) give(id, -categoryMonth(cur, id).available);
+  for (const id of categoryIds) {
+    const cm = categoryMonth(cur, id);
+    // Covering overspending above already counts toward the target (both raise what's assigned).
+    if (cm.target && !cm.target.snoozed) give(id, cm.target.underfunded - ((out[id] ?? cm.assigned) - cm.assigned));
+  }
+  return out;
+}
+
+/**
  * Computes new assigned values for `categoryIds` in `month`.
  * Returns only the categories whose assigned value changes.
  */

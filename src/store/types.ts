@@ -161,9 +161,9 @@ export interface BudgetSettings {
   currentGoalId?: string;
   /** Apple Pay auto-logging: account used when a Wallet card's name doesn't match an account */
   payAccountId?: string;
-  /** Companion that roams the app and reacts to the budget (src/engine/pet.ts). Personal: kept on this device, never synced. */
+  /** Companion that roams the app and reacts to the budget (src/engine/pet.ts). Personal: not shared with budget members, but saved to the user's account (src/cloud/personal.ts). */
   pet?: { kind: PetKind; name: string; hidden?: boolean };
-  /** Notification choices (src/notifications/reminders.ts). Personal: kept on this device, never synced. */
+  /** Notification choices (src/notifications/reminders.ts). Personal, like pet. */
   reminders?: ReminderPrefs;
 }
 

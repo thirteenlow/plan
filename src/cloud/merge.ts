@@ -1,8 +1,8 @@
 import type { BudgetData } from '@/store/types';
 
 /**
- * Fields that belong to each person/device rather than the shared budget (never uploaded): the greeting name,
- * the companion and notification choices. Everything else syncs, including pinned categories and the goal.
+ * Fields that belong to each person rather than the shared budget (never in the shared upload; each user's own copy
+ * is saved by src/cloud/personal.ts): the greeting name, the companion and notification choices. Everything else syncs, including pinned categories and the goal.
  */
 export type SharedBudget = Omit<BudgetData, 'lastOpenedAt'>;
 

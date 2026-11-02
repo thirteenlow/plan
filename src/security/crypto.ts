@@ -74,6 +74,9 @@ export function unwrapKey(wrapped: string, keyPair: KeyPair, context: string): U
   return open(wrapKey, `v1.${nonce}.${ct}`, context);
 }
 
+/** A symmetric key for the user's own data, derived from their identity private key (same on every device). */
+export const ownDataKey = (keyPair: KeyPair, context: string) => hkdf(sha256, keyPair.privateKey, undefined, te.encode(context), 32);
+
 // ---------- Passphrase-protected private key backup ----------
 
 export interface KdfParams {

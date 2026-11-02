@@ -61,6 +61,10 @@ check every minute and whenever the app comes to the foreground. If two people e
 merged item by item (transactions, categories, assigned amounts…); if both changed the same item, the
 last device to save keeps its version.
 
+Your name, companion and notification choices aren't part of a shared budget (each member keeps their own), so
+they're saved separately to your account, encrypted, and follow you to every device. Run
+`supabase/009_personal_settings.sql` once to turn this on; until then they stay on each device.
+
 ## Apple Pay auto-logging (optional)
 
 Lets an iPhone Shortcuts automation log every Apple Pay payment into Plan.

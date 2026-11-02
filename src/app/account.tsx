@@ -446,8 +446,10 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
   };
 
   const copy: Record<PasswordStage, [string, string, string]> = {
-    create: ['Create a password', 'It keeps your budgets private. Plan can’t see it or recover it.', 'Create password'],
-    unlock: ['Enter your password', email, 'Unlock'],
+    // Not a sign-in password (Google, Apple or the email code did that): it locks the encryption key, and each device
+    // keeps the key once unlocked, so people only see this once per device.
+    create: ['Lock your budgets', 'Signing in proves it’s you. This separate password encrypts your budgets so only you can read them, not even Plan. You’ll only need it once on each new device.', 'Create password'],
+    unlock: ['Unlock your budgets', `First time on this device as ${email}. Enter the encryption password you created, just this once. This device will remember it.`, 'Unlock'],
     verify: ['Check your email', `Enter the code we sent to ${email}.`, 'Continue'],
     reset: ['Set a new password', 'Budgets on this device are kept. Budgets only stored online can’t be recovered.', 'Save new password'],
   };

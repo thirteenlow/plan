@@ -11,6 +11,7 @@ import { syncReminders } from '@/notifications/reminders';
 import { refreshPlan, usePlan } from './pro';
 import { deepEqual, mergeBudgets, type SharedBudget, sharedPart, withPersonal } from './merge';
 import { importPayments } from './inbox';
+import { pullPersonal, resetPersonal, schedulePersonalPush } from './personal';
 import { getSupabase } from './supabase';
 
 /*
@@ -92,6 +93,7 @@ export function startSync() {
     for (const id of Object.keys(state.sync)) {
       if (state.budgets[id] && state.budgets[id] !== prev.budgets[id]) schedulePush(id);
     }
+    if (state.budgets !== prev.budgets) schedulePersonalPush();
     // Every budget belongs to the account: new ones (created, imported, demo) are uploaded automatically.
     for (const id of Object.keys(state.budgets)) {
       if (!state.sync[id] && !prev.budgets[id]) scheduleUpload(id);
@@ -127,6 +129,7 @@ export function stopSync() {
   appStateSub?.remove();
   appStateSub = null;
   for (const t of Object.values(timers)) clearTimeout(t);
+  resetPersonal();
   locked.clear();
   useCloud.setState({ locked: 0, firstPullDone: false });
 }
@@ -210,6 +213,8 @@ export async function pullAll() {
     uploadUnsynced();
     // Apple Pay payments logged by the iPhone Shortcut while the app was closed.
     await importPayments().catch(setError);
+    // Name, companion and notification choices saved to the account (before reminders, which depend on them).
+    await pullPersonal().catch(setError);
     // Keep this device's upcoming reminders current (they depend on what's due, logged and overspent).
     void syncReminders().catch(() => {});
   } catch (e) {
