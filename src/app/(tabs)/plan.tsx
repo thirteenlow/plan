@@ -14,6 +14,7 @@ import { availableTone, categoryMonth, type CategoryMonth, type MonthBudget } fr
 import { AUTO_ASSIGN_OPTIONS, assignUpTo, autoAssign } from '@/engine/autoAssign';
 import { AssignFlash, type AssignFlashInfo } from '@/components/AssignFlash';
 import { blurActiveField, useKeyboard } from '@/hooks/useKeyboard';
+import { mostOverspent } from '@/hooks/useTodos';
 import { MAX_FUTURE_MONTHS, type PlanFilter, sortedGroups, useBudgetResult, useMonthBudget, useUi } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { Category } from '@/store/types';
@@ -138,10 +139,10 @@ export default function PlanScreen() {
   };
 
   const cover = () => {
+    const id = mostOverspent(overspent.map((c) => c.id), mb);
+    if (!id) return;
     haptic();
-    if (overspent.length === 1) {
-      router.push({ pathname: '/move-money', params: { month, to: overspent[0].id, amount: String(-categoryMonth(mb, overspent[0].id).available) } });
-    } else setFilter('overspent');
+    router.push({ pathname: '/move-money', params: { month, to: id, amount: String(-categoryMonth(mb, id).available) } });
   };
 
   const header = {

@@ -161,7 +161,10 @@ export default function SettingsScreen() {
           icon="log-out-outline"
           style={{ marginTop: 24 }}
           onPress={async () => {
-            if (await confirm('Log out', 'Your budgets stay on your account and are removed from this device.', 'Log out')) await signOutEverywhereOnDevice();
+            if (!(await confirm('Log out', 'Your budgets stay on your account and are removed from this device.', 'Log out'))) return;
+            await signOutEverywhereOnDevice();
+            // The budgets are gone from this device: go home, where the sign-in gate takes over.
+            router.replace('/');
           }}
         />
       )}

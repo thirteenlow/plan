@@ -56,13 +56,8 @@ export default function HomeScreen() {
     haptic();
     switch (t.kind) {
       case 'overspent':
-        if (t.count === 1 && t.categoryId) {
-          router.push({ pathname: '/move-money', params: { month, to: t.categoryId, amount: String(-categoryMonth(mb, t.categoryId).available) } });
-        } else {
-          setMonth(month);
-          setPlanFilter('overspent');
-          router.navigate('/plan');
-        }
+        // Opens Move money on the most overspent category; covering it brings back Cover for the next one.
+        if (t.categoryId) router.push({ pathname: '/move-money', params: { month, to: t.categoryId, amount: String(-categoryMonth(mb, t.categoryId).available) } });
         break;
       case 'assign':
       case 'overassigned':

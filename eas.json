@@ -3,7 +3,8 @@
   "build": {
     "preview": {
       "android": { "buildType": "apk" },
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "preview"
     },
     "production": {
       "android": { "buildType": "app-bundle" },

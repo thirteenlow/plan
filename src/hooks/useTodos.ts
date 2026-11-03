@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { categoryMonth } from '@/engine/budget';
+import { categoryMonth, type MonthBudget } from '@/engine/budget';
 import { useBudgetData } from '@/store/store';
 import { currentMonth } from '@/utils/date';
 import { formatMoney } from '@/utils/money';
@@ -12,7 +12,7 @@ export interface Todo {
   count: number;
   label: string;
   action: string;
-  /** First affected category (for one-tap cover) */
+  /** Most affected category (for one-tap cover) */
   categoryId?: string;
 }
 
@@ -27,7 +27,7 @@ export function useTodos(): Todo[] {
     const visible = data.categories.filter((c) => !c.hidden && !data.groups.find((g) => g.id === c.groupId)?.hidden);
     const overspent = visible.filter((c) => categoryMonth(mb, c.id).available < 0);
     if (overspent.length) {
-      out.push({ kind: 'overspent', count: overspent.length, label: overspent.length === 1 ? 'Overspent category' : 'Overspent categories', action: 'Cover', categoryId: overspent[0].id });
+      out.push({ kind: 'overspent', count: overspent.length, label: overspent.length === 1 ? 'Overspent category' : 'Overspent categories', action: 'Cover', categoryId: mostOverspent(overspent.map((c) => c.id), mb) });
     }
     if (mb.readyToAssign > 0) out.push({ kind: 'assign', count: 1, label: `${formatMoney(mb.readyToAssign)} ready to assign`, action: 'Assign' });
     if (mb.readyToAssign < 0) out.push({ kind: 'overassigned', count: 1, label: `Assigned ${formatMoney(-mb.readyToAssign)} too much`, action: 'Fix' });
@@ -41,4 +41,9 @@ export function useTodos(): Todo[] {
     if (uncategorized) out.push({ kind: 'categorize', count: uncategorized, label: uncategorized === 1 ? 'Transaction needs a category' : 'Transactions need a category', action: 'Categorize' });
     return out;
   }, [data, mb]);
+}
+
+/** The category that's overspent by the most, covered first. */
+export function mostOverspent(ids: string[], mb: MonthBudget): string | undefined {
+  return ids.reduce<string | undefined>((best, id) => (best === undefined || categoryMonth(mb, id).available < categoryMonth(mb, best).available ? id : best), undefined);
 }
