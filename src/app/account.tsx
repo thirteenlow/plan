@@ -6,48 +6,33 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
-import { RecoveryCodeView } from '@/components/RecoveryCode';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, ProgressBar, Row, Tap, TextField, Txt } from '@/components/ui';
-import {
-  completeSetup,
-  completeUnlock,
-  deleteAccount,
-  finishRecovery,
-  newRecoveryCode,
-  recoverWithOldPassword,
-  resetEncryption,
-  setPrivacy,
-  signOutEverywhereOnDevice,
-  skipRecoveryCode,
-  unlockWithCode,
-} from '@/cloud';
-import { nativeAppleAvailable, sendEmailCode, signInWithAppleNative, signInWithProvider, verifyEmailCode } from '@/cloud/auth';
-import { friendlyError, isSimple, useCloud } from '@/cloud/cloudStore';
+import { completeUnlock, deleteAccount, recoverWithOldPassword, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
+import { MIN_PASSWORD, nativeAppleAvailable, sendResetCode, setAccountPassword, signInWithAppleNative, signInWithEmail, signInWithProvider, signUpWithEmail, verifyResetCode } from '@/cloud/auth';
+import { friendlyError, useCloud } from '@/cloud/cloudStore';
 import { APPLE_SIGN_IN_ENABLED, cloudConfigured } from '@/cloud/config';
-import { changePassword, normalizeRecoveryCode, PASSWORD_RULES, validatePassword } from '@/cloud/identity';
 import { pullAll, removeLockedBudgets } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { GRADIENT_SOFT, RADIUS, useTheme } from '@/theme';
 
 export default function AccountScreen() {
-  const { status, user, profile, error, notice, syncing, lastSyncAt, locked, hasRecovery, recoveryCode } = useCloud();
-  const simple = isSimple(profile);
+  const { status, user, error, notice, syncing, lastSyncAt, locked, settingPassword } = useCloud();
   const sync = useStore((s) => s.sync);
   const budgets = useStore((s) => s.budgets);
   const shared = Object.keys(sync).filter((id) => budgets[id]);
   // Reached as the sign-in gate (not from Settings): no way back, and continue into the app once ready
-  // (after a new recovery code has been saved).
+  // (after choosing a new password, when signing in with a reset code).
   const [asGate] = useState(() => cloudConfigured && useCloud.getState().status !== 'ready');
   useEffect(() => {
-    if (asGate && status === 'ready' && !recoveryCode) router.replace('/');
-  }, [asGate, status, recoveryCode]);
+    if (asGate && status === 'ready' && !settingPassword) router.replace('/');
+  }, [asGate, status, settingPassword]);
 
   if (status === 'signedOut') return <SignIn />;
-  if (status === 'ready' && recoveryCode)
+  if (settingPassword)
     return (
       <Screen maxWidth={420}>
-        <RecoveryCodeView code={recoveryCode} onDone={() => useCloud.setState({ recoveryCode: null })} onSkip={() => void skipRecoveryCode()} />
+        <NewPassword />
       </Screen>
     );
 
@@ -63,8 +48,7 @@ export default function AccountScreen() {
           <Txt tone="muted">Checking your account…</Txt>
         </View>
       )}
-      {status === 'needsSetup' && <PasswordForm mode="setup" />}
-      {status === 'needsUnlock' && <PasswordForm mode="unlock" />}
+      {status === 'needsUnlock' && <OldPasswordUnlock />}
       {status === 'ready' && user && (
         <>
           <Card style={{ gap: 12 }}>
@@ -77,7 +61,7 @@ export default function AccountScreen() {
                   {user.name || user.email}
                 </Txt>
                 <Txt variant="caption" tone="muted" numberOfLines={1}>
-                  {user.email} · {simple ? 'encrypted' : 'end-to-end encrypted'}
+                  {user.email}
                 </Txt>
               </View>
             </Row>
@@ -93,7 +77,6 @@ export default function AccountScreen() {
             )}
           </Card>
 
-          {!simple && hasRecovery === false && <RecoverySetup />}
           {locked > 0 && <LockedBudgets count={locked} />}
 
           <Txt variant="overline" tone="muted" style={{ marginTop: 22, marginBottom: 10, marginLeft: 4 }}>
@@ -123,9 +106,6 @@ export default function AccountScreen() {
             )}
           </Card>
           <Button title="Manage budgets" variant="soft" icon="albums-outline" style={{ marginTop: 14 }} onPress={() => router.push('/budgets')} />
-          <PrivacySetting simple={simple} email={user.email} />
-          {!simple && <ChangePassword email={user.email} />}
-          {!simple && hasRecovery && <RenewRecoveryCode />}
           <DeleteAccount />
           <Button
             title="Sign out"
@@ -257,7 +237,7 @@ function SignIn() {
           <Tap onPress={() => router.push('/privacy')} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 28 }}>
             <Ionicons name="lock-closed" size={12} color={colors.muted} />
             <Txt variant="caption" tone="muted">
-              End-to-end encrypted · Privacy
+              Encrypted · Privacy
             </Txt>
           </Tap>
         </View>
@@ -268,11 +248,17 @@ function SignIn() {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-/** Two steps: send a one-time code to an email address, then type the code in. */
+type EmailStep = 'signin' | 'signup' | 'forgot' | 'code' | 'confirm';
+
+/**
+ * Email with a password: sign in, create an account, or (forgot password) get an emailed code that signs you in
+ * so you can choose a new password.
+ */
 function EmailSignIn({ disabled }: { disabled: boolean }) {
+  const [step, setStep] = useState<EmailStep>('signin');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
@@ -283,148 +269,18 @@ function EmailSignIn({ disabled }: { disabled: boolean }) {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  const send = async (to: string) => {
-    if (!EMAIL_PATTERN.test(to)) return setErr('Enter a valid email address.');
-    setBusy(true);
+  const go = (next: EmailStep) => {
+    setStep(next);
     setErr(null);
-    try {
-      await sendEmailCode(to);
-      setSentTo(to);
-      setCode('');
-      setCooldown(60);
-    } catch (e) {
-      setErr(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verify = async () => {
-    if (!sentTo || code.length < 6) return setErr('Enter the code from the email.');
-    setBusy(true);
-    setErr(null);
-    try {
-      await verifyEmailCode(sentTo, code);
-      haptic('success');
-    } catch (e) {
-      setErr(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!sentTo) {
-    return (
-      <View style={{ gap: 10 }}>
-        <TextField
-          icon="mail-outline"
-          placeholder="you@example.com"
-          value={email}
-          onChangeText={(t) => {
-            setEmail(t.replace(/\s/g, ''));
-            setErr(null);
-          }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          textContentType="emailAddress"
-          maxLength={254}
-          error={err}
-          onSubmitEditing={() => void send(email)}
-        />
-        <Button title="Continue with email" loading={busy} disabled={disabled || !email} onPress={() => void send(email)} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ gap: 10 }}>
-      <Txt tone="soft" center>
-        Code sent to <Txt variant="strong">{sentTo}</Txt>
-      </Txt>
-      <TextField
-        icon="keypad-outline"
-        placeholder="6-digit code"
-        value={code}
-        onChangeText={(t) => {
-          setCode(t);
-          setErr(null);
-        }}
-        filter={(t) => t.replace(/\D/g, '').slice(0, 10)}
-        keyboardType="number-pad"
-        autoComplete="one-time-code"
-        textContentType="oneTimeCode"
-        maxLength={10}
-        autoFocus
-        error={err}
-        onSubmitEditing={() => void verify()}
-      />
-      <Button title="Sign in" loading={busy} disabled={code.length < 6} onPress={() => void verify()} />
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Button title="Change email" variant="ghost" small onPress={() => setSentTo(null)} />
-        <Button title={cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'} variant="ghost" small disabled={cooldown > 0 || busy} onPress={() => void send(sentTo)} />
-      </Row>
-    </View>
-  );
-}
-
-type PasswordStage = 'choose' | 'create' | 'unlock' | 'recover' | 'newpass' | 'verify' | 'reset';
-const signedInRecently = (at: string | undefined) => !!at && Date.now() - Date.parse(at) < 15 * 60_000;
-
-/**
- * First sign-in: pick Simple (done, no password) or Private (create a password). New device on Private: enter it. Forgot it: the recovery code opens everything and
- * sets a new one; without the code, a reset (after a fresh sign-in or emailed code) starts over.
- */
-function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
-  const user = useCloud((s) => s.user);
-  const { colors } = useTheme();
-  const [stage, setStage] = useState<PasswordStage>(mode === 'setup' ? 'choose' : 'unlock');
-  // Starting over after a forgotten password (vs. first setup): the same choice, but it replaces the old keys.
-  const [resetting, setResetting] = useState(false);
-  const [simple, setSimple] = useState(true);
-  const [pass, setPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
-  const [code, setCode] = useState('');
-  const [show, setShow] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<number | null>(null);
-  const email = user?.email ?? '';
-  const choosing = stage === 'create' || stage === 'reset' || stage === 'newpass';
-  const rulesMet = PASSWORD_RULES.every((r) => r.test(pass));
-  const matches = !!confirmPass && pass === confirmPass;
-
-  const goTo = (next: PasswordStage) => {
-    setStage(next);
-    setErr(null);
-    setPass('');
-    setConfirmPass('');
+    setPassword('');
     setCode('');
   };
 
-  const lostCode = async () => {
-    if (!(await confirm('No recovery code?', 'Starting over locks budgets that aren’t on this device, unless you remember the old password.', 'Start over', true))) return;
-    forgot();
-  };
-
-  const forgot = () => {
-    // Just signed in (Google, Apple or an email code) proves it's you; another emailed code adds nothing.
-    if (signedInRecently(user?.signedInAt)) startOver();
-    else void sendCode();
-  };
-
-  const startOver = () => {
-    setResetting(true);
-    goTo('choose');
-  };
-
-  const sendCode = async () => {
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setErr(null);
     try {
-      await sendEmailCode(email);
-      goTo('verify');
+      await fn();
     } catch (e) {
       setErr(friendlyError(e));
     } finally {
@@ -432,124 +288,80 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
     }
   };
 
-  const checkCode = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await verifyEmailCode(email, code);
-      haptic('success');
-      startOver();
-    } catch (e) {
-      setErr(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
+  const validEmail = () => {
+    if (EMAIL_PATTERN.test(email)) return true;
+    setErr('Enter a valid email address.');
+    return false;
   };
 
-  const submit = async () => {
-    if (stage === 'verify') return checkCode();
-    setErr(null);
-    if (stage === 'choose' && !simple) return goTo(resetting ? 'reset' : 'create');
-    if (stage === 'choose') {
-      setProgress(0);
-      try {
-        await (resetting ? resetEncryption(null, setProgress) : completeSetup(null, setProgress));
-        haptic('success');
-      } catch (e) {
-        setErr(friendlyError(e));
-      } finally {
-        setProgress(null);
-      }
-      return;
+  const submit = () => {
+    if (step === 'signin' && validEmail()) void run(() => signInWithEmail(email, password));
+    if (step === 'signup' && validEmail()) {
+      if (password.length < MIN_PASSWORD) return setErr(`Use at least ${MIN_PASSWORD} characters.`);
+      void run(async () => {
+        if (!(await signUpWithEmail(email, password))) go('confirm');
+      });
     }
-    if (stage === 'recover') {
-      setProgress(0);
-      try {
-        await unlockWithCode(code, setProgress);
-        haptic('success');
-        goTo('newpass');
-      } catch (e) {
-        setErr(friendlyError(e));
-      } finally {
-        setProgress(null);
-      }
-      return;
-    }
-    if (choosing) {
-      const v = validatePassword(pass, confirmPass, email);
-      if (v) return setErr(v);
-    } else if (!pass) {
-      return setErr('Enter your password.');
-    }
-    setProgress(0);
-    try {
-      if (stage === 'reset') await resetEncryption(pass, setProgress);
-      else if (stage === 'newpass') await finishRecovery(pass, setProgress);
-      else if (stage === 'create') await completeSetup(pass, setProgress);
-      else await completeUnlock(pass, setProgress);
-      haptic('success');
-    } catch (e) {
-      setErr(friendlyError(e));
-    } finally {
-      setProgress(null);
-    }
+    if (step === 'forgot' && validEmail()) sendCode();
+    if (step === 'code')
+      void run(async () => {
+        // The code signs them in; ask for the new password before the app opens.
+        useCloud.setState({ settingPassword: true });
+        try {
+          await verifyResetCode(email, code);
+        } catch (e) {
+          useCloud.setState({ settingPassword: false });
+          throw e;
+        }
+      });
   };
 
-  const copy: Record<PasswordStage, [string, string, string]> = {
-    // Not a sign-in password (Google, Apple or the email code did that): it locks the encryption key, and each device
-    // keeps the key once unlocked, so people only see this once per device.
-    choose: [resetting ? 'Start over' : 'Choose your privacy', resetting ? 'Budgets not on this device stay locked.' : 'You can change this later.', 'Continue'],
-    create: ['Lock your budgets', 'Only you can read them. Not even Plan.', 'Create password'],
-    unlock: ['Unlock your budgets', 'Enter your encryption password. This device will remember it.', 'Unlock'],
-    recover: ['Enter your recovery code', 'The 20-character code you saved when you set your password.', 'Continue'],
-    newpass: ['You’re in', 'Everything’s safe. Choose a new password.', 'Save password'],
-    verify: ['Check your email', `Enter the code sent to ${email}.`, 'Continue'],
-    reset: ['Set a new password', 'Only you will be able to read your budgets.', 'Save password'],
-  };
-  const [title, subtitle, action] = copy[stage];
-  const ready = stage === 'choose' ? true : stage === 'verify' ? code.length >= 6 : stage === 'recover' ? normalizeRecoveryCode(code).length === 20 : choosing ? rulesMet && matches : !!pass;
+  const sendCode = () =>
+    void run(async () => {
+      await sendResetCode(email);
+      setCooldown(60);
+      go('code');
+    });
 
-  const eye = (
-    <Tap onPress={() => setShow(!show)} hitSlop={10} accessibilityRole="button" accessibilityLabel={show ? 'Hide password' : 'Show password'}>
-      <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
-    </Tap>
+  const emailField = (
+    <TextField
+      icon="mail-outline"
+      placeholder="you@example.com"
+      value={email}
+      onChangeText={(t) => {
+        setEmail(t.replace(/\s/g, ''));
+        setErr(null);
+      }}
+      keyboardType="email-address"
+      autoCapitalize="none"
+      autoCorrect={false}
+      autoComplete="email"
+      textContentType="emailAddress"
+      maxLength={254}
+      onSubmitEditing={submit}
+    />
   );
 
-  return (
-    <View style={{ gap: 14 }}>
-      <View style={{ alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <Image source={require('../../assets/icon.png')} style={{ width: 56, height: 56, borderRadius: 18, marginBottom: 10 }} accessibilityIgnoresInvertColors />
-        <Txt variant="h2" center>
-          {title}
+  if (step === 'confirm')
+    return (
+      <Card style={{ gap: 8, alignItems: 'center' }}>
+        <Ionicons name="mail-open-outline" size={26} color="#9A5CF5" />
+        <Txt variant="strong" center>
+          Check your inbox
         </Txt>
-        <Txt tone="soft" center>
-          {subtitle}
+        <Txt variant="caption" tone="soft" center>
+          Open the link we sent to {email} to finish.
         </Txt>
-      </View>
+        <Button title="Back to sign in" variant="ghost" small onPress={() => go('signin')} />
+      </Card>
+    );
 
-      {stage === 'choose' ? (
-        <View style={{ gap: 10 }}>
-          <PrivacyOption icon="flash" title="Simple" tag="Recommended" text="Just sign in. Nothing to remember." selected={simple} onPress={() => setSimple(true)} />
-          <PrivacyOption icon="lock-closed" title="Private" text="Only you can read your budgets, not even Plan. Needs a password." selected={!simple} onPress={() => setSimple(false)} />
-        </View>
-      ) : stage === 'recover' ? (
-        <TextField
-          icon="key-outline"
-          placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
-          value={code}
-          onChangeText={(t) => {
-            setCode(t);
-            setErr(null);
-          }}
-          filter={(t) => t.toUpperCase().slice(0, 30)}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          autoComplete="off"
-          maxLength={30}
-          autoFocus
-          onSubmitEditing={() => void submit()}
-        />
-      ) : stage === 'verify' ? (
+  if (step === 'code')
+    return (
+      <View style={{ gap: 10 }}>
+        <Txt tone="soft" center>
+          Code sent to <Txt variant="strong">{email}</Txt>
+        </Txt>
         <TextField
           icon="keypad-outline"
           placeholder="6-digit code"
@@ -564,245 +376,135 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
           textContentType="oneTimeCode"
           maxLength={10}
           autoFocus
-          onSubmitEditing={() => void submit()}
+          error={err}
+          onSubmitEditing={submit}
         />
-      ) : (
-        <>
-          <TextField
-            label={choosing ? 'Password' : undefined}
-            icon="lock-closed-outline"
-            placeholder={choosing ? 'New password' : 'Password'}
-            value={pass}
-            onChangeText={(t) => {
-              setPass(t);
-              setErr(null);
-            }}
-            filter={(t) => t.slice(0, 128)}
-            secureTextEntry={!show}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete={choosing ? 'new-password' : 'current-password'}
-            textContentType={choosing ? 'newPassword' : 'password'}
-            maxLength={128}
-            autoFocus
-            right={eye}
-            onSubmitEditing={() => void submit()}
-          />
-          {choosing && (
-            <>
-              <View style={{ gap: 6, paddingHorizontal: 4 }}>
-                {PASSWORD_RULES.map((r) => {
-                  const ok = r.test(pass);
-                  return (
-                    <Row key={r.label} style={{ gap: 8 }}>
-                      <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={ok ? colors.positive : colors.muted} />
-                      <Txt variant="caption" tone={ok ? 'default' : 'muted'}>
-                        {r.label}
-                      </Txt>
-                    </Row>
-                  );
-                })}
-              </View>
-              <TextField
-                label="Confirm password"
-                icon="lock-closed-outline"
-                placeholder="Type it again"
-                value={confirmPass}
-                onChangeText={(t) => {
-                  setConfirmPass(t);
-                  setErr(null);
-                }}
-                filter={(t) => t.slice(0, 128)}
-                secureTextEntry={!show}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="new-password"
-                textContentType="newPassword"
-                maxLength={128}
-                right={confirmPass ? <Ionicons name={matches ? 'checkmark-circle' : 'close-circle'} size={20} color={matches ? colors.positive : colors.danger} /> : undefined}
-                onSubmitEditing={() => void submit()}
-              />
-            </>
-          )}
-        </>
-      )}
+        <Button title="Continue" loading={busy} disabled={code.length < 6} onPress={submit} />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Button title="Back" variant="ghost" small onPress={() => go('forgot')} />
+          <Button title={cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'} variant="ghost" small disabled={cooldown > 0 || busy} onPress={sendCode} />
+        </Row>
+      </View>
+    );
 
+  if (step === 'forgot')
+    return (
+      <View style={{ gap: 10 }}>
+        <Txt tone="soft" center>
+          We’ll email you a code to reset your password.
+        </Txt>
+        {emailField}
+        {!!err && (
+          <Txt variant="caption" tone="danger" center>
+            {err}
+          </Txt>
+        )}
+        <Button title="Email me a code" loading={busy} disabled={disabled || !email} onPress={submit} />
+        <Button title="Back to sign in" variant="ghost" small onPress={() => go('signin')} />
+      </View>
+    );
+
+  const signup = step === 'signup';
+  return (
+    <View style={{ gap: 10 }}>
+      {emailField}
+      <PasswordField value={password} onChange={(t) => (setPassword(t), setErr(null))} isNew={signup} onSubmit={submit} />
+      {signup && (
+        <Txt variant="caption" tone={password.length >= MIN_PASSWORD ? 'positive' : 'muted'} style={{ marginLeft: 4 }}>
+          At least {MIN_PASSWORD} characters
+        </Txt>
+      )}
       {!!err && (
         <Txt variant="caption" tone="danger" center>
           {err}
         </Txt>
       )}
-      {progress !== null && <ProgressBar progress={progress} height={5} />}
-      <Button title={action} loading={busy || progress !== null} disabled={!ready} onPress={() => void submit()} />
-
-      {stage === 'unlock' && <Button title="Forgot password?" variant="ghost" small onPress={() => goTo('recover')} />}
-      {stage === 'recover' && <Button title="Lost your code?" variant="ghost" small loading={busy} onPress={() => void lostCode()} />}
-      {stage === 'verify' && <Button title="Resend code" variant="ghost" small disabled={busy} onPress={() => void sendCode()} />}
-      {(stage === 'recover' || stage === 'verify' || (stage === 'choose' && resetting)) && <Button title="Back" variant="ghost" small onPress={() => goTo('unlock')} />}
-      {(stage === 'create' || stage === 'reset') && <Button title="Back" variant="ghost" small onPress={() => goTo('choose')} />}
-      <Button title="Use a different account" variant="ghost" small onPress={() => void signOutEverywhereOnDevice()} />
+      <Button title={signup ? 'Create account' : 'Sign in with email'} loading={busy} disabled={disabled || !email || !password} onPress={submit} />
+      <Row style={{ justifyContent: signup ? 'center' : 'space-between' }}>
+        {!signup && <Button title="Forgot password?" variant="ghost" small onPress={() => go('forgot')} />}
+        <Button title={signup ? 'Have an account? Sign in' : 'Create account'} variant="ghost" small onPress={() => go(signup ? 'signin' : 'signup')} />
+      </Row>
     </View>
   );
 }
 
-/** One of the two privacy choices: a tappable card with a radio dot. */
-function PrivacyOption({ icon, title, tag, text, selected, onPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; title: string; tag?: string; text: string; selected: boolean; onPress: () => void }) {
+/** A password box with a show/hide eye. */
+function PasswordField({ value, onChange, isNew, onSubmit, autoFocus }: { value: string; onChange: (t: string) => void; isNew?: boolean; onSubmit?: () => void; autoFocus?: boolean }) {
   const { colors } = useTheme();
+  const [show, setShow] = useState(false);
   return (
-    <Tap
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: RADIUS.lg, borderWidth: 2, borderColor: selected ? colors.accent : colors.border, backgroundColor: selected ? colors.accentSoft : colors.surface }}
-    >
-      <Ionicons name={icon} size={22} color={selected ? colors.accent : colors.muted} />
-      <View style={{ flex: 1, gap: 2 }}>
-        <Row style={{ gap: 8 }}>
-          <Txt variant="strong">{title}</Txt>
-          {!!tag && (
-            <Txt variant="caption" style={{ color: colors.accent, fontWeight: '700' }}>
-              {tag}
-            </Txt>
-          )}
-        </Row>
-        <Txt variant="caption" tone="soft">
-          {text}
-        </Txt>
-      </View>
-      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={20} color={selected ? colors.accent : colors.muted} />
-    </Tap>
-  );
-}
-
-/** For accounts from before recovery codes: without one, a forgotten password means losing everything. */
-function RecoverySetup() {
-  const { colors } = useTheme();
-  const [progress, setProgress] = useState<number | null>(null);
-  const create = async () => {
-    setProgress(0);
-    try {
-      await newRecoveryCode(setProgress);
-    } catch (e) {
-      useCloud.setState({ error: friendlyError(e) });
-    } finally {
-      setProgress(null);
-    }
-  };
-  return (
-    <Card style={{ gap: 10, marginTop: 14, borderWidth: 1, borderColor: colors.warning }}>
-      <Row style={{ gap: 10 }}>
-        <Ionicons name="key" size={18} color={colors.warning} />
-        <Txt variant="strong" style={{ flex: 1 }}>
-          Add a recovery code
-        </Txt>
-      </Row>
-      <Txt variant="caption" tone="soft">
-        Forget your password without one and your budgets are gone for good.
-      </Txt>
-      {progress !== null && <ProgressBar progress={progress} height={5} />}
-      <Button title="Create recovery code" small loading={progress !== null} onPress={() => void create()} />
-    </Card>
-  );
-}
-
-/** A fresh recovery code (if the old one was lost or seen by someone). */
-function RenewRecoveryCode() {
-  const [busy, setBusy] = useState(false);
-  return (
-    <Button
-      title="New recovery code"
-      variant="ghost"
-      icon="key-outline"
-      loading={busy}
-      onPress={async () => {
-        if (!(await confirm('New recovery code', 'Your old code will stop working.', 'Create'))) return;
-        setBusy(true);
-        try {
-          await newRecoveryCode();
-        } catch (e) {
-          useCloud.setState({ error: friendlyError(e) });
-        } finally {
-          setBusy(false);
-        }
-      }}
+    <TextField
+      icon="lock-closed-outline"
+      placeholder={isNew ? 'Create a password' : 'Password'}
+      value={value}
+      onChangeText={onChange}
+      filter={(t) => t.slice(0, 128)}
+      secureTextEntry={!show}
+      autoCapitalize="none"
+      autoCorrect={false}
+      autoComplete={isNew ? 'new-password' : 'current-password'}
+      textContentType={isNew ? 'newPassword' : 'password'}
+      maxLength={128}
+      autoFocus={autoFocus}
+      onSubmitEditing={onSubmit}
+      right={
+        <Tap onPress={() => setShow(!show)} hitSlop={10} accessibilityRole="button" accessibilityLabel={show ? 'Hide password' : 'Show password'}>
+          <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
+        </Tap>
+      }
     />
   );
 }
 
-/** Simple or Private, and switching between them (same key, so nothing is lost either way). */
-function PrivacySetting({ simple, email }: { simple: boolean; email: string }) {
-  const { colors } = useTheme();
+/** After signing in with a reset code: choose the new password, then into the app. */
+function NewPassword() {
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    if (password.length < MIN_PASSWORD) return setErr(`Use at least ${MIN_PASSWORD} characters.`);
+    setBusy(true);
+    setErr(null);
+    try {
+      await setAccountPassword(password);
+      haptic('success');
+      useCloud.setState({ settingPassword: false, notice: 'Password updated.' });
+    } catch (e) {
+      setErr(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <Card style={{ gap: 10, marginTop: 14 }}>
-      <Row style={{ gap: 10 }}>
-        <Ionicons name={simple ? 'flash' : 'lock-closed'} size={18} color={colors.accent} />
-        <Txt variant="strong" style={{ flex: 1 }}>
-          {simple ? 'Simple' : 'Private'}
-        </Txt>
-      </Row>
-      <Txt variant="caption" tone="soft">
-        {simple ? 'No password needed. Plan could technically read your budgets.' : 'Only you can read your budgets. Not even Plan.'}
+    <View style={{ gap: 14 }}>
+      <FormHeader title="Choose a new password" subtitle="Use it next time you sign in with email." />
+      <PasswordField value={password} onChange={(t) => (setPassword(t), setErr(null))} isNew autoFocus onSubmit={() => void save()} />
+      <Txt variant="caption" tone={password.length >= MIN_PASSWORD ? 'positive' : 'muted'} style={{ marginLeft: 4 }}>
+        At least {MIN_PASSWORD} characters
       </Txt>
-      {simple ? (
-        <ChangePassword email={email} toPrivate />
-      ) : (
-        <Button
-          title="Switch to Simple"
-          variant="ghost"
-          small
-          loading={busy}
-          onPress={async () => {
-            if (!(await confirm('Switch to Simple?', 'No more password. Plan could technically read your budgets.', 'Switch'))) return;
-            setBusy(true);
-            try {
-              await setPrivacy(null);
-              useCloud.setState({ notice: 'Switched to Simple.' });
-            } catch (e) {
-              useCloud.setState({ error: friendlyError(e) });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
+      {!!err && (
+        <Txt variant="caption" tone="danger" center>
+          {err}
+        </Txt>
       )}
-    </Card>
+      <Button title="Save password" loading={busy} disabled={!password} onPress={() => void save()} />
+    </View>
   );
 }
 
-/** New encryption password from an unlocked device (keeps every budget, unlike a reset), or the one for going Private. */
-function ChangePassword({ email, toPrivate }: { email: string; toPrivate?: boolean }) {
-  const user = useCloud((s) => s.user);
-  const [open, setOpen] = useState(false);
-  const [pass, setPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
+/** Accounts made before Plan dropped encryption passwords: asked once on a new device, then never again. */
+function OldPasswordUnlock() {
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const ready = PASSWORD_RULES.every((r) => r.test(pass)) && !!confirmPass && pass === confirmPass;
+  const [busy, setBusy] = useState(false);
 
-  // Inside the privacy card when going Private; a card of its own otherwise.
-  const Wrap = toPrivate ? View : Card;
-  if (!open)
-    return toPrivate ? (
-      <Button title="Switch to Private" variant="soft" small onPress={() => setOpen(true)} />
-    ) : (
-      <Button title="Change encryption password" variant="ghost" icon="key-outline" style={{ marginTop: 6 }} onPress={() => setOpen(true)} />
-    );
-
-  const save = async () => {
-    const v = validatePassword(pass, confirmPass, email);
-    if (v) return setErr(v);
-    if (!user) return;
+  const unlock = async () => {
     setErr(null);
     setProgress(0);
     try {
-      if (toPrivate) await setPrivacy(pass, setProgress);
-      else await changePassword(user, pass, setProgress);
+      await completeUnlock(password, setProgress);
       haptic('success');
-      setOpen(false);
-      setPass('');
-      setConfirmPass('');
-      useCloud.setState({ notice: toPrivate ? 'You’re Private now.' : 'Password changed.' });
     } catch (e) {
       setErr(friendlyError(e));
     } finally {
@@ -810,32 +512,46 @@ function ChangePassword({ email, toPrivate }: { email: string; toPrivate?: boole
     }
   };
 
+  const startFresh = async () => {
+    if (!(await confirm('Start fresh?', 'Budgets that aren’t on this device stay locked until you remember the old password.', 'Start fresh', true))) return;
+    setBusy(true);
+    try {
+      await resetEncryption();
+    } catch (e) {
+      setErr(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Wrap style={{ gap: 10, marginTop: toPrivate ? 0 : 14 }}>
-      {!toPrivate && <Txt variant="strong">Change encryption password</Txt>}
-      <Txt variant="caption" tone="soft">
-        {toPrivate ? 'Choose a password. You’ll need it once on each new device.' : 'Your budgets stay as they are.'}
-      </Txt>
-      <TextField icon="lock-closed-outline" placeholder="New password" value={pass} onChangeText={(t) => (setPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} />
-      <TextField icon="lock-closed-outline" placeholder="Type it again" value={confirmPass} onChangeText={(t) => (setConfirmPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} onSubmitEditing={() => void save()} />
-      <View style={{ gap: 4, paddingHorizontal: 4 }}>
-        {PASSWORD_RULES.map((r) => (
-          <Txt key={r.label} variant="caption" tone={r.test(pass) ? 'positive' : 'muted'}>
-            {r.test(pass) ? '✓' : '○'} {r.label}
-          </Txt>
-        ))}
-      </View>
+    <View style={{ gap: 14 }}>
+      <FormHeader title="One last time" subtitle="Enter your old encryption password. You won’t need it again." />
+      <PasswordField value={password} onChange={(t) => (setPassword(t), setErr(null))} autoFocus onSubmit={() => void unlock()} />
       {!!err && (
-        <Txt variant="caption" tone="danger">
+        <Txt variant="caption" tone="danger" center>
           {err}
         </Txt>
       )}
       {progress !== null && <ProgressBar progress={progress} height={5} />}
-      <Row style={{ gap: 8 }}>
-        <Button title="Cancel" variant="ghost" small style={{ flex: 1 }} onPress={() => setOpen(false)} />
-        <Button title="Save" small style={{ flex: 1 }} loading={progress !== null} disabled={!ready} onPress={() => void save()} />
-      </Row>
-    </Wrap>
+      <Button title="Unlock" loading={progress !== null} disabled={!password} onPress={() => void unlock()} />
+      <Button title="Forgot it?" variant="ghost" small loading={busy} onPress={() => void startFresh()} />
+      <Button title="Use a different account" variant="ghost" small onPress={() => void signOutEverywhereOnDevice()} />
+    </View>
+  );
+}
+
+function FormHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={{ alignItems: 'center', gap: 6, marginBottom: 6 }}>
+      <Image source={require('../../assets/icon.png')} style={{ width: 56, height: 56, borderRadius: 18, marginBottom: 10 }} accessibilityIgnoresInvertColors />
+      <Txt variant="h2" center>
+        {title}
+      </Txt>
+      <Txt tone="soft" center>
+        {subtitle}
+      </Txt>
+    </View>
   );
 }
 
@@ -947,7 +663,7 @@ function DeleteAccount() {
         Delete your account
       </Txt>
       <Txt tone="soft">
-        This permanently deletes your account, your encryption key backup and every budget you own from the server, for everyone you shared them with. You’ll be removed from budgets others shared with you, and everything is cleared from this device.
+        Deletes your account and every budget you own, for everyone you shared them with, and clears this device. This can’t be undone.
       </Txt>
       <TextField label="Type DELETE to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} maxLength={10} error={err} />
       <Row style={{ gap: 10 }}>
@@ -982,7 +698,6 @@ const DEVICE_KEY_NOTE: Record<string, string> = {
 };
 
 function PrivacyNote() {
-  const simple = isSimple(useCloud((s) => s.profile));
   return (
     <Card style={{ marginTop: 22, gap: 8 }}>
       <Row style={{ gap: 8 }}>
@@ -991,9 +706,9 @@ function PrivacyNote() {
       </Row>
       {[
         DEVICE_KEY_NOTE[Platform.OS] ?? DEVICE_KEY_NOTE.web,
-        'Budgets are encrypted on your device (XChaCha20-Poly1305). The server only sees ciphertext.',
+        'Budgets are encrypted (XChaCha20-Poly1305) before they leave this device.',
+        'The key is kept with your account, so any device you sign in on can open them.',
         'Each budget has its own key per member. Removing someone rotates it.',
-        simple ? 'Simple: your key is kept on your account so you never need a password.' : 'Private: your key backup is locked with your password (scrypt).',
       ].map((t) => (
         <Row key={t} style={{ gap: 8, alignItems: 'flex-start' }}>
           <Txt tone="muted">•</Txt>

@@ -13,12 +13,12 @@ export interface CloudUser {
 export interface ProfileRow {
   public_key: string;
   encrypted_private_key: string;
-  /** How the key backup is protected: a password (Private) or nothing (Simple, alg "none") */
+  /** "none": kept as is on the account. scrypt: locked with an older account's encryption password */
   kdf: import('@/security/crypto').KdfParams | { alg: 'none' };
 }
 
-/** Simple accounts: no encryption password, every signed-in device unlocks by itself. */
-export const isSimple = (profile: ProfileRow | null) => profile?.kdf.alg === 'none';
+/** The key is kept on the account (every account now; older ones locked it with an encryption password). */
+export const keyOnAccount = (profile: ProfileRow | null) => profile?.kdf.alg === 'none';
 
 /** Non-persisted cloud/session state for the UI. */
 export const useCloud = create<{
@@ -33,11 +33,9 @@ export const useCloud = create<{
   locked: number;
   /** The first download of the account's budgets after signing in has finished */
   firstPullDone: boolean;
-  /** A recovery code is saved on the account (null: not known yet, or the server isn't set up for it) */
-  hasRecovery: boolean | null;
-  /** A new recovery code to show once, until the person confirms they saved it */
-  recoveryCode: string | null;
-}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, locked: 0, firstPullDone: false, hasRecovery: null, recoveryCode: null }));
+  /** Signed in with an emailed reset code: asking for a new password before going on */
+  settingPassword: boolean;
+}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, locked: 0, firstPullDone: false, settingPassword: false }));
 
 export const friendlyError = (e: unknown): string => {
   const msg = e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : String(e);

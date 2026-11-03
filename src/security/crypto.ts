@@ -7,7 +7,7 @@ import { base64 } from '@scure/base';
 import { randomBytes } from './random';
 
 /**
- * End-to-end encryption primitives (audited @noble libraries, no native code):
+ * Encryption primitives (audited @noble libraries, no native code):
  * - XChaCha20-Poly1305 for authenticated encryption (24-byte random nonces, safe to generate randomly)
  * - X25519 + HKDF-SHA256 "sealed boxes" to share a budget key with each member's public key
  * - scrypt to turn the user's passphrase into a key that protects their private key backup

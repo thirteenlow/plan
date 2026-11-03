@@ -133,7 +133,7 @@ export default function ShareBudgetScreen() {
             }
           />
           <Txt variant="caption" tone="muted">
-            They need to have signed in to Plan once. A shared budget is only as private as its least private member.
+            They need to have signed in to Plan once.
           </Txt>
         </Card>
       )}

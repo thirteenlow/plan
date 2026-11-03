@@ -1,20 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import { useStore } from '@/store/store';
 import { cloudConfigured } from './config';
-import { type CloudUser, friendlyError, isSimple, useCloud } from './cloudStore';
-import {
-  changePassword,
-  checkRecoveryCode,
-  createRecoveryCode,
-  dropRecoveryCode,
-  forgetIdentityOnDevice,
-  loadIdentity,
-  loadIdentityOffline,
-  setupIdentity,
-  unlockIdentity,
-  unlockPreviousKeys,
-  unlockWithRecoveryCode,
-} from './identity';
+import { type CloudUser, friendlyError, keyOnAccount, useCloud } from './cloudStore';
+import { changePassword, forgetIdentityOnDevice, loadIdentity, loadIdentityOffline, setupIdentity, unlockIdentity, unlockPreviousKeys } from './identity';
 import { getSupabase } from './supabase';
 import { flushAll, pullAll, recoverLockedBudgets, rewrapOwnKeys, startSync, stopSync } from './sync';
 
@@ -43,22 +31,23 @@ async function handleSession(session: Session | null) {
   if (!session) {
     stopSync();
     currentUserId = null;
-    useCloud.setState({ status: 'signedOut', user: null, profile: null, hasRecovery: null, recoveryCode: null });
+    useCloud.setState({ status: 'signedOut', user: null, profile: null, settingPassword: false });
     return;
   }
   // Same person again (token refresh, or the email code that confirms a password reset): nothing to redo.
   const current = useCloud.getState().status;
-  if (session.user.id === currentUserId && (current === 'ready' || current === 'needsUnlock' || current === 'needsSetup')) return;
+  if (session.user.id === currentUserId && (current === 'ready' || current === 'needsUnlock')) return;
   currentUserId = session.user.id;
   const meta = session.user.user_metadata ?? {};
   const user: CloudUser = { id: session.user.id, email: session.user.email ?? '', name: meta.full_name ?? meta.name, signedInAt: session.user.last_sign_in_at };
   useCloud.setState({ status: 'loading', user, error: null });
   try {
-    const status = await loadIdentity(user);
+    let status = await loadIdentity(user);
+    if (status === 'needsSetup') status = await createKeys(user);
     useCloud.setState({ status });
     if (status === 'ready') {
+      await keepKeyOnAccount(user);
       startSync();
-      if (!isSimple(useCloud.getState().profile)) void checkRecoveryCode(user);
     }
   } catch (e) {
     if (await loadIdentityOffline(user)) {
@@ -70,83 +59,35 @@ async function handleSession(session: Session | null) {
   }
 }
 
-/** First sign-in: Simple (no passphrase) or Private (a password, then an optional recovery code). */
-export async function completeSetup(passphrase: string | null, onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
+/** First sign-in: make the encryption keys behind the scenes, kept on the account so every device just works. */
+async function createKeys(user: CloudUser) {
   try {
-    await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2));
+    await setupIdentity(user, null);
+    return 'ready' as const;
   } catch (e) {
-    if (!(e instanceof Error) || e.message !== 'PROFILE_EXISTS') throw e;
-    // Set up on another device meanwhile: use that (Simple opens by itself; Private asks for that password).
-    const status = await loadIdentity(user);
-    useCloud.setState({ status });
-    if (status === 'ready') return startSync();
-    throw new Error('You already set a password on another device. Enter that one instead.');
-  }
-  if (passphrase !== null) await issueRecoveryCode(onProgress);
-  useCloud.setState({ status: 'ready' });
-  startSync();
-}
-
-/** Account: switch between Simple and Private. Same key, so nothing is re-encrypted or lost. */
-export async function setPrivacy(passphrase: string | null, onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
-  await changePassword(user, passphrase, (p) => onProgress?.(passphrase === null ? p : p / 2));
-  if (passphrase !== null) await issueRecoveryCode(onProgress);
-}
-
-/** The person chose not to save the new recovery code. */
-export async function skipRecoveryCode() {
-  const { user } = useCloud.getState();
-  useCloud.setState({ recoveryCode: null });
-  if (user) await dropRecoveryCode(user).catch(() => undefined);
-}
-
-/** Makes a recovery code for the current key and queues it to be shown. Never blocks setup if the server lacks 011. */
-async function issueRecoveryCode(onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
-  try {
-    const code = await createRecoveryCode(user, (p) => onProgress?.(0.5 + p / 2));
-    useCloud.setState({ recoveryCode: code });
-  } catch (e) {
-    console.warn('[plan recovery]', e);
-    useCloud.setState({ hasRecovery: null });
+    // Made on another device at the same moment: use those.
+    if (e instanceof Error && e.message === 'PROFILE_EXISTS') return loadIdentity(user);
+    throw e;
   }
 }
 
-/** Settings → Account: a new recovery code (the old one stops working). */
-export async function newRecoveryCode(onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
-  useCloud.setState({ recoveryCode: await createRecoveryCode(user, onProgress) });
+/**
+ * Accounts from before (when the key was locked with a separate encryption password) move to keeping it on the
+ * account once they're unlocked, so nobody is asked for that password again.
+ */
+async function keepKeyOnAccount(user: CloudUser) {
+  if (keyOnAccount(useCloud.getState().profile)) return;
+  await changePassword(user, null).catch((e) => console.warn('[plan keys]', e));
 }
 
-/** Forgot password, step 1: the recovery code opens the key on this device. */
-export async function unlockWithCode(code: string, onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
-  await unlockWithRecoveryCode(user, code, onProgress);
-}
-
-/** Forgot password, step 2: lock the same key with a new password. Nothing is lost and the code keeps working. */
-export async function finishRecovery(passphrase: string, onProgress?: (p: number) => void) {
-  const { user } = useCloud.getState();
-  if (!user) return;
-  await changePassword(user, passphrase, onProgress);
-  useCloud.setState({ status: 'ready', hasRecovery: true });
-  startSync();
-}
-
+/** Older account on a new device: its old encryption password, asked for this one time. */
 export async function completeUnlock(passphrase: string, onProgress?: (p: number) => void) {
   const { user } = useCloud.getState();
   if (!user) return;
   await unlockIdentity(user, passphrase, onProgress);
+  await keepKeyOnAccount(user);
   useCloud.setState({ status: 'ready' });
   startSync();
-  void checkRecoveryCode(user);
 }
 
 /**
@@ -169,26 +110,21 @@ function wipeDevice() {
 }
 
 /**
- * Forgot password: create new keys, protected by a new password (or none, for Simple). Budgets you own keep syncing
- * (their keys are re-sealed to your new key from this device). Budgets others shared with you can no
- * longer be decrypted; local copies are kept and the owner can invite you again.
+ * Older account that forgot its old encryption password: new keys, kept on the account. Budgets you own on this
+ * device keep syncing (re-sealed to the new key). Ones that aren't here stay locked until the old password turns
+ * up; shared ones need a new invite (your copies are kept).
  */
-export async function resetEncryption(passphrase: string | null, onProgress?: (p: number) => void) {
+export async function resetEncryption() {
   const { user } = useCloud.getState();
   if (!user) return;
   stopSync();
-  await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2), true);
-  // New key, so the old recovery code no longer opens it.
-  if (passphrase !== null) await issueRecoveryCode(onProgress);
-  else await dropRecoveryCode(user).catch(() => undefined);
+  await setupIdentity(user, null, undefined, true);
   const lost = await rewrapOwnKeys();
   useCloud.setState({
     status: 'ready',
     notice: lost.length ? `Ask the owners of ${lost.map((n) => `“${n}”`).join(', ')} to invite you again. Your copies were kept on this device.` : null,
   });
   startSync();
-  // Budgets that weren't on this device are still sealed to the old key. They're kept on the account (shown as
-  // locked) so they can be opened again with the old password; only the person decides to remove them.
   await pullAll();
 }
 

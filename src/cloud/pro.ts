@@ -186,7 +186,7 @@ export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text:
     devices: 'all',
     needs: 'Any device · one-tap on iPhone 8 or later (iOS 14+)',
   },
-  { key: 'sharing', icon: 'people-outline', title: 'Shared budgets', text: 'Budget together with a partner or housemates, end-to-end encrypted.', devices: 'all', needs: 'Any device' },
+  { key: 'sharing', icon: 'people-outline', title: 'Shared budgets', text: 'Budget together with a partner or housemates.', devices: 'all', needs: 'Any device' },
   { key: 'budgets', icon: 'albums-outline', title: 'Unlimited budgets', text: 'Separate budgets for home, business, travel or a side project.', devices: 'all', needs: 'Any device' },
   { key: 'pets', icon: 'paw-outline', title: 'Every companion', text: 'Unlock the fox, panda, frog, penguin and hamster.', devices: 'all', needs: 'Any device' },
   { key: 'applePay', icon: 'phone-portrait-outline', title: 'Apple Pay auto-log', text: 'Tap to pay and it’s already in your budget.', devices: 'iphone', needs: 'iPhone only · iOS 17 or later' },

@@ -1,7 +1,7 @@
 # Shared budgets: one-time setup
 
 Plan works fully offline. Sharing budgets and syncing across devices needs a (free) Supabase project.
-Budget contents are end-to-end encrypted, so Supabase only ever stores ciphertext.
+Budget contents are encrypted before upload; the keys are kept with each account so any signed-in device can open them.
 
 ## 1. Create the project
 
@@ -39,31 +39,36 @@ Native Apple sign-in needs a real iPhone (the Simulator can't complete it).
 
 ## How the encryption works
 
-At first sign-in people pick **Simple** (default: no extra password; the identity key is stored on the account as
-is, so every device unlocks by itself and the server could read their budgets) or **Private** (end-to-end: the key
-is locked with their password, plus an optional recovery code). They can switch any time under Account; the key
-stays the same, so nothing is re-encrypted. Simple accounts store `kdf = {"alg":"none"}` in `profiles`; no migration
-is needed. A shared budget is only as private as its least private member.
+Budgets are encrypted, but not end-to-end: each person's identity key is kept on their account (`profiles`,
+`kdf = {"alg":"none"}`), readable only through row-level security, so any device they sign in on unlocks by itself.
+There's no separate encryption password. The privacy policy says plainly that the operator could technically read
+budgets.
 
 | Piece | Where it lives | Protection |
 | --- | --- | --- |
 | Budgets on your device | AsyncStorage | XChaCha20-Poly1305 with a device key in the iOS Keychain / Android Keystore |
 | Login session | AsyncStorage | Same device-key encryption |
-| Your identity key (X25519) | Keychain / Keystore | Backup on the server is encrypted with your password (scrypt N=2¹⁵) |
+| Your identity key (X25519) | Keychain / Keystore, and `profiles` on the account | Row-level security (owner only) |
 | Shared budget | `shared_budgets.ciphertext` | XChaCha20-Poly1305 with a random per-budget key, bound to the budget id |
 | Budget key per member | `budget_members.wrapped_key` | Sealed to that member's public key (X25519 + HKDF-SHA256) |
 
-- The server can't decrypt anything; row-level security also limits who can even download the ciphertext.
-- Removing a member rotates the budget key so they can't read future changes.
-- Recovery code (Private only, optional): when someone sets their password they get a 20-character code (shown once,
-  skippable) that locks a second copy of their key backup. *Forgot password?* asks for it and then sets a new password, keeping everything. Run
-  `supabase/011_recovery_code.sql` once to turn this on; existing users are prompted under Account.
-- Forgetting your password: if Plan is still open on any device, use *Change encryption password* there; nothing is lost.
-  Without that or the recovery code, *Lost your code?* creates new keys (straight away if you signed in within 15 minutes, else after an emailed
-  code). Budgets on that device are re-sealed to the new key; the rest stay on the account, locked, and open again if the
-  old password is entered under Account. Run `supabase/010_previous_keys.sql` once so old key backups are kept for this.
+- Row-level security limits who can download each budget; removing a member rotates its key.
+- Accounts made when Plan still had encryption passwords are asked for that password once on a new device, then
+  move over automatically (also on any device that's already unlocked). If they forgot it, *Forgot it?* starts fresh:
+  budgets on that device carry over; the rest stay locked and open again if the old password is entered under
+  Account (`supabase/010_previous_keys.sql` keeps the old key backups for this).
 - The web build stores its device key in the browser's localStorage (browsers have no Keychain), so on the web
   the at-rest encryption protects against stolen storage blobs but not someone with access to that browser profile.
+
+## Email sign-in
+
+- **Sign up:** email and a password (at least 8 characters). If **Authentication → Providers → Email → Confirm
+  email** is on, people must click a link before their first sign-in; turn it off for an instant start.
+- **Sign in:** email and password, no code.
+- **Forgot password:** a 6-digit code is emailed (the "Magic Link" template must include `{{ .Token }}`); it signs
+  them in and they choose a new password. People who signed up when Plan used codes only use this once to set one.
+- Supabase's built-in email sender allows only a few emails an hour. Add your own SMTP (e.g. Resend) under
+  **Authentication → Emails → SMTP Settings** before launch.
 
 ## Sync behaviour
 

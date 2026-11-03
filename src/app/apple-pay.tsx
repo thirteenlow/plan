@@ -175,8 +175,7 @@ export default function ApplePayScreen() {
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              Shortcuts can’t encrypt, so the amount, merchant and card name wait on the server unencrypted until Plan picks them up, then they’re deleted. The rest of your budget stays end-to-end
-              encrypted.
+              Shortcuts can’t encrypt, so the amount, merchant and card name wait on the server unencrypted until Plan picks them up, then they’re deleted. The rest of your budget stays encrypted.
             </Txt>
           </Row>
           {!!key && (

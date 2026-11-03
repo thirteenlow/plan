@@ -96,7 +96,7 @@ and Android on Google Play ($25 one-time). Sign-in: Google and email code (Apple
 ## Accounts & sync
 
 When Supabase is configured (`.env`), signing in is required before using the app. Every budget is then saved to
-the account automatically (end-to-end encrypted) and synced across devices; sharing just adds people. Signing out
+the account automatically (encrypted) and synced across devices; sharing just adds people. Signing out
 uploads pending changes and clears the device. Without `.env` the app runs fully local (handy for development).
 Receipt photos are stored encrypted on the device only. Settings → Import takes an export .zip (or its Plan and Register CSVs) or an older Plan .json backup, and always adds it as a new budget.
 

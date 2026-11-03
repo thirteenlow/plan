@@ -12,7 +12,7 @@ const SECTIONS: [string, string[]][] = [
     'Summary',
     [
       'Plan is a budgeting app. You sign in so your budgets are saved to your account and synced across your devices.',
-      'Your budgets are encrypted on your device before upload. You choose how private: Simple (no extra password; we could technically read them) or Private (end-to-end encrypted; we cannot read them).',
+      'Your budgets are encrypted, but they are not end-to-end encrypted. Like most budgeting apps, we keep the keys with your account so you can sign in on any device without an extra password. This means Plan could technically access your budgets. We don’t look at them, and we only would if the law required it.',
       'We do not sell data, show ads, or use analytics or tracking.',
     ],
   ],
@@ -25,9 +25,9 @@ const SECTIONS: [string, string[]][] = [
   [
     'Data stored on our servers',
     [
-      'Account: your email address and, if provided by Google, your name, used to sign you in and to let others invite you by email.',
-      'Encryption keys: your public key and your private key. On Private, the private key is locked with your password (and optionally a recovery code) and we cannot decrypt it. On Simple, it is stored as is so any device you sign in on can open your budgets, which means we could.',
-      'Budgets: encrypted data, plus who has access to each budget and when it was last changed. A shared budget is only as private as its least private member.',
+      'Account: your email address and, if provided by Google, your name, used to sign you in and to let others invite you by email. If you sign up with email, your password is stored by Supabase as a one-way hash; we never see it.',
+      'Encryption keys: the keys that open your budgets are stored with your account, readable only through your signed-in account (and by us as the service operator).',
+      'Budgets: encrypted data, plus who has access to each budget and when it was last changed.',
       'Personal settings (your name, companion and notification choices): encrypted the same way as your budgets, so they follow you to your other devices.',
       'Apple Pay auto-logging (optional, iPhone): your Shortcut sends each payment’s amount, merchant and card name. These wait unencrypted, with no other details, until Plan next opens and imports them, then they’re deleted. Turning the feature off deletes anything still waiting.',
       'AI receipt scan (optional): the image you scan is passed to Anthropic’s Claude to read the amount, merchant, date, category and account, and is not stored by us. Scans from inside the app also send the names of your categories and accounts (no amounts or balances) so it can pick from them. Shortcut scans wait in the same way as Apple Pay payments.',
@@ -39,17 +39,18 @@ const SECTIONS: [string, string[]][] = [
     [
       'Receipt photos stay on the device where you took them and are not uploaded.',
       'Stop sharing or leave a shared budget at any time from the Share screen.',
-      'Delete your account from Settings → Account & sharing → Delete account. This permanently removes your account, key backup and the budgets you own from our servers. It also clears your data from the device you delete it on.',
+      'Delete your account from Settings → Account & sharing → Delete account. This permanently removes your account, keys and the budgets you own from our servers. It also clears your data from the device you delete it on.',
+      'Export your data any time from Settings → Export.',
     ],
   ],
-  ['Security', ['Data is encrypted in transit (HTTPS) and, for shared budgets, end-to-end with XChaCha20-Poly1305. Access on the server is restricted by row-level security.']],
+  ['Security', ['Data is encrypted in transit (HTTPS) and your budgets are also encrypted with XChaCha20-Poly1305 before upload. Access on the server is restricted by row-level security, so other users can only see budgets shared with them.']],
   ['Children', ['Plan is not directed at children under 13.']],
   ['Changes and contact', ['We will update this page if this policy changes. Questions: contact the developer via the app’s store listing.']],
 ];
 
 export default function PrivacyScreen() {
   return (
-    <Screen back="back" title="Privacy policy" subtitle="Plan · last updated 31 October 2026" maxWidth={680}>
+    <Screen back="back" title="Privacy policy" subtitle="Plan · last updated 3 November 2026" maxWidth={680}>
       <View style={{ gap: 14 }}>
         {SECTIONS.map(([title, paragraphs]) => (
           <Card key={title} style={{ gap: 8 }}>

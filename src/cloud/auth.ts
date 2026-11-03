@@ -72,26 +72,62 @@ export async function signOut() {
   await getSupabase()?.auth.signOut();
 }
 
-/**
- * Email sign-in with a one-time code (free, no password). Supabase emails a code; the user types it in.
- * The project's "Magic Link" email template must include {{ .Token }} (see docs/CLOUD_SETUP.md).
- */
-export async function sendEmailCode(email: string) {
+export const MIN_PASSWORD = 8;
+const clean = (email: string) => email.trim().toLowerCase();
+const client = () => {
   const sb = getSupabase();
   if (!sb) throw new Error('Cloud sync isn’t configured');
-  const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options: { shouldCreateUser: true } });
+  return sb;
+};
+
+/**
+ * New email account with a password. Returns false when Supabase's "Confirm email" setting is on and the person
+ * must click the link in their inbox before signing in.
+ */
+export async function signUpWithEmail(email: string, password: string): Promise<boolean> {
+  const { data, error } = await client().auth.signUp({ email: clean(email), password, options: { emailRedirectTo: redirectTo() } });
+  if (error) throw friendlyAuthError(error);
+  // An address that's already registered comes back with no identities (Supabase hides that it exists).
+  if (data.user && !data.user.identities?.length) throw new Error('There’s already an account with this email. Sign in instead.');
+  return !!data.session;
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  const { error } = await client().auth.signInWithPassword({ email: clean(email), password });
   if (error) throw friendlyAuthError(error);
 }
 
-export async function verifyEmailCode(email: string, code: string) {
-  const sb = getSupabase();
-  if (!sb) throw new Error('Cloud sync isn’t configured');
-  const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' });
+/**
+ * Forgot password, step 1: email a one-time code. Uses the sign-in code email (its "Magic Link" template must
+ * include {{ .Token }}, see docs/CLOUD_SETUP.md), and never creates an account.
+ */
+export async function sendResetCode(email: string) {
+  const { error } = await client().auth.signInWithOtp({ email: clean(email), options: { shouldCreateUser: false } });
+  if (error) {
+    if (/signups not allowed|not found/i.test(error.message)) throw new Error('No account with this email.');
+    throw friendlyAuthError(error);
+  }
+}
+
+/** Forgot password, step 2: the code signs the person in, then they choose a new password. */
+export async function verifyResetCode(email: string, code: string) {
+  const { error } = await client().auth.verifyOtp({ email: clean(email), token: code, type: 'email' });
+  if (error) throw friendlyAuthError(error);
+}
+
+/** Sets the signed-in person's password (after a reset code, or for accounts made before passwords). */
+export async function setAccountPassword(password: string) {
+  const { error } = await client().auth.updateUser({ password });
   if (error) throw friendlyAuthError(error);
 }
 
 function friendlyAuthError(error: { message: string; status?: number }) {
   const m = error.message.toLowerCase();
+  if (m.includes('invalid login credentials')) return new Error('Wrong email or password.');
+  if (m.includes('email not confirmed')) return new Error('Confirm your email first: open the link we sent you.');
+  if (m.includes('already registered')) return new Error('There’s already an account with this email. Sign in instead.');
+  if (m.includes('should be different')) return new Error('Choose a password you haven’t used here before.');
+  if (m.includes('password should') || m.includes('weak password')) return new Error(`Use at least ${MIN_PASSWORD} characters.`);
   // A short wait between codes for the same address ("…you can only request this after 42 seconds").
   const wait = m.match(/after (\d+) seconds?/)?.[1];
   if (wait) return new Error(`A code was just sent. Check your email, or wait ${wait} seconds to send another.`);
