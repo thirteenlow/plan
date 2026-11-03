@@ -110,12 +110,21 @@ Deno.serve(async (req) => {
 
     const price = PRICES[body.plan ?? ''];
     if (!price) return reply(400, { error: 'Choose monthly or yearly.' });
+    if (customer) {
+      const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 10 });
+      if (subs.data.some((s) => ['active', 'trialing', 'past_due'].includes(s.status))) return reply(400, { error: 'You already have a subscription. Resume it from the Pro screen instead.' });
+    }
+    // Resubscribing with paid Pro time left (e.g. after cancelling): start charging when that time runs out, not
+    // today. Stripe needs at least 48 hours of lead for this; anything shorter just starts now.
+    const { data: member } = await admin.from('pro_members').select('expires_at').eq('email', user.email.toLowerCase()).maybeSingle();
+    const paidUntil = Date.parse((member as { expires_at?: string | null } | null)?.expires_at ?? '');
+    const startLater = paidUntil > Date.now() + 49 * 3_600_000 ? Math.floor(paidUntil / 1000) : undefined;
     const common = {
       mode: 'subscription' as const,
       line_items: [{ price, quantity: 1 }],
       // Ties the payment to this Plan account (the webhook uses these, not the email typed at checkout).
       client_reference_id: user.id,
-      subscription_data: { metadata: { user_id: user.id } },
+      subscription_data: { metadata: { user_id: user.id }, ...(startLater ? { trial_end: startLater } : {}) },
       ...(customer ? { customer } : { customer_email: user.email }),
       allow_promotion_codes: true,
     };

@@ -74,6 +74,9 @@ export default function ProScreen() {
       haptic('success');
     });
   const endsOn = sub?.periodEnd ? shortDate(sub.periodEnd.slice(0, 10), data.settings.dateFormat) : until;
+  // Paid Pro that's still running but no longer renews (the subscription ended, e.g. after deleting the account):
+  // offer to resubscribe instead of cancelling something that's already gone.
+  const lapsed = plan === 'pro' && managed && !!sub && !sub.subscribed;
 
   const run = async (kind: 'trial' | 'checkout' | 'portal' | 'cancel', fn: () => Promise<void>) => {
     haptic();
@@ -108,19 +111,23 @@ export default function ProScreen() {
       title="Plan Pro"
       maxWidth={560}
       footer={
-        plan === 'pro' ? (
+        plan === 'pro' && !lapsed ? (
           managed ? (
             <View style={{ gap: 6 }}>
               <Button title="Manage billing" variant="soft" icon="card-outline" loading={busy === 'portal'} onPress={() => void run('portal', openBillingPortal)} />
-              {sub?.cancelAtPeriodEnd ? (
-                <Button title="Resume subscription" variant="ghost" small loading={busy === 'cancel'} onPress={() => void resume()} />
-              ) : (
-                <Button title="Cancel subscription" variant="ghost" small onPress={() => setCancelling(true)} />
-              )}
+              {/* Only once Stripe has confirmed there's a live subscription to cancel or resume. */}
+              {sub?.subscribed &&
+                (sub.cancelAtPeriodEnd ? (
+                  <Button title="Resume subscription" variant="ghost" small loading={busy === 'cancel'} onPress={() => void resume()} />
+                ) : (
+                  <Button title="Cancel subscription" variant="ghost" small onPress={() => setCancelling(true)} />
+                ))}
             </View>
           ) : undefined
         ) : !signedIn ? (
           <Button title="Sign in to get Pro" icon="sparkles" onPress={() => router.push('/account')} />
+        ) : lapsed ? (
+          <Button title={`Resubscribe · ${chosen.price}${chosen.per}`} icon="sparkles" loading={busy === 'checkout'} onPress={() => void subscribe()} />
         ) : (
           <View style={{ gap: 8 }}>
             {trialAvailable ? (
@@ -146,7 +153,9 @@ export default function ProScreen() {
                 {plan === 'pro' ? 'Thanks for going Pro' : 'Put your budget on autopilot'}
               </Txt>
               <Txt style={{ color: colors.onGradient, opacity: 0.9 }}>
-                {plan === 'pro'
+                {lapsed
+                  ? `Cancelled. Pro until ${until}.`
+                  : plan === 'pro'
                   ? sub?.subscribed
                     ? sub.cancelAtPeriodEnd
                       ? `Pro features until ${endsOn}.`
@@ -191,6 +200,19 @@ export default function ProScreen() {
             </View>
           </Card>
         )}
+        {lapsed && (
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.sunken, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="calendar-outline" size={19} color={colors.textSoft} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt variant="strong">Pro until {until}</Txt>
+              <Txt variant="caption" tone="muted">
+                Your subscription is cancelled. Resubscribe and you won’t be charged until then.
+              </Txt>
+            </View>
+          </Card>
+        )}
         {activating && signedIn && (
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
@@ -231,7 +253,7 @@ export default function ProScreen() {
           })}
         </Card>
 
-        {plan !== 'pro' && (
+        {(plan !== 'pro' || lapsed) && (
           <View style={{ gap: 10 }}>
             {PRO_PRICES.map((p) => {
               const on = price === p.key;
