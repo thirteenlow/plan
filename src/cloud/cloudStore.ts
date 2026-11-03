@@ -29,7 +29,11 @@ export const useCloud = create<{
   locked: number;
   /** The first download of the account's budgets after signing in has finished */
   firstPullDone: boolean;
-}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, locked: 0, firstPullDone: false }));
+  /** A recovery code is saved on the account (null: not known yet, or the server isn't set up for it) */
+  hasRecovery: boolean | null;
+  /** A new recovery code to show once, until the person confirms they saved it */
+  recoveryCode: string | null;
+}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, locked: 0, firstPullDone: false, hasRecovery: null, recoveryCode: null }));
 
 export const friendlyError = (e: unknown): string => {
   const msg = e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : String(e);

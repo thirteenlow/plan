@@ -29,7 +29,7 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const cloud = useCloud();
   const cloudLabel =
-    cloud.status === 'ready' ? (cloud.user?.email ?? 'Signed in') : cloud.status === 'unconfigured' ? 'Not set up' : cloud.status === 'signedOut' ? 'Sign in' : 'Finish setup';
+    cloud.status === 'ready' ? (cloud.hasRecovery === false ? 'Add recovery code' : (cloud.user?.email ?? 'Signed in')) :cloud.status === 'unconfigured' ? 'Not set up' : cloud.status === 'signedOut' ? 'Sign in' : 'Finish setup';
 
   const exportData = async () => {
     try {

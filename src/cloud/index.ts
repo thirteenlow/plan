@@ -2,7 +2,18 @@ import type { Session } from '@supabase/supabase-js';
 import { useStore } from '@/store/store';
 import { cloudConfigured } from './config';
 import { type CloudUser, friendlyError, useCloud } from './cloudStore';
-import { forgetIdentityOnDevice, loadIdentity, loadIdentityOffline, setupIdentity, unlockIdentity, unlockPreviousKeys } from './identity';
+import {
+  changePassword,
+  checkRecoveryCode,
+  createRecoveryCode,
+  forgetIdentityOnDevice,
+  loadIdentity,
+  loadIdentityOffline,
+  setupIdentity,
+  unlockIdentity,
+  unlockPreviousKeys,
+  unlockWithRecoveryCode,
+} from './identity';
 import { getSupabase } from './supabase';
 import { flushAll, pullAll, recoverLockedBudgets, rewrapOwnKeys, startSync, stopSync } from './sync';
 
@@ -31,7 +42,7 @@ async function handleSession(session: Session | null) {
   if (!session) {
     stopSync();
     currentUserId = null;
-    useCloud.setState({ status: 'signedOut', user: null, profile: null });
+    useCloud.setState({ status: 'signedOut', user: null, profile: null, hasRecovery: null, recoveryCode: null });
     return;
   }
   // Same person again (token refresh, or the email code that confirms a password reset): nothing to redo.
@@ -44,7 +55,10 @@ async function handleSession(session: Session | null) {
   try {
     const status = await loadIdentity(user);
     useCloud.setState({ status });
-    if (status === 'ready') startSync();
+    if (status === 'ready') {
+      startSync();
+      void checkRecoveryCode(user);
+    }
   } catch (e) {
     if (await loadIdentityOffline(user)) {
       useCloud.setState({ status: 'ready', error: 'Offline: changes will sync when you’re back online.' });
@@ -59,14 +73,51 @@ export async function completeSetup(passphrase: string, onProgress?: (p: number)
   const { user } = useCloud.getState();
   if (!user) return;
   try {
-    await setupIdentity(user, passphrase, onProgress);
+    await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2));
   } catch (e) {
     if (!(e instanceof Error) || e.message !== 'PROFILE_EXISTS') throw e;
     // A password was set on another device meanwhile: ask for that one instead.
     useCloud.setState({ status: await loadIdentity(user) });
     throw new Error('You already set a password on another device. Enter that password instead.');
   }
+  await issueRecoveryCode(onProgress);
   useCloud.setState({ status: 'ready' });
+  startSync();
+}
+
+/** Makes a recovery code for the current key and queues it to be shown. Never blocks setup if the server lacks 011. */
+async function issueRecoveryCode(onProgress?: (p: number) => void) {
+  const { user } = useCloud.getState();
+  if (!user) return;
+  try {
+    const code = await createRecoveryCode(user, (p) => onProgress?.(0.5 + p / 2));
+    useCloud.setState({ recoveryCode: code });
+  } catch (e) {
+    console.warn('[plan recovery]', e);
+    useCloud.setState({ hasRecovery: null });
+  }
+}
+
+/** Settings → Account: a new recovery code (the old one stops working). */
+export async function newRecoveryCode(onProgress?: (p: number) => void) {
+  const { user } = useCloud.getState();
+  if (!user) return;
+  useCloud.setState({ recoveryCode: await createRecoveryCode(user, onProgress) });
+}
+
+/** Forgot password, step 1: the recovery code opens the key on this device. */
+export async function unlockWithCode(code: string, onProgress?: (p: number) => void) {
+  const { user } = useCloud.getState();
+  if (!user) return;
+  await unlockWithRecoveryCode(user, code, onProgress);
+}
+
+/** Forgot password, step 2: lock the same key with a new password. Nothing is lost and the code keeps working. */
+export async function finishRecovery(passphrase: string, onProgress?: (p: number) => void) {
+  const { user } = useCloud.getState();
+  if (!user) return;
+  await changePassword(user, passphrase, onProgress);
+  useCloud.setState({ status: 'ready', hasRecovery: true });
   startSync();
 }
 
@@ -76,6 +127,7 @@ export async function completeUnlock(passphrase: string, onProgress?: (p: number
   await unlockIdentity(user, passphrase, onProgress);
   useCloud.setState({ status: 'ready' });
   startSync();
+  void checkRecoveryCode(user);
 }
 
 /**
@@ -106,7 +158,9 @@ export async function resetEncryption(passphrase: string, onProgress?: (p: numbe
   const { user } = useCloud.getState();
   if (!user) return;
   stopSync();
-  await setupIdentity(user, passphrase, onProgress, true);
+  await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2), true);
+  // New key, so the old recovery code no longer opens it.
+  await issueRecoveryCode(onProgress);
   const lost = await rewrapOwnKeys();
   useCloud.setState({
     status: 'ready',

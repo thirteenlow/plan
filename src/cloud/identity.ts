@@ -1,5 +1,6 @@
-import { b64, bytesEqual, type KeyPair, lockPrivateKey, newKeyPair, publicKeyFor, unb64, unlockPrivateKey } from '@/security/crypto';
+import { b64, bytesEqual, type KdfParams, type KeyPair, lockPrivateKey, newKeyPair, publicKeyFor, unb64, unlockPrivateKey } from '@/security/crypto';
 import { secretStore } from '@/security/deviceKey';
+import { randomBytes } from '@/security/random';
 import { type CloudUser, type ProfileRow, useCloud } from './cloudStore';
 import { getSupabase } from './supabase';
 
@@ -100,7 +101,66 @@ export async function changePassword(user: CloudUser, passphrase: string, onProg
   useCloud.setState({ profile });
 }
 
-const missingTable =(e: { code?: string; message?: string }) => e.code === '42P01' || e.code === 'PGRST205' || /previous_keys/.test(e.message ?? '');
+// ---------- Recovery code ----------
+
+// No 0/O or 1/I, so it reads back from paper without guessing. 20 characters = 100 bits.
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 20;
+const missingRecovery = (e: { code?: string; message?: string }) => e.code === '42703' || e.code === 'PGRST204' || /recovery_/.test(e.message ?? '');
+
+/** Ignores case, spaces and dashes, so a code typed from paper still matches. */
+export const normalizeRecoveryCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+function newRecoveryCode() {
+  // 256 is a multiple of 32, so taking each byte modulo the alphabet length stays uniform.
+  const chars = Array.from(randomBytes(CODE_LENGTH), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  return chars.match(/.{5}/g)!.join('-');
+}
+
+/**
+ * Locks a second copy of the (unlocked) key with a new recovery code and saves it to the account, replacing any
+ * earlier code. Returns the code, which is shown once and never stored in plain form.
+ */
+export async function createRecoveryCode(user: CloudUser, onProgress?: (p: number) => void): Promise<string> {
+  if (!identity) throw new Error('Unlock encryption first.');
+  const code = newRecoveryCode();
+  const { kdf, encryptedPrivateKey } = await lockPrivateKey(identity.privateKey, normalizeRecoveryCode(code), onProgress);
+  const { error } = await getSupabase()!.from('profiles').update({ recovery_private_key: encryptedPrivateKey, recovery_kdf: kdf }).eq('id', user.id);
+  if (error) {
+    if (missingRecovery(error)) throw new Error('Recovery codes aren’t set up on the server yet (run supabase/011_recovery_code.sql).');
+    throw error;
+  }
+  useCloud.setState({ hasRecovery: true });
+  return code;
+}
+
+/** Whether this account has a recovery code saved (null if the server can't tell, e.g. before 011 is run). */
+export async function checkRecoveryCode(user: CloudUser): Promise<boolean | null> {
+  const { data, error } = await getSupabase()!.from('profiles').select('recovery_kdf').eq('id', user.id).maybeSingle();
+  const has = error ? null : !!(data as { recovery_kdf: unknown } | null)?.recovery_kdf;
+  useCloud.setState({ hasRecovery: has });
+  return has;
+}
+
+/** Forgot password: opens the key with the recovery code and keeps it on this device. Throws on a wrong code. */
+export async function unlockWithRecoveryCode(user: CloudUser, code: string, onProgress?: (p: number) => void) {
+  const { data, error } = await getSupabase()!.from('profiles').select('public_key, recovery_private_key, recovery_kdf').eq('id', user.id).maybeSingle();
+  if (error && !missingRecovery(error)) throw error;
+  const row = data as { public_key: string; recovery_private_key: string | null; recovery_kdf: KdfParams | null } | null;
+  if (!row?.recovery_private_key || !row.recovery_kdf) throw new Error('This account has no recovery code.');
+  let privateKey: Uint8Array;
+  try {
+    privateKey = await unlockPrivateKey(row.recovery_private_key, row.recovery_kdf, normalizeRecoveryCode(code), onProgress);
+  } catch {
+    throw new Error('That code isn’t right.');
+  }
+  const publicKey = publicKeyFor(privateKey);
+  if (!bytesEqual(publicKey, unb64(row.public_key))) throw new Error('That code is from before a reset and no longer works.');
+  await secretStore.set(secretName(user.id), b64(privateKey));
+  identity = { privateKey, publicKey };
+}
+
+const missingTable = (e: { code?: string; message?: string }) => e.code === '42P01' || e.code === 'PGRST205' || /previous_keys/.test(e.message ?? '');
 
 /**
  * Before a password reset replaces the key backup, keep the old one (still locked with the old password), so

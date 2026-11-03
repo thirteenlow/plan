@@ -6,29 +6,37 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
+import { RecoveryCodeView } from '@/components/RecoveryCode';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, ProgressBar, Row, Tap, TextField, Txt } from '@/components/ui';
-import { completeSetup, completeUnlock, deleteAccount, recoverWithOldPassword, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
+import { completeSetup, completeUnlock, deleteAccount, finishRecovery, newRecoveryCode, recoverWithOldPassword, resetEncryption, signOutEverywhereOnDevice, unlockWithCode } from '@/cloud';
 import { nativeAppleAvailable, sendEmailCode, signInWithAppleNative, signInWithProvider, verifyEmailCode } from '@/cloud/auth';
 import { friendlyError, useCloud } from '@/cloud/cloudStore';
 import { APPLE_SIGN_IN_ENABLED, cloudConfigured } from '@/cloud/config';
-import { changePassword, PASSWORD_RULES, validatePassword } from '@/cloud/identity';
+import { changePassword, normalizeRecoveryCode, PASSWORD_RULES, validatePassword } from '@/cloud/identity';
 import { pullAll, removeLockedBudgets } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { GRADIENT_SOFT, RADIUS, useTheme } from '@/theme';
 
 export default function AccountScreen() {
-  const { status, user, error, notice, syncing, lastSyncAt, locked } = useCloud();
+  const { status, user, error, notice, syncing, lastSyncAt, locked, hasRecovery, recoveryCode } = useCloud();
   const sync = useStore((s) => s.sync);
   const budgets = useStore((s) => s.budgets);
   const shared = Object.keys(sync).filter((id) => budgets[id]);
-  // Reached as the sign-in gate (not from Settings): no way back, and continue into the app once ready.
+  // Reached as the sign-in gate (not from Settings): no way back, and continue into the app once ready
+  // (after a new recovery code has been saved).
   const [asGate] = useState(() => cloudConfigured && useCloud.getState().status !== 'ready');
   useEffect(() => {
-    if (asGate && status === 'ready') router.replace('/');
-  }, [asGate, status]);
+    if (asGate && status === 'ready' && !recoveryCode) router.replace('/');
+  }, [asGate, status, recoveryCode]);
 
   if (status === 'signedOut') return <SignIn />;
+  if (status === 'ready' && recoveryCode)
+    return (
+      <Screen maxWidth={420}>
+        <RecoveryCodeView code={recoveryCode} onDone={() => useCloud.setState({ recoveryCode: null })} />
+      </Screen>
+    );
 
   return (
     <Screen back={asGate ? undefined : 'back'} title={asGate ? undefined : 'Account & sync'} maxWidth={asGate ? 420 : 560}>
@@ -72,6 +80,7 @@ export default function AccountScreen() {
             )}
           </Card>
 
+          {hasRecovery === false && <RecoverySetup />}
           {locked > 0 && <LockedBudgets count={locked} />}
 
           <Txt variant="overline" tone="muted" style={{ marginTop: 22, marginBottom: 10, marginLeft: 4 }}>
@@ -102,6 +111,7 @@ export default function AccountScreen() {
           </Card>
           <Button title="Manage budgets" variant="soft" icon="albums-outline" style={{ marginTop: 14 }} onPress={() => router.push('/budgets')} />
           <ChangePassword email={user.email} />
+          {hasRecovery && <RenewRecoveryCode />}
           <DeleteAccount />
           <Button
             title="Sign out"
@@ -345,10 +355,13 @@ function EmailSignIn({ disabled }: { disabled: boolean }) {
   );
 }
 
-type PasswordStage = 'create' | 'unlock' | 'verify' | 'reset';
+type PasswordStage = 'create' | 'unlock' | 'recover' | 'newpass' | 'verify' | 'reset';
 const signedInRecently = (at: string | undefined) => !!at && Date.now() - Date.parse(at) < 15 * 60_000;
 
-/** Create the password (first sign-in), enter it (new device), or reset it after confirming an emailed code. */
+/**
+ * Create the password (first sign-in) or enter it (new device). Forgot it: the recovery code opens everything and
+ * sets a new one; without the code, a reset (after a fresh sign-in or emailed code) starts over.
+ */
 function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
   const user = useCloud((s) => s.user);
   const { colors } = useTheme();
@@ -361,7 +374,7 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const email = user?.email ?? '';
-  const choosing = stage === 'create' || stage === 'reset';
+  const choosing = stage === 'create' || stage === 'reset' || stage === 'newpass';
   const rulesMet = PASSWORD_RULES.every((r) => r.test(pass));
   const matches = !!confirmPass && pass === confirmPass;
 
@@ -371,6 +384,11 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
     setPass('');
     setConfirmPass('');
     setCode('');
+  };
+
+  const lostCode = async () => {
+    if (!(await confirm('No recovery code?', 'You can start over with a new password. Budgets not on this device stay locked for good unless you remember the old password.', 'Start over', true))) return;
+    forgot();
   };
 
   const forgot = () => {
@@ -409,6 +427,19 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
   const submit = async () => {
     if (stage === 'verify') return checkCode();
     setErr(null);
+    if (stage === 'recover') {
+      setProgress(0);
+      try {
+        await unlockWithCode(code, setProgress);
+        haptic('success');
+        goTo('newpass');
+      } catch (e) {
+        setErr(friendlyError(e));
+      } finally {
+        setProgress(null);
+      }
+      return;
+    }
     if (choosing) {
       const v = validatePassword(pass, confirmPass, email);
       if (v) return setErr(v);
@@ -418,6 +449,7 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
     setProgress(0);
     try {
       if (stage === 'reset') await resetEncryption(pass, setProgress);
+      else if (stage === 'newpass') await finishRecovery(pass, setProgress);
       else if (stage === 'create') await completeSetup(pass, setProgress);
       else await completeUnlock(pass, setProgress);
       haptic('success');
@@ -431,18 +463,15 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
   const copy: Record<PasswordStage, [string, string, string]> = {
     // Not a sign-in password (Google, Apple or the email code did that): it locks the encryption key, and each device
     // keeps the key once unlocked, so people only see this once per device.
-    create: ['Lock your budgets', 'Signing in proves it’s you. This separate password encrypts your budgets so only you can read them, not even Plan. You’ll only need it once on each new device.', 'Create password'],
-    unlock: ['Unlock your budgets', `First time on this device as ${email}. Enter the encryption password you created, just this once. This device will remember it.`, 'Unlock'],
-    verify: ['Check your email', `Enter the code we sent to ${email}.`, 'Continue'],
-    // Budgets aren't on a device after signing in fresh, so a reset here locks all of them until the old password turns up.
-    reset: [
-      'Set a new password',
-      'Budgets not on this device stay locked until you enter the old password under Account. If Plan is still open on another device, use Change encryption password there instead: that keeps everything.',
-      'Save new password',
-    ],
+    create: ['Lock your budgets', 'Only you can read them. Not even Plan.', 'Create password'],
+    unlock: ['Unlock your budgets', 'Enter your encryption password. This device will remember it.', 'Unlock'],
+    recover: ['Enter your recovery code', 'The 20-character code you saved when you set your password.', 'Continue'],
+    newpass: ['You’re in', 'Everything’s safe. Choose a new password.', 'Save password'],
+    verify: ['Check your email', `Enter the code sent to ${email}.`, 'Continue'],
+    reset: ['Start over', 'Budgets not on this device stay locked. Only your old password opens them.', 'Save new password'],
   };
   const [title, subtitle, action] = copy[stage];
-  const ready = stage === 'verify' ? code.length >= 6 : choosing ? rulesMet && matches : !!pass;
+  const ready = stage === 'verify' ? code.length >= 6 : stage === 'recover' ? normalizeRecoveryCode(code).length === 20 : choosing ? rulesMet && matches : !!pass;
 
   const eye = (
     <Tap onPress={() => setShow(!show)} hitSlop={10} accessibilityRole="button" accessibilityLabel={show ? 'Hide password' : 'Show password'}>
@@ -462,7 +491,24 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
         </Txt>
       </View>
 
-      {stage === 'verify' ? (
+      {stage === 'recover' ? (
+        <TextField
+          icon="key-outline"
+          placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+          value={code}
+          onChangeText={(t) => {
+            setCode(t);
+            setErr(null);
+          }}
+          filter={(t) => t.toUpperCase().slice(0, 30)}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          autoComplete="off"
+          maxLength={30}
+          autoFocus
+          onSubmitEditing={() => void submit()}
+        />
+      ) : stage === 'verify' ? (
         <TextField
           icon="keypad-outline"
           placeholder="6-digit code"
@@ -548,11 +594,67 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
       {progress !== null && <ProgressBar progress={progress} height={5} />}
       <Button title={action} loading={busy || progress !== null} disabled={!ready} onPress={() => void submit()} />
 
-      {stage === 'unlock' && <Button title="Forgot password?" variant="ghost" small loading={busy} onPress={forgot} />}
+      {stage === 'unlock' && <Button title="Forgot password?" variant="ghost" small onPress={() => goTo('recover')} />}
+      {stage === 'recover' && <Button title="Lost your code?" variant="ghost" small loading={busy} onPress={() => void lostCode()} />}
       {stage === 'verify' && <Button title="Resend code" variant="ghost" small disabled={busy} onPress={() => void sendCode()} />}
-      {(stage === 'verify' || stage === 'reset') && <Button title="Back" variant="ghost" small onPress={() => goTo('unlock')} />}
+      {(stage === 'recover' || stage === 'verify' || stage === 'reset') && <Button title="Back" variant="ghost" small onPress={() => goTo('unlock')} />}
       <Button title="Use a different account" variant="ghost" small onPress={() => void signOutEverywhereOnDevice()} />
     </View>
+  );
+}
+
+/** For accounts from before recovery codes: without one, a forgotten password means losing everything. */
+function RecoverySetup() {
+  const { colors } = useTheme();
+  const [progress, setProgress] = useState<number | null>(null);
+  const create = async () => {
+    setProgress(0);
+    try {
+      await newRecoveryCode(setProgress);
+    } catch (e) {
+      useCloud.setState({ error: friendlyError(e) });
+    } finally {
+      setProgress(null);
+    }
+  };
+  return (
+    <Card style={{ gap: 10, marginTop: 14, borderWidth: 1, borderColor: colors.warning }}>
+      <Row style={{ gap: 10 }}>
+        <Ionicons name="key" size={18} color={colors.warning} />
+        <Txt variant="strong" style={{ flex: 1 }}>
+          Add a recovery code
+        </Txt>
+      </Row>
+      <Txt variant="caption" tone="soft">
+        Forget your password without one and your budgets are gone for good.
+      </Txt>
+      {progress !== null && <ProgressBar progress={progress} height={5} />}
+      <Button title="Create recovery code" small loading={progress !== null} onPress={() => void create()} />
+    </Card>
+  );
+}
+
+/** A fresh recovery code (if the old one was lost or seen by someone). */
+function RenewRecoveryCode() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      title="New recovery code"
+      variant="ghost"
+      icon="key-outline"
+      loading={busy}
+      onPress={async () => {
+        if (!(await confirm('New recovery code', 'Your old code will stop working.', 'Create'))) return;
+        setBusy(true);
+        try {
+          await newRecoveryCode();
+        } catch (e) {
+          useCloud.setState({ error: friendlyError(e) });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
   );
 }
 
@@ -580,7 +682,7 @@ function ChangePassword({ email }: { email: string }) {
       setOpen(false);
       setPass('');
       setConfirmPass('');
-      useCloud.setState({ notice: 'Password changed. Use the new one on your next new device.' });
+      useCloud.setState({ notice: 'Password changed.' });
     } catch (e) {
       setErr(friendlyError(e));
     } finally {
@@ -592,7 +694,7 @@ function ChangePassword({ email }: { email: string }) {
     <Card style={{ gap: 10, marginTop: 14 }}>
       <Txt variant="strong">Change encryption password</Txt>
       <Txt variant="caption" tone="soft">
-        Every budget stays as it is. Devices already signed in aren’t affected.
+        Your budgets stay as they are.
       </Txt>
       <TextField icon="lock-closed-outline" placeholder="New password" value={pass} onChangeText={(t) => (setPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} />
       <TextField icon="lock-closed-outline" placeholder="Type it again" value={confirmPass} onChangeText={(t) => (setConfirmPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} onSubmitEditing={() => void save()} />
@@ -632,10 +734,10 @@ function LockedBudgets({ count }: { count: number }) {
       const { recovered, needOwner } = await recoverWithOldPassword(pass, setProgress);
       setPass('');
       if (recovered) haptic('success');
-      const parts = [recovered ? `Opened ${recovered} budget${recovered === 1 ? '' : 's'}.` : '', needOwner ? `Ask the owner to invite you again to ${needOwner} shared budget${needOwner === 1 ? '' : 's'}.` : ''];
+      const parts = [recovered ? `Opened ${recovered} budget${recovered === 1 ? '' : 's'}.` : '', needOwner ? `${needOwner} shared budget${needOwner === 1 ? '' : 's'} need${needOwner === 1 ? 's' : ''} a new invite from the owner.` : ''];
       const msg = parts.filter(Boolean).join(' ');
       if (msg) useCloud.setState({ notice: msg });
-      else setErr('That password worked, but these budgets were locked with a different one. Try another old password.');
+      else setErr('Not the password these were locked with. Try another.');
     } catch (e) {
       setErr(friendlyError(e));
     } finally {
@@ -652,7 +754,7 @@ function LockedBudgets({ count }: { count: number }) {
         </Txt>
       </Row>
       <Txt variant="caption" tone="soft">
-        {one ? 'It was' : 'They were'} saved with your password from before a reset. Enter that old password to open {one ? 'it' : 'them'} again.
+        Saved with your old password. Enter it to open {one ? 'it' : 'them'}.
       </Txt>
       <TextField
         icon="key-outline"
@@ -683,7 +785,7 @@ function LockedBudgets({ count }: { count: number }) {
         variant="ghost"
         small
         onPress={async () => {
-          if (!(await confirm('Remove locked budgets', 'They’ll be deleted for good and can’t be opened even if you remember the old password. Anyone else sharing them keeps their copy.', 'Remove', true))) return;
+          if (!(await confirm('Remove locked budgets', 'Deleted for good. Anyone sharing them keeps their copy.', 'Remove', true))) return;
           try {
             await removeLockedBudgets();
           } catch (e) {

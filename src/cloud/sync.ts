@@ -253,6 +253,8 @@ async function reconcile(row: RemoteRow, mem: Membership) {
     if (mem.key_version !== row.key_version) return;
     try {
       key = b64(unwrapKey(mem.wrapped_key, identity, wrapContext(row.id, mem.key_version)));
+      // Re-sealed to us since (by another device, or with the old password).
+      if (locked.delete(row.id)) useCloud.setState({ locked: locked.size });
     } catch {
       if (!locked.has(row.id)) {
         locked.set(row.id, mem);
