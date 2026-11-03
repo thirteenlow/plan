@@ -93,10 +93,18 @@ export async function pickImport(opts: { currency: CurrencyFormat; dateFormat: D
   return { data, name };
 }
 
-/** Saves an export: a .zip with "<budget> as of <date> - Plan.csv" and "... - Register.csv". */
+/**
+ * Saves an export: a .zip with "<budget> as of <date> - Plan.csv" and "... - Register.csv" (YNAB's layout, for
+ * spreadsheets and other apps), plus "Plan backup.json" with everything the CSVs can't hold (targets, schedules,
+ * hidden categories, payee memory, settings). Importing the zip into Plan uses the backup.
+ */
 export async function exportBudget(data: BudgetData) {
   const { register, plan } = exportCsv(data);
   const stem = csvFileStem(data, today());
-  const zip = zipSync({ [`${stem} - Plan.csv`]: strToU8(plan), [`${stem} - Register.csv`]: strToU8(register) });
+  const zip = zipSync({
+    [`${stem} - Plan.csv`]: strToU8(plan),
+    [`${stem} - Register.csv`]: strToU8(register),
+    'Plan backup.json': strToU8(JSON.stringify(data)),
+  });
   await saveFile(`Plan Export - ${stem}.zip`, zip, 'application/zip');
 }

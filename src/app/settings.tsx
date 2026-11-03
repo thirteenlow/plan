@@ -137,7 +137,7 @@ export default function SettingsScreen() {
 
       <Group title="Data">
         <Item icon="shield-checkmark-outline" label="Privacy policy" onPress={() => router.push('/privacy')} />
-        <Item icon="share-outline" label="Export" value="Plan & Register CSV" onPress={() => void exportData()} />
+        <Item icon="share-outline" label="Export" value="CSV + full backup" onPress={() => void exportData()} />
         <Item icon="download-outline" label="Import" value="Zip or CSV files" onPress={() => void importData()} />
       </Group>
 
