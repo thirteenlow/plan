@@ -29,7 +29,7 @@ const SECTIONS: [string, string[]][] = [
       'Encryption keys: the keys that open your budgets are stored with your account, readable only through your signed-in account (and by us as the service operator).',
       'Budgets: encrypted data, plus who has access to each budget and when it was last changed.',
       'Personal settings (your name, companion and notification choices): encrypted the same way as your budgets, so they follow you to your other devices.',
-      'Apple Pay auto-logging (optional, iPhone): your Shortcut sends each payment’s amount, merchant and card name. These wait unencrypted, with no other details, until Plan next opens and imports them, then they’re deleted. Turning the feature off deletes anything still waiting.',
+      'Tap-to-pay auto-logging (optional): on iPhone your Shortcut sends each Apple Pay payment’s amount, merchant and card name; on Android your MacroDroid automation sends the text of Google or Samsung Wallet’s payment notification (merchant, amount and the card’s last digits). These wait unencrypted, with no other details, until Plan next opens and imports them, then they’re deleted. Turning the feature off deletes anything still waiting.',
       'AI receipt scan (optional): the image you scan is passed to Anthropic’s Claude to read the amount, merchant, date, category and account, and is not stored by us. Scans from inside the app also send the names of your categories and accounts (no amounts or balances) so it can pick from them. Shortcut scans wait in the same way as Apple Pay payments.',
       'Data is hosted by Supabase (our database and sign-in provider). Google processes sign-in if you choose “Continue with Google”.',
     ],

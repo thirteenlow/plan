@@ -1,7 +1,8 @@
 /**
- * Apple Pay auto-logging. An iPhone Shortcuts automation ("When I tap a Wallet card") posts each payment
- * to log_payment() with the user's personal inbox key; the app claims waiting payments on every sync and
- * saves them into the active budget as unapproved transactions to review.
+ * Tap-to-pay auto-logging. On iPhone a Shortcuts automation ("When I tap a Wallet card") posts each Apple Pay
+ * payment to log_payment() with the user's personal inbox key; on Android MacroDroid forwards Google / Samsung
+ * Wallet's payment notification the same way (see walletNotification.ts). The app claims waiting payments on
+ * every sync and saves them into the active budget as unapproved transactions to review.
  * Server side: supabase/003_payment_inbox.sql.
  */
 import { randomToken, sha256Hex } from '@/security/crypto';
@@ -10,6 +11,7 @@ import { useStore } from '@/store/store';
 import type { BudgetData } from '@/store/types';
 import { parseAmountText } from '@/utils/budgetCsv';
 import { addDays } from '@/utils/date';
+import { readWalletPayment } from '@/utils/walletNotification';
 import { matchAccount, matchCategory, payeeCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
 import { useCloud } from './cloudStore';
@@ -23,6 +25,12 @@ export const SCREENSHOT_CARD = 'Screenshot';
 export const TEST_MERCHANT = 'Plan connection test';
 
 const keyName = (uid: string) => `plan.inboxKey.${uid}`;
+
+/**
+ * MacroDroid's request body for Android: the notification as it came, read by readWalletPayment on import.
+ * The braces are MacroDroid magic text from its Notification trigger.
+ */
+export const walletNotificationBody = (token: string) => `{"token":"${token}","amount":"{notification}","merchant":"{not_title}","card":"{not_app_name}: {notification}"}`;
 
 /** The address the Shortcut posts to (the publishable key rides along, as for any app request). */
 export const logPaymentUrl = () => `${SUPABASE_URL}/rest/v1/rpc/log_payment?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`;
@@ -69,7 +77,7 @@ export async function sendTestPayment(token: string) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
-      /pro required/i.test(text) ? 'Apple Pay auto-log needs Plan Pro.' : /invalid key/i.test(text) ? 'The key wasn’t accepted. Create a new one and update your Shortcut.' : `The server said no (${res.status}).`,
+      /pro required/i.test(text) ? 'Tap-to-pay auto-log needs Plan Pro.' : /invalid key/i.test(text) ? 'The key wasn’t accepted. Create a new one and update your automation.' : `The server said no (${res.status}).`,
     );
   }
 }
@@ -180,9 +188,11 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
         tests++;
         continue;
       }
-      const amount = Math.abs(parseAmountText(row.amount));
+      // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
+      const wallet = readWalletPayment(row);
+      const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
       const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
-      const cardName = row.card === SCREENSHOT_CARD ? null : row.card;
+      const cardName = wallet ? wallet.card : row.card === SCREENSHOT_CARD ? null : row.card;
       // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
       const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
       if (!accountId) {
@@ -195,7 +205,8 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
       // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
       const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
-      const merchant = row.merchant?.trim() || (scanned ? 'Payment' : 'Apple Pay');
+      const via = wallet?.wallet ?? 'Apple Pay';
+      const merchant = (wallet ? wallet.merchant : row.merchant?.trim()) || (scanned ? 'Payment' : via);
       // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
       // suggestion matched to your categories.
       const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
@@ -206,7 +217,7 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
           amount: amount ? -amount : 0,
           payeeName: merchant,
           categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
-          memo: [scanned ? 'From screenshot' : row.card ? `Apple Pay · ${row.card}` : 'Apple Pay', !amount ? `amount unreadable: “${String(row.amount ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
+          memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
           cleared: 'uncleared',
           approved: false,
         },

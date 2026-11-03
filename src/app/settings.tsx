@@ -7,7 +7,7 @@ import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
 import { Button, Card, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
-import { requirePro, usePlan } from '@/cloud/pro';
+import { isAndroidDevice, requirePro, usePlan } from '@/cloud/pro';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
 import { LIMITS } from '@/utils/validation';
@@ -131,7 +131,11 @@ export default function SettingsScreen() {
       </Group>
 
       <Group title="Automation">
-        <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
+        {isAndroidDevice() ? (
+          <Item icon="phone-portrait-outline" label="Wallet auto-log" value="Google · Samsung" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
+        ) : (
+          <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
+        )}
         <Item icon="scan-outline" label="AI receipt scan" value="Any device" pro={!pro} onPress={() => requirePro('screenshot') && router.push('/screenshot-capture')} />
       </Group>
 

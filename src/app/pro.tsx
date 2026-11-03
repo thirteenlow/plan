@@ -6,7 +6,7 @@ import { PixelPet } from '@/components/PixelPet';
 import { Screen } from '@/components/Screen';
 import { Button, Card, Chip, GradientCard, haptic, notify, Row, SectionTitle, Tap, TextField, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { CANCEL_REASONS, cancelSubscription, canEmbedCheckout, CheckoutRedirect, openStripePage, resumeSubscription, type SubscriptionState, subscriptionState, FREE_FEATURES, isAppleDevice, openBillingPortal, PRO_FEATURES, PRO_PRICES, type ProFeature, refreshPlan, startCheckout, startTrial, usePlan } from '@/cloud/pro';
+import { CANCEL_REASONS, cancelSubscription, canEmbedCheckout, CheckoutRedirect, openStripePage, resumeSubscription, type SubscriptionState, subscriptionState, FREE_FEATURES, isAndroidDevice, isAppleDevice, openBillingPortal, PRO_FEATURES, PRO_PRICES, type ProFeature, refreshPlan, startCheckout, startTrial, usePlan } from '@/cloud/pro';
 import { EmbeddedCheckout } from '@/components/EmbeddedCheckout';
 import { Sheet } from '@/components/Sheet';
 import { RADIUS, useTheme } from '@/theme';
@@ -32,9 +32,11 @@ export default function ProScreen() {
   const [activating, setActivating] = useState(params.checkout === 'success');
   const signedIn = status === 'ready';
   const until = expiresAt ? shortDate(expiresAt.slice(0, 10), data.settings.dateFormat) : null;
-  // iPhone users see Apple Pay first; everyone else sees what works on their device first.
+  // Phone users see tap-to-pay first; on a computer, what works there comes first.
   const apple = isAppleDevice();
-  const features = apple ? [...PRO_FEATURES].sort((a, b) => (a.devices === 'iphone' ? -1 : b.devices === 'iphone' ? 1 : 0)) : PRO_FEATURES;
+  const android = isAndroidDevice();
+  const phone = apple || android;
+  const features = phone ? [...PRO_FEATURES].sort((a, b) => (a.devices === 'phone' ? -1 : b.devices === 'phone' ? 1 : 0)) : PRO_FEATURES;
 
   useEffect(() => {
     if (!activating) return;
@@ -165,8 +167,8 @@ export default function ProScreen() {
                       : 'Pro is on, with no end date.'
                   : plan === 'trial'
                     ? `Everything is unlocked until ${until}. Keep it going with Pro.`
-                    : apple
-                      ? 'Apple Pay and screenshots log themselves, budgets are shared, and every companion is yours.'
+                    : phone
+                      ? `${apple ? 'Apple Pay' : 'Wallet taps'} and screenshots log themselves, budgets are shared, and every companion is yours.`
                       : 'AI logs receipts for you, budgets are shared, and every companion is yours.'}
               </Txt>
             </View>
@@ -177,11 +179,11 @@ export default function ProScreen() {
           </Row>
         </GradientCard>
 
-        {!apple && plan !== 'pro' && (
+        {!phone && plan !== 'pro' && (
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="information-circle-outline" size={18} color={colors.accent} style={{ marginTop: 1 }} />
             <Txt variant="caption" tone="soft" style={{ flex: 1 }}>
-              Not on an iPhone? Apple Pay auto-log needs one, but everything else in Pro works on Android and computers, including AI receipt scanning.
+              Tap-to-pay auto-log runs on your iPhone or Android phone, but everything else in Pro works on computers too, including AI receipt scanning.
             </Txt>
           </Row>
         )}
@@ -242,8 +244,8 @@ export default function ProScreen() {
                     {f.text}
                   </Txt>
                   <Row style={{ gap: 4, marginTop: 3 }}>
-                    <Ionicons name={f.devices === 'iphone' ? 'logo-apple' : 'phone-portrait-outline'} size={11} color={f.devices === 'iphone' && !apple ? colors.danger : colors.muted} />
-                    <Txt variant="caption" tone="muted" style={{ fontSize: 11, color: f.devices === 'iphone' && !apple ? colors.danger : undefined }}>
+                    <Ionicons name={f.devices === 'phone' && apple ? 'logo-apple' : f.devices === 'phone' && android ? 'logo-android' : 'phone-portrait-outline'} size={11} color={f.devices === 'phone' && !phone ? colors.danger : colors.muted} />
+                    <Txt variant="caption" tone="muted" style={{ fontSize: 11, color: f.devices === 'phone' && !phone ? colors.danger : undefined }}>
                       {f.needs}
                     </Txt>
                   </Row>

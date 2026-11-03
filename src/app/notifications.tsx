@@ -66,7 +66,7 @@ export default function NotificationsScreen() {
   const active = status === 'on' && prefs.on;
 
   const rows: { key: keyof ReminderPrefs; title: string; text: string }[] = [
-    { key: 'logged', title: 'Payments logged automatically', text: 'Right away, when Apple Pay or a scan adds a payment' },
+    { key: 'logged', title: 'Payments logged automatically', text: 'Right away, when a tap-to-pay or a scan adds a payment' },
     { key: 'bills', title: 'Bills due', text: 'The day before a scheduled payment' },
     { key: 'review', title: 'Payments to review', text: 'When auto-logged or scanned payments are waiting' },
     { key: 'assign', title: 'Money to assign', text: 'After income arrives' },

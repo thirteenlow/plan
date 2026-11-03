@@ -191,8 +191,11 @@ export async function resumeSubscription() {
 
 export type ProFeature = 'applePay' | 'screenshot' | 'sharing' | 'budgets' | 'pets';
 
-/** `iphone` features only work on an iPhone; `needs` spells out the requirement (checked against Apple's docs). */
-export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text: string; devices: 'iphone' | 'all'; needs: string }[] = [
+/**
+ * `phone` features need an iPhone or an Android phone (not a computer); `needs` spells out the requirement
+ * (checked against Apple's docs and MacroDroid's).
+ */
+export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text: string; devices: 'phone' | 'all'; needs: string }[] = [
   {
     key: 'screenshot',
     icon: 'sparkles-outline',
@@ -204,7 +207,14 @@ export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text:
   { key: 'sharing', icon: 'people-outline', title: 'Shared budgets', text: 'Budget together with a partner or housemates.', devices: 'all', needs: 'Any device' },
   { key: 'budgets', icon: 'albums-outline', title: 'Unlimited budgets', text: 'Separate budgets for home, business, travel or a side project.', devices: 'all', needs: 'Any device' },
   { key: 'pets', icon: 'paw-outline', title: 'Every companion', text: 'Unlock the fox, panda, frog, penguin and hamster.', devices: 'all', needs: 'Any device' },
-  { key: 'applePay', icon: 'phone-portrait-outline', title: 'Apple Pay auto-log', text: 'Tap to pay and it’s already in your budget.', devices: 'iphone', needs: 'iPhone only · iOS 17 or later' },
+  {
+    key: 'applePay',
+    icon: 'phone-portrait-outline',
+    title: 'Tap-to-pay auto-log',
+    text: 'Tap to pay and it’s already in your budget.',
+    devices: 'phone',
+    needs: 'Apple Pay on iOS 17+ · Google or Samsung Wallet on Android',
+  },
 ];
 
 /** On an iPhone or iPad (native, or Safari on the web). */
@@ -212,6 +222,12 @@ export function isAppleDevice() {
   if (Platform.OS === 'ios') return true;
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
+}
+
+/** On an Android phone or tablet (native, or a browser on one). */
+export function isAndroidDevice() {
+  if (Platform.OS === 'android') return true;
+  return Platform.OS === 'web' && typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 }
 
 /** Free plan limits. */
