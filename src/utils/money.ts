@@ -190,3 +190,8 @@ export function milliToInput(m: Milli, c: CurrencyFormat = active): string {
   if (!m) return '';
   return formatNumber(m, c);
 }
+
+/** Like milliToInput, but keeps the minus sign (for fields that can go negative, like Assigned). */
+export function signedInput(m: Milli, c: CurrencyFormat = active): string {
+  return m < 0 && milliToInput(m, c) ? `-${milliToInput(m, c)}` : milliToInput(m, c);
+}

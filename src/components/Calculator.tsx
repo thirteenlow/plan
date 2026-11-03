@@ -1,7 +1,7 @@
 import React, { type RefObject, useRef, useState } from 'react';
 import { type TextInput, View } from 'react-native';
 import { RADIUS, useTheme } from '@/theme';
-import { formatMoney, MAX_AMOUNT, milliToInput, parseMoney } from '@/utils/money';
+import { formatMoney, MAX_AMOUNT, milliToInput, parseMoney, signedInput } from '@/utils/money';
 import { Row, Tap, Txt } from './ui';
 
 export type InputRef = React.ComponentRef<typeof TextInput>;
@@ -46,7 +46,7 @@ export function useCalculator({
   const total = () => (acc !== null && op ? apply(acc, op, current) : current);
   const show = (m: number) => {
     const clamped = Math.max(-MAX_AMOUNT, Math.min(MAX_AMOUNT, allowNegative ? m : Math.abs(m)));
-    return clamped === 0 ? '' : milliToInput(clamped);
+    return clamped === 0 ? '' : allowNegative ? signedInput(clamped) : milliToInput(clamped);
   };
   const finish = () => {
     if (acc === null || !op) return;

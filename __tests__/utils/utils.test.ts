@@ -1,8 +1,8 @@
 import { computeBudget, getMonth } from '@/engine/budget';
 import { RTA } from '@/store/types';
 import { exportCsv, importCsv, isPlanCsv, isRegisterCsv, parseAmountText, parseCsv, safeFileName, detectDateFormat } from '@/utils/budgetCsv';
-import { addDays, addMonths, addMonthsToDate, daysBetween, daysInMonth, formatDate, monthDiff, monthLabel, monthRange } from '@/utils/date';
-import { CURRENCIES, DEFAULT_CURRENCY, formatMoney, milliToInput, parseMoney } from '@/utils/money';
+import { addDays, addMonths, addMonthsToDate, daysBetween, daysInMonth, formatDate, monthDiff, monthLabel, monthPickerOrder, monthRange } from '@/utils/date';
+import { CURRENCIES, DEFAULT_CURRENCY, formatMoney, milliToInput, parseMoney, signedInput } from '@/utils/money';
 import { matchAccount, matchCategory, merchantKey, payeeCategory } from '@/utils/scanMatch';
 import { filterAmountTyping, isValidBudget, sanitizeText, validateAmount, validateName } from '@/utils/validation';
 import { amountInText, readWalletPayment } from '@/utils/walletNotification';
@@ -218,5 +218,26 @@ describe('Android wallet notifications (MacroDroid)', () => {
   // Known bug: masked card digits followed by a symbol-first amount are read as "1234 €". Remove `.failing` once fixed.
   it.failing('reads the amount when it comes after the card number', () => {
     expect(amountInText('Visa •••• 1234 €7,90')).toBe($(7.9));
+  });
+});
+
+describe('monthPickerOrder', () => {
+  it('lists this year first (Jan to Dec), then later years, then earlier years newest first', () => {
+    const order = monthPickerOrder(monthRange('2024-11', '2027-02'), '2026-11');
+    expect(order.slice(0, 12)).toEqual(monthRange('2026-01', '2026-12'));
+    expect(order.slice(12, 14)).toEqual(['2027-01', '2027-02']);
+    expect(order.slice(14, 26)).toEqual(monthRange('2025-01', '2025-12'));
+    expect(order.slice(26)).toEqual(['2024-11', '2024-12']);
+    expect(order).toHaveLength(monthRange('2024-11', '2027-02').length);
+  });
+});
+
+describe('signedInput', () => {
+  it('keeps the minus sign so a negative Assigned amount round-trips through the editor', () => {
+    const c = DEFAULT_CURRENCY;
+    expect(signedInput(-30_000, c)).toBe('-' + milliToInput(30_000, c));
+    expect(parseMoney(signedInput(-30_000, c), c)).toBe(-30_000);
+    expect(signedInput(12_500, c)).toBe(milliToInput(12_500, c));
+    expect(signedInput(0, c)).toBe('');
   });
 });

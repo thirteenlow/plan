@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { canCreateBudget } from '@/cloud/pro';
+import { useCover } from '@/components/CoverPicker';
 import { AccountProBadge } from '@/components/ProBadge';
 import React, { useState } from 'react';
 import { View } from 'react-native';
@@ -44,9 +45,8 @@ export default function HomeScreen() {
   const [goalOpen, setGoalOpen] = useState(true);
   const [editPinned, setEditPinned] = useState(false);
   const [pickGoal, setPickGoal] = useState(false);
-  // Cover with several overspent categories: which one to fix.
-  const [coverChoices, setCoverChoices] = useState<string[] | null>(null);
-  const cover = (categoryId: string) => router.push({ pathname: '/move-money', params: { month, to: categoryId, amount: String(-categoryMonth(mb, categoryId).available) } });
+  // Cover: one overspent category opens Move money; several ask which to fix first (shared with the Plan tab).
+  const { cover, sheet: coverSheet } = useCover(data, mb, month);
   const fill = isTablet ? { flex: 1 } : undefined;
 
   const name = data.settings.ownerName?.trim();
@@ -59,9 +59,7 @@ export default function HomeScreen() {
     haptic();
     switch (t.kind) {
       case 'overspent':
-        // One overspent category: straight to Move money. Several: choose which to fix first.
-        if ((t.categoryIds?.length ?? 0) > 1) setCoverChoices(t.categoryIds!);
-        else if (t.categoryId) cover(t.categoryId);
+        cover(t.categoryIds ?? (t.categoryId ? [t.categoryId] : []));
         break;
       case 'assign':
       case 'overassigned':
@@ -230,31 +228,7 @@ export default function HomeScreen() {
       )}
 
       <PinnedEditor visible={editPinned} onClose={() => setEditPinned(false)} />
-      <PickerSheet
-        visible={!!coverChoices}
-        onClose={() => setCoverChoices(null)}
-        title="Which category to cover?"
-        searchable={(coverChoices?.length ?? 0) > 8}
-        items={(coverChoices ?? []).map((id) => {
-          const c = data.categories.find((x) => x.id === id);
-          const over = -categoryMonth(mb, id).available;
-          return {
-            key: id,
-            title: c?.name ?? 'Category',
-            subtitle: `Overspent by ${formatMoney(over)}`,
-            left: <IconBadge name={c?.name ?? '?'} size={32} />,
-            right: (
-              <Txt variant="label" tone="danger">
-                {formatMoney(-over)}
-              </Txt>
-            ),
-          };
-        })}
-        onSelect={(id) => {
-          setCoverChoices(null);
-          cover(id);
-        }}
-      />
+      {coverSheet}
       <PickerSheet
         visible={pickGoal}
         onClose={() => setPickGoal(false)}

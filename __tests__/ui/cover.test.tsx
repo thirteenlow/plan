@@ -47,11 +47,16 @@ describe('mostOverspent / useTodos', () => {
 });
 
 describe('Cover with 2+ overspent categories', () => {
-  it('from the Plan tab', async () => {
+  it('from the Plan tab: asks which category, like Home', async () => {
     load();
     await renderRouter({ '(tabs)/plan': PlanScreen, 'move-money': MoveMoneyStub }, { initialUrl: '/plan' });
     await fireEvent.press(await screen.findByText('Cover'));
-    expect(await screen.findByTestId('move-money')).toHaveTextContent(`to=groceries amount=${$(80)}`);
+    // Same as Home: asks which category, most overspent first.
+    expect(await screen.findByText('Which category to cover?')).toBeTruthy();
+    const rows = await screen.findAllByText(/^Overspent by /);
+    expect(rows).toHaveLength(2);
+    await fireEvent.press(rows[1]);
+    expect(await screen.findByTestId('move-money')).toHaveTextContent(`to=dining amount=${$(30)}`);
     expect(screen).toHavePathname('/move-money');
   });
 

@@ -14,14 +14,14 @@ import { availableTone, categoryMonth, type CategoryMonth, type MonthBudget } fr
 import { AUTO_ASSIGN_OPTIONS, assignUpTo, autoAssign } from '@/engine/autoAssign';
 import { AssignFlash, type AssignFlashInfo } from '@/components/AssignFlash';
 import { blurActiveField, useKeyboard } from '@/hooks/useKeyboard';
-import { mostOverspent } from '@/hooks/useTodos';
+import { useCover } from '@/components/CoverPicker';
 import { MAX_FUTURE_MONTHS, type PlanFilter, sortedGroups, useBudgetResult, useMonthBudget, useUi } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { Category } from '@/store/types';
 import { FONT, RADIUS, useLayout, useTheme } from '@/theme';
-import { addMonths, currentMonth, monthLabel, monthRange, monthShort } from '@/utils/date';
+import { addMonths, currentMonth, monthLabel, monthPickerOrder, monthRange, monthShort } from '@/utils/date';
 import { noWebOutline } from '@/utils/layout';
-import { formatMoney, formatNumber, getActiveCurrency, milliToInput, parseMoney } from '@/utils/money';
+import { formatMoney, formatNumber, getActiveCurrency, parseMoney, signedInput } from '@/utils/money';
 import { filterAmountTyping, LIMITS } from '@/utils/validation';
 
 const FILTER_LABELS: Record<PlanFilter, string> = {
@@ -60,7 +60,7 @@ export default function PlanScreen() {
     save(edit);
     haptic();
     const assigned = categoryMonth(mb, id).assigned;
-    setEdit({ id, text: assigned ? milliToInput(assigned) : '' });
+    setEdit({ id, text: signedInput(assigned) });
   };
   const finishEdit = () => {
     save(edit);
@@ -138,11 +138,11 @@ export default function PlanScreen() {
     else router.push({ pathname: '/category/[id]', params: { id, month } });
   };
 
+  // Same as Home: one overspent category opens Move money; several ask which to fix first.
+  const { cover: coverOverspent, sheet: coverSheet } = useCover(data, mb, month);
   const cover = () => {
-    const id = mostOverspent(overspent.map((c) => c.id), mb);
-    if (!id) return;
     haptic();
-    router.push({ pathname: '/move-money', params: { month, to: id, amount: String(-categoryMonth(mb, id).available) } });
+    coverOverspent(overspent.map((c) => c.id));
   };
 
   const header = {
@@ -183,7 +183,7 @@ export default function PlanScreen() {
           <Txt variant="strong" style={{ flex: 1 }}>
             Overspent {overspent.length === 1 ? 'category' : 'categories'}
           </Txt>
-          <Tap onPress={cover} accessibilityRole="button" style={{ backgroundColor: colors.accentSoft, borderRadius: RADIUS.pill, paddingHorizontal: 18, paddingVertical: 8 }}>
+          <Tap onPress={cover} accessibilityRole="button" accessibilityLabel={`Cover: Overspent ${overspent.length === 1 ? 'category' : 'categories'}`} style={{ backgroundColor: colors.accentSoft, borderRadius: RADIUS.pill, paddingHorizontal: 18, paddingVertical: 8 }}>
             <Txt variant="label" tone="accent">
               Cover
             </Txt>
@@ -302,15 +302,19 @@ export default function PlanScreen() {
           setSheet(null);
         }}
       />
+      {coverSheet}
       <PickerSheet
         visible={sheet === 'month'}
         onClose={() => setSheet(null)}
         title="Month"
         searchable={false}
         selectedKey={month}
-        items={monthRange(minMonth, maxMonth)
-          .reverse()
-          .map((m) => ({ key: m, title: monthLabel(m), subtitle: m === currentMonth() ? 'This month' : m > currentMonth() ? 'Future' : undefined, section: m.slice(0, 4) }))}
+        items={monthPickerOrder(monthRange(minMonth, maxMonth), currentMonth()).map((m) => ({
+          key: m,
+          title: monthLabel(m),
+          subtitle: m === currentMonth() ? 'This month' : m > currentMonth() ? 'Future' : undefined,
+          section: m.slice(0, 4) === currentMonth().slice(0, 4) ? `${m.slice(0, 4)} · This year` : m.slice(0, 4),
+        }))}
         onSelect={(k) => {
           setMonth(k);
           setSheet(null);
@@ -568,7 +572,7 @@ function AssignBar({
         </Row>
         {need > 0 && (
           <Tap
-            onPress={() => onSetText(milliToInput(cm.assigned + need))}
+            onPress={() => onSetText(signedInput(cm.assigned + need))}
             accessibilityRole="button"
             style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.accentSoft, borderRadius: RADIUS.pill, paddingHorizontal: 14, paddingVertical: 9 }}
           >

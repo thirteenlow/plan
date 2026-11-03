@@ -19,13 +19,10 @@ const STEPS: { title: string; text: string }[] = [
   { title: 'New automation', text: 'Tap Automation, then +.' },
   { title: 'Choose Wallet', text: 'Scroll down and tap Wallet.' },
   { title: 'Pick your cards', text: 'Tick your cards, choose Run Immediately, then Next.' },
-  { title: 'Add the action', text: 'Tap Create New Shortcut, then search “Get Contents of URL” and tap it.' },
-  { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, then set Method to POST and Request Body to JSON.' },
-  {
-    title: 'Add the fields',
-    text: 'For each row below: tap Add new field, choose Text, and type the name in lowercase. For amount, merchant and card, tap the value, tap Shortcut Input above the keyboard, tap it again and pick the item.',
-  },
-  { title: 'Save', text: 'Tap ✓. Every tap-to-pay now goes to Plan.' },
+  { title: 'Add the action', text: 'Tap Create New Shortcut, search “Get Contents of URL” and tap it.' },
+  { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row, named in lowercase. For amount, merchant and card, tap the value, pick Shortcut Input, tap it again and choose the item.' },
+  { title: 'Save', text: 'Tap ✓. Every Apple Pay tap now goes to Plan.' },
 ];
 
 const TOTAL = STEPS.length + 2; // intro + steps + test
@@ -157,25 +154,25 @@ export default function ApplePayScreen() {
               Tap to pay, and it’s logged
             </Txt>
             <Txt tone="soft" center>
-              An iPhone automation sends each Apple Pay payment to Plan. It shows up in Spending to review the next time you open the app.
+              A Shortcuts automation sends each Apple Pay payment to Plan. Review it in Spending next time you open the app.
             </Txt>
             <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
               <Txt variant="caption" tone="soft">
-                iPhone only · iOS 17 or later
+                iPhone · iOS 17 or later
               </Txt>
             </Row>
           </View>
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Used when a card’s name doesn’t match one of your accounts.
+              For cards that don’t match an account name.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              Shortcuts can’t encrypt, so the amount, merchant and card name wait on the server unencrypted until Plan picks them up, then they’re deleted. The rest of your budget stays encrypted.
+              Shortcuts can’t encrypt, so the amount, merchant and card wait on the server until Plan picks them up, then they’re deleted. Everything else stays encrypted.
             </Txt>
           </Row>
           {!!key && (
@@ -243,10 +240,10 @@ export default function ApplePayScreen() {
             </Txt>
             <Txt tone="soft" center>
               {test === 'ok'
-                ? 'Plan received a test payment. Pay with Apple Pay and it’ll appear in Spending.'
+                ? 'Plan got the test. Pay with Apple Pay and it’ll show up in Spending.'
                 : test === 'failed'
                   ? testError
-                  : 'Sends a test exactly like your Shortcut will. Nothing is added to your budget.'}
+                  : 'Sends a test payment to Plan. Nothing is added to your budget.'}
             </Txt>
             <Button title={test === 'ok' ? 'Test again' : 'Send a test'} variant="soft" icon="paper-plane-outline" onPress={() => void runTest()} />
           </Card>
@@ -255,12 +252,10 @@ export default function ApplePayScreen() {
           </Txt>
           <Card style={{ gap: 12 }}>
             {[
-              ['Nothing shows up', 'Check Run Immediately is on, the right cards are ticked, and Method is POST with Request Body JSON.'],
-              ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change “Log to” on the first screen.'],
-              ['No merchant name', 'Some payments don’t include one. They’re logged as “Apple Pay”; edit the payee in Spending.'],
-              ['See it run', 'In the automation, turn on Notify When Run to get a banner each time.'],
-              ['See what the server said', 'Add Show Notification after Get Contents of URL and pick Contents of URL. “ok” means it reached Plan; anything else is the reason it didn’t.'],
-              ['When it shows up', 'Payments wait on the server and appear in Spending the next time Plan is open and syncs (within a minute).'],
+              ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with Request Body JSON.'],
+              ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to on the first screen.'],
+              ['No merchant', 'Some payments don’t include one. They’re logged as “Apple Pay”.'],
+              ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it; anything else says why not.'],
             ].map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>

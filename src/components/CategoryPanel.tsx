@@ -8,7 +8,7 @@ import { useBalances, useBudgetResult, useLookups } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
 import { addMonths, monthLabel, monthOf, ordinal, shortDate, WEEKDAYS } from '@/utils/date';
-import { formatMoney, formatNumber, getActiveCurrency, milliToInput, parseMoney } from '@/utils/money';
+import { formatMoney, formatNumber, getActiveCurrency, parseMoney, signedInput } from '@/utils/money';
 import { filterAmountTyping, LIMITS, validateAmount, validateName } from '@/utils/validation';
 import { Screen } from './Screen';
 import { ActionSheet, PickerSheet, Sheet } from './Sheet';
@@ -51,7 +51,7 @@ export function CategoryPanel({ id, month, modal, onClose }: { id: string; month
   const card = category.linkedAccountId ? data.accounts.find((a) => a.id === category.linkedAccountId) : undefined;
   const cardOwed = card ? Math.max(0, -(balances[card.id]?.working ?? 0)) : 0;
 
-  const assignedText = assignedDraft ?? (cm.assigned ? (cm.assigned < 0 ? '-' : '') + milliToInput(cm.assigned) : '');
+  const assignedText = assignedDraft ?? signedInput(cm.assigned);
   const close = () => (onClose ? onClose() : goBack());
   const commitAssigned = () => {
     if (assignedDraft === null) return;

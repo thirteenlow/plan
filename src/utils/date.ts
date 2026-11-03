@@ -124,3 +124,18 @@ export function longDate(d: ISODate, fmt: DateFormat = activeDateFormat): string
   if (fmt === 'MDY') return `${MONTHS[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
   return `${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
 }
+
+/**
+ * Months for a picker, easiest first: this year (January to December), then later years, then earlier years
+ * (newest first). Months within a year stay in calendar order.
+ */
+export function monthPickerOrder(months: MonthKey[], current: MonthKey): MonthKey[] {
+  const year = current.slice(0, 4);
+  const rank = (y: string) => (y === year ? 0 : y > year ? 1 : 2);
+  return [...months].sort((a, b) => {
+    const ya = a.slice(0, 4);
+    const yb = b.slice(0, 4);
+    if (ya !== yb) return rank(ya) - rank(yb) || (rank(ya) === 2 ? (ya < yb ? 1 : -1) : ya < yb ? -1 : 1);
+    return a < b ? -1 : 1;
+  });
+}
