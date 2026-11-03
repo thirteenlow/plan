@@ -9,9 +9,10 @@ import { BrandMark } from '@/components/BrandMark';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, ProgressBar, Row, Tap, TextField, Txt } from '@/components/ui';
 import { completeUnlock, deleteAccount, recoverWithOldPassword, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
-import { MIN_PASSWORD, nativeAppleAvailable, sendResetCode, setAccountPassword, signInWithAppleNative, signInWithEmail, signInWithProvider, signUpWithEmail, verifyResetCode } from '@/cloud/auth';
+import { nativeAppleAvailable, PASSWORD_RULES, sendResetCode, setAccountPassword, signInWithAppleNative, signInWithEmail, signInWithProvider, signUpWithEmail, strongPassword, verifyResetCode } from '@/cloud/auth';
 import { friendlyError, useCloud } from '@/cloud/cloudStore';
 import { APPLE_SIGN_IN_ENABLED, cloudConfigured } from '@/cloud/config';
+import { usePlan } from '@/cloud/pro';
 import { pullAll, removeLockedBudgets } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { GRADIENT_SOFT, RADIUS, useTheme } from '@/theme';
@@ -301,7 +302,7 @@ function EmailSignIn({ disabled }: { disabled: boolean }) {
   const submit = () => {
     if (step === 'signin' && validEmail()) void run(() => signInWithEmail(email, password));
     if (step === 'signup' && validEmail()) {
-      if (password.length < MIN_PASSWORD) return setErr(`Use at least ${MIN_PASSWORD} characters.`);
+      if (!strongPassword(password)) return setErr('Your password doesn’t meet every rule yet.');
       void run(async () => {
         if (!(await signUpWithEmail(email, password))) go('confirm');
       });
@@ -413,11 +414,7 @@ function EmailSignIn({ disabled }: { disabled: boolean }) {
     <View style={{ gap: 10 }}>
       {emailField}
       <PasswordField value={password} onChange={(t) => (setPassword(t), setErr(null))} isNew={signup} onSubmit={submit} />
-      {signup && (
-        <Txt variant="caption" tone={password.length >= MIN_PASSWORD ? 'positive' : 'muted'} style={{ marginLeft: 4 }}>
-          At least {MIN_PASSWORD} characters
-        </Txt>
-      )}
+      {signup && <PasswordChecklist password={password} />}
       {!!err && (
         <Txt variant="caption" tone="danger" center>
           {err}
@@ -460,13 +457,33 @@ function PasswordField({ value, onChange, isNew, onSubmit, autoFocus }: { value:
   );
 }
 
+/** The password rules, ticking off as they're met. */
+function PasswordChecklist({ password }: { password: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ gap: 4, paddingHorizontal: 4 }}>
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.test(password);
+        return (
+          <Row key={r.label} style={{ gap: 6 }}>
+            <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={ok ? colors.positive : colors.muted} />
+            <Txt variant="caption" tone={ok ? 'default' : 'muted'}>
+              {r.label}
+            </Txt>
+          </Row>
+        );
+      })}
+    </View>
+  );
+}
+
 /** After signing in with a reset code: choose the new password, then into the app. */
 function NewPassword() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const save = async () => {
-    if (password.length < MIN_PASSWORD) return setErr(`Use at least ${MIN_PASSWORD} characters.`);
+    if (!strongPassword(password)) return setErr('Your password doesn’t meet every rule yet.');
     setBusy(true);
     setErr(null);
     try {
@@ -483,9 +500,7 @@ function NewPassword() {
     <View style={{ gap: 14 }}>
       <FormHeader title="Choose a new password" subtitle="Use it next time you sign in with email." />
       <PasswordField value={password} onChange={(t) => (setPassword(t), setErr(null))} isNew autoFocus onSubmit={() => void save()} />
-      <Txt variant="caption" tone={password.length >= MIN_PASSWORD ? 'positive' : 'muted'} style={{ marginLeft: 4 }}>
-        At least {MIN_PASSWORD} characters
-      </Txt>
+      <PasswordChecklist password={password} />
       {!!err && (
         <Txt variant="caption" tone="danger" center>
           {err}
@@ -660,6 +675,7 @@ function DeleteAccount() {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const pro = usePlan((p) => p.plan === 'pro' && p.managed);
   if (!open) return <Button title="Delete account" variant="danger" icon="trash-outline" style={{ marginTop: 10 }} onPress={() => setOpen(true)} />;
   return (
     <Card style={{ marginTop: 10, gap: 10 }}>
@@ -669,6 +685,11 @@ function DeleteAccount() {
       <Txt tone="soft">
         Deletes your account and every budget you own, for everyone you shared them with, and clears this device. This can’t be undone.
       </Txt>
+      {pro && (
+        <Txt tone="soft">
+          Your Pro subscription is cancelled too, so you won’t be charged again. Pro stays on until the end of the period you paid for.
+        </Txt>
+      )}
       <TextField label="Type DELETE to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} maxLength={10} error={err} />
       <Row style={{ gap: 10 }}>
         <Button title="Cancel" variant="outline" style={{ flex: 1 }} onPress={() => setOpen(false)} />

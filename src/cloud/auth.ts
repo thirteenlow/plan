@@ -73,6 +73,15 @@ export async function signOut() {
 }
 
 export const MIN_PASSWORD = 8;
+
+/** What a new sign-in password needs, shown as a live checklist. (Also set these under Supabase → Auth → Passwords.) */
+export const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: `At least ${MIN_PASSWORD} characters`, test: (p) => p.length >= MIN_PASSWORD },
+  { label: 'An uppercase and a lowercase letter', test: (p) => /[a-z]/.test(p) && /[A-Z]/.test(p) },
+  { label: 'A number', test: (p) => /\d/.test(p) },
+  { label: 'A symbol, like ! @ # $', test: (p) => /[^A-Za-z0-9\s]/.test(p) },
+];
+export const strongPassword = (p: string) => PASSWORD_RULES.every((r) => r.test(p));
 const clean = (email: string) => email.trim().toLowerCase();
 const client = () => {
   const sb = getSupabase();
@@ -127,7 +136,7 @@ function friendlyAuthError(error: { message: string; status?: number }) {
   if (m.includes('email not confirmed')) return new Error('Confirm your email first: open the link we sent you.');
   if (m.includes('already registered')) return new Error('There’s already an account with this email. Sign in instead.');
   if (m.includes('should be different')) return new Error('Choose a password you haven’t used here before.');
-  if (m.includes('password should') || m.includes('weak password')) return new Error(`Use at least ${MIN_PASSWORD} characters.`);
+  if (m.includes('password should') || m.includes('weak password')) return new Error('That password isn’t strong enough. Check the list below it.');
   // A short wait between codes for the same address ("…you can only request this after 42 seconds").
   const wait = m.match(/after (\d+) seconds?/)?.[1];
   if (wait) return new Error(`A code was just sent. Check your email, or wait ${wait} seconds to send another.`);

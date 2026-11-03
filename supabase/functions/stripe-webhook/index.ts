@@ -18,10 +18,12 @@ const DAY = 86_400_000;
 /** Writes one subscription's state to the database. */
 async function apply(sub: Stripe.Subscription, userHint?: string | null) {
   const customer = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-  let userId: string | undefined = userHint || sub.metadata?.user_id;
+  // The customer's current account first: after someone deletes their account and signs up again, the
+  // subscription's metadata may still name the old one.
+  let userId: string | undefined = userHint ?? undefined;
   if (!userId) {
     const { data } = await admin.from('stripe_customers').select('user_id').eq('customer_id', customer).maybeSingle();
-    userId = (data as { user_id?: string } | null)?.user_id;
+    userId = (data as { user_id?: string } | null)?.user_id ?? sub.metadata?.user_id;
   }
   if (!userId) return console.warn('no Plan account for', customer);
 

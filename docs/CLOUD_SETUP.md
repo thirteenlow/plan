@@ -118,7 +118,7 @@ Each user gets 30 scans a day (`SCAN_DAILY_LIMIT` secret to change it). Screensh
 Pro unlocks Apple Pay auto-log, AI receipt scan, inviting people to shared budgets, unlimited budgets (free: 2)
 and every companion (free: cat, dog, bunny). People can start a 14-day free trial themselves (once, no card).
 
-1. Run `supabase/005_pro.sql`, then `supabase/007_stripe_trial.sql`. The server then requires Pro for the
+1. Run `supabase/005_pro.sql`, then `supabase/007_stripe_trial.sql` and `supabase/012_pro_returning_account.sql` (lets someone who deleted their account and signed up again manage the same subscription). The server then requires Pro for the
    automation features and for invites.
 2. Stripe (free to set up; Stripe takes a fee per payment):
    - Create a product "Plan Pro" with two recurring prices: monthly and yearly. Copy their `price_…` IDs.

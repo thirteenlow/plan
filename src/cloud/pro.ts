@@ -167,6 +167,21 @@ export async function cancelSubscription(reason?: string, comment?: string) {
   return state;
 }
 
+/**
+ * Before deleting the account: stop the Stripe subscription renewing (Pro stays on until the paid period ends).
+ * Throws if it couldn't be cancelled, so an account is never deleted while it's still being charged.
+ */
+export async function cancelBeforeDeleting() {
+  const { plan, managed } = usePlan.getState();
+  if (plan !== 'pro' && !managed) return;
+  try {
+    await callStripe({ action: 'cancel', reason: 'other', comment: 'Account deleted' });
+  } catch (e) {
+    if (/no active subscription|no subscription/i.test((e as Error).message)) return;
+    throw new Error('Couldn’t cancel your Pro subscription, so your account wasn’t deleted. Try again.');
+  }
+}
+
 /** Keeps the subscription going after all. */
 export async function resumeSubscription() {
   const state = toState(await callStripe({ action: 'resume' }));

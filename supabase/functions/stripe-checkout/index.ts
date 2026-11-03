@@ -29,7 +29,26 @@ function returnBase(origin: unknown) {
   }
   return APP_URL;
 }
-const PRICES: Record<string, string | undefined> = { monthly: Deno.env.get('STRIPE_PRICE_MONTHLY'), yearly: Deno.env.get('STRIPE_PRICE_YEARLY') };
+/**
+ * Someone who deleted their account and signed up again with the same email: their paid Pro (matched by email)
+ * points at a subscription whose customer was linked to the old account. Link that customer to this account, and
+ * the subscription too, so the webhook keeps updating it. Skipped if the customer belongs to another live account.
+ */
+async function reconnect(userId: string, email: string): Promise<string | undefined> {
+  const { data } = await admin.from('pro_members').select('stripe_subscription_id').eq('email', email.toLowerCase()).maybeSingle();
+  const subId = (data as { stripe_subscription_id?: string | null } | null)?.stripe_subscription_id;
+  if (!subId) return undefined;
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const customer = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+  const { data: taken } = await admin.from('stripe_customers').select('user_id').eq('customer_id', customer).maybeSingle();
+  if (taken) return undefined;
+  const { error } = await admin.from('stripe_customers').insert({ user_id: userId, customer_id: customer });
+  if (error) return undefined;
+  await stripe.subscriptions.update(sub.id, { metadata: { user_id: userId } });
+  return customer;
+}
+
+const PRICES: Record<string, string | undefined> ={ monthly: Deno.env.get('STRIPE_PRICE_MONTHLY'), yearly: Deno.env.get('STRIPE_PRICE_YEARLY') };
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -49,10 +68,11 @@ Deno.serve(async (req) => {
 
   const body = (await req.json().catch(() => ({}))) as { action?: string; plan?: string; origin?: string; reason?: string; comment?: string };
   const base = returnBase(body.origin);
-  const { data: row } = await admin.from('stripe_customers').select('customer_id').eq('user_id', user.id).maybeSingle();
-  const customer = (row as { customer_id?: string } | null)?.customer_id;
-
   try {
+    const { data: row } = await admin.from('stripe_customers').select('customer_id').eq('user_id', user.id).maybeSingle();
+    const customer = (row as { customer_id?: string } | null)?.customer_id ?? (await reconnect(user.id, user.email));
+
+
     if (body.action === 'portal') {
       if (!customer) return reply(400, { error: 'There’s no subscription to manage yet.' });
       const portal = await stripe.billingPortal.sessions.create({ customer, return_url: `${base}/pro` });
