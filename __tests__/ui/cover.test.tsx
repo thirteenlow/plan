@@ -46,7 +46,7 @@ describe('mostOverspent / useTodos', () => {
   });
 });
 
-describe('Cover opens Move money (2+ overspent categories)', () => {
+describe('Cover with 2+ overspent categories', () => {
   it('from the Plan tab', async () => {
     load();
     await renderRouter({ '(tabs)/plan': PlanScreen, 'move-money': MoveMoneyStub }, { initialUrl: '/plan' });
@@ -55,10 +55,26 @@ describe('Cover opens Move money (2+ overspent categories)', () => {
     expect(screen).toHavePathname('/move-money');
   });
 
-  it('from Home', async () => {
+  it('from Home: asks which category, most overspent first, then opens the chosen one', async () => {
     load();
     await renderRouter({ '(tabs)/index': HomeScreen, 'move-money': MoveMoneyStub }, { initialUrl: '/' });
     await fireEvent.press(await screen.findByLabelText('Cover: Overspent categories'));
+    expect(await screen.findByText('Which category to cover?')).toBeTruthy();
+    const rows = await screen.findAllByText(/^Overspent by /);
+    expect(rows).toHaveLength(2);
+    // Groceries (-$80) is listed before Dining Out (-$30).
+    expect(rows[0]).toHaveTextContent(/80/);
+    expect(rows[1]).toHaveTextContent(/30/);
+    await fireEvent.press(rows[0]);
     expect(await screen.findByTestId('move-money')).toHaveTextContent(`to=groceries amount=${$(80)}`);
+  });
+
+  it('from Home: can cover a category other than the worst one', async () => {
+    load();
+    await renderRouter({ '(tabs)/index': HomeScreen, 'move-money': MoveMoneyStub }, { initialUrl: '/' });
+    await fireEvent.press(await screen.findByLabelText('Cover: Overspent categories'));
+    const rows = await screen.findAllByText(/^Overspent by /);
+    await fireEvent.press(rows[1]);
+    expect(await screen.findByTestId('move-money')).toHaveTextContent(`to=dining amount=${$(30)}`);
   });
 });
