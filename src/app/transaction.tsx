@@ -13,11 +13,11 @@ import { Screen } from '@/components/Screen';
 import { ActionSheet, PickerSheet, type PickerItem, Sheet } from '@/components/Sheet';
 import { Button, confirm, FieldRow, haptic, IconBadge, notify, Row, Tap, TextField, Toggle, Txt } from '@/components/ui';
 import { categoryMonth, computeBudget, getMonth } from '@/engine/budget';
-import { MoneyMove, type MoneyMoveInfo } from '@/components/MoneyMove';
+import { MoneyFlow, type MoneyFlowInfo, MoneyMove, type MoneyMoveInfo, signed } from '@/components/MoneyMove';
 import { FREQUENCIES, frequencyLabel, nextOccurrence } from '@/engine/scheduled';
 import { sortedGroups, useBudgetResult } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
-import { RTA, type ClearedStatus, type FlagColor, type Frequency, type SubTransaction } from '@/store/types';
+import { type BudgetData, RTA, type ClearedStatus, type FlagColor, type Frequency, type SubTransaction } from '@/store/types';
 import { FLAG_COLORS, FONT, RADIUS, useTheme } from '@/theme';
 import { addMonthsToDate, friendlyDate, monthOf, today } from '@/utils/date';
 import { ACCOUNT_GRADIENTS, ACCOUNT_TYPE_INFO, isCreditType } from '@/utils/icons';
@@ -53,6 +53,7 @@ export default function TransactionScreen() {
   const data = useActiveBudget();
   const result = useBudgetResult();
   const [moving, setMoving] = useState<MoneyMoveInfo | null>(null);
+  const [logged, setLogged] = useState<MoneyFlowInfo | null>(null);
   const { colors } = useTheme();
   const store = useStore.getState();
 
@@ -351,7 +352,55 @@ export default function TransactionScreen() {
         return;
       }
     }
+    if (!existing && saved) {
+      setLogged(loggedFlow(saved, pId, cat, subtransactions));
+      return;
+    }
     goBack();
+  };
+
+  /** Where the money went (or came from), for the animation after logging a new transaction. */
+  const loggedFlow = (saved: BudgetData, pId: string | null, cat: string | null, subs?: SubTransaction[]): MoneyFlowInfo => {
+    const acct = { name: account!.name, icon: ACCOUNT_TYPE_INFO[account!.type].icon };
+    const amt = Math.abs(total);
+    if (transferAccount) {
+      const other = { name: transferAccount.name, icon: ACCOUNT_TYPE_INFO[transferAccount.type].icon };
+      const [from, to] = total < 0 ? [acct, other] : [other, acct];
+      return {
+        title: kind === 'ccPayment' ? 'Card payment logged' : 'Transfer logged',
+        from: { ...from, caption: signed(-amt), tone: 'danger' },
+        to: { ...to, caption: signed(amt), tone: 'positive' },
+        amount: amt,
+        note: `${formatMoney(amt)} from ${from.name} to ${to.name}.`,
+      };
+    }
+    const mb = getMonth(computeBudget(saved), monthOf(date));
+    const cats = [...new Set(subs ? subs.map((x) => x.categoryId) : [cat])].filter((x): x is string => !!x);
+    const one = cats.length === 1 ? cats[0] : undefined;
+    const catName = one === RTA ? 'Ready to Assign' : one ? (data.categories.find((c) => c.id === one)?.name ?? 'Category') : `${cats.length} categories`;
+    const left = one === RTA ? mb.readyToAssign : one ? categoryMonth(mb, one).available : undefined;
+    const bucket = cats.length
+      ? { name: catName, icon: one === RTA ? ('wallet' as const) : undefined, caption: left === undefined ? signed(total) : `${formatMoney(left)} left`, tone: left === undefined || left > 0 ? ('positive' as const) : left < 0 ? ('danger' as const) : ('muted' as const) }
+      : { ...acct, caption: signed(total), tone: total < 0 ? ('danger' as const) : ('positive' as const) };
+    const payee = saved.payees.find((x) => x.id === pId)?.name;
+    if (total >= 0) {
+      return {
+        title: 'Income logged',
+        from: { name: payee ?? 'Income', icon: 'cash', caption: signed(amt), tone: 'positive' },
+        to: bucket,
+        amount: amt,
+        note: `${formatMoney(amt)} added to ${cats.length ? catName : acct.name}.`,
+      };
+    }
+    const over = left !== undefined && left < 0;
+    return {
+      title: 'Spending logged',
+      from: bucket,
+      to: { name: payee ?? 'Spent', icon: 'bag-handle', caption: `${formatMoney(amt)} spent`, tone: 'muted' },
+      amount: amt,
+      note: over ? `${catName} is now overspent by ${formatMoney(-left!)}. Cover it from another category.` : left !== undefined ? `${catName} has ${formatMoney(left)} left this month.` : `${formatMoney(amt)} spent from ${acct.name}.`,
+      warn: over,
+    };
   };
 
   const remove = async () => {
@@ -690,6 +739,7 @@ export default function TransactionScreen() {
       />
       <CalendarSheet visible={cal} onClose={() => setCal(false)} value={date} onChange={setDate} />
       {moving && <MoneyMove info={moving} onDone={goBack} />}
+      {logged && <MoneyFlow info={logged} onDone={goBack} />}
     </Screen>
   );
 }

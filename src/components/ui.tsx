@@ -122,8 +122,8 @@ export function GradientCard({ style, children, colors = GRADIENT }: { style?: S
     <View style={[styles.gradientShadow, { shadowOpacity: isDark ? 0.4 : 0.28 }, style]}>
       <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradientCard}>
         {/* soft glossy circles for depth */}
-        <View style={[styles.gloss, { top: -60, right: -40 }]} />
-        <View style={[styles.gloss, { bottom: -80, left: -30, width: 180, height: 180 }]} />
+        <View pointerEvents="none" style={[styles.gloss, { top: -60, right: -40 }]} />
+        <View pointerEvents="none" style={[styles.gloss, { bottom: -80, left: -30, width: 180, height: 180 }]} />
         {children}
       </LinearGradient>
     </View>

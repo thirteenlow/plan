@@ -4,6 +4,7 @@ import { goBack } from '@/utils/nav';
 import React, { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useCalculator, useInputRef } from '@/components/Calculator';
+import { MoneyFlow, type MoneyFlowInfo } from '@/components/MoneyMove';
 import { Screen } from '@/components/Screen';
 import { PickerSheet, type PickerItem } from '@/components/Sheet';
 import { Button, Card, Divider, FieldRow, haptic, notify, Row, Tap, Txt } from '@/components/ui';
@@ -32,6 +33,7 @@ export default function MoveMoneyScreen() {
   const amountRef = useInputRef();
   const calc = useCalculator({ value: amount, onChange: setAmount, inputRef: amountRef });
   const [picker, setPicker] = useState<'from' | 'to' | null>(null);
+  const [moved, setMoved] = useState<MoneyFlowInfo | null>(null);
 
   const availableOf = (id: string | null) => (id === RTA ? mb.readyToAssign : id ? categoryMonth(mb, id).available : 0);
   const nameOf = (id: string | null) => (id === RTA ? 'Ready to Assign' : data.categories.find((c) => c.id === id)?.name);
@@ -87,9 +89,24 @@ export default function MoveMoneyScreen() {
       notify('Not enough money', `${nameOf(from)} only has ${formatMoney(availableOf(from))} available.`);
       return;
     }
-    haptic('success');
+    // What each side will have once the money moves, for the animation.
+    const fromAfter = availableOf(from) - amt;
+    const toAfter = availableOf(to) + amt;
+    const end = (id: string, after: number) => ({
+      name: nameOf(id) ?? '',
+      icon: id === RTA ? ('wallet' as const) : undefined,
+      caption: `${formatMoney(after)} left`,
+      tone: after < 0 ? ('danger' as const) : after > 0 ? ('positive' as const) : ('muted' as const),
+    });
+    haptic('light');
     moveMoney(month, from!, to!, amt);
-    goBack();
+    setMoved({
+      title: toAfter >= 0 && availableOf(to) < 0 ? 'Overspending covered' : 'Money moved',
+      from: end(from!, fromAfter),
+      to: end(to!, toAfter),
+      amount: amt,
+      note: toAfter < 0 ? `${nameOf(to)} is still short ${formatMoney(-toAfter)}.` : `Moved ${formatMoney(amt)} from ${nameOf(from)} to ${nameOf(to)}.`,
+    });
   };
 
   const c = getActiveCurrency();
@@ -217,6 +234,7 @@ export default function MoveMoneyScreen() {
           )}
         </Card>
       )}
+      {moved && <MoneyFlow info={moved} onDone={goBack} />}
       <PickerSheet
         visible={picker !== null}
         onClose={() => setPicker(null)}
