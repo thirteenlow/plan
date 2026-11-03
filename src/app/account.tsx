@@ -23,10 +23,14 @@ export default function AccountScreen() {
   const shared = Object.keys(sync).filter((id) => budgets[id]);
   // Reached as the sign-in gate (not from Settings): no way back, and continue into the app once ready
   // (after choosing a new password, when signing in with a reset code).
-  const [asGate] = useState(() => cloudConfigured && useCloud.getState().status !== 'ready');
+  const [asGate, setAsGate] = useState(() => cloudConfigured && useCloud.getState().status !== 'ready');
+  // Signed out while on this page (opened from Settings): signing back in should also go home, not stay here.
+  if (cloudConfigured && status === 'signedOut' && !asGate) setAsGate(true);
   useEffect(() => {
     if (asGate && status === 'ready' && !settingPassword) router.replace('/');
   }, [asGate, status, settingPassword]);
+  // Messages belong to this visit: leaving the page dismisses them.
+  useEffect(() => () => useCloud.setState({ notice: null }), []);
 
   if (status === 'signedOut') return <SignIn />;
   if (settingPassword)
@@ -468,7 +472,7 @@ function NewPassword() {
     try {
       await setAccountPassword(password);
       haptic('success');
-      useCloud.setState({ settingPassword: false, notice: 'Password updated.' });
+      useCloud.setState({ settingPassword: false });
     } catch (e) {
       setErr(friendlyError(e));
     } finally {
