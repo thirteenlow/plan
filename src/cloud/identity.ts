@@ -31,6 +31,16 @@ export function validatePassword(pass: string, confirm: string, email: string): 
   return null;
 }
 
+/**
+ * The key backup kept on the account. Private: locked with the person's password (the server can't read it).
+ * Simple: stored as is, so any device they sign in on unlocks by itself (the server could read it).
+ */
+async function keyBackup(privateKey: Uint8Array, passphrase: string | null, onProgress?: (p: number) => void): Promise<Pick<ProfileRow, 'kdf' | 'encrypted_private_key'>> {
+  if (passphrase === null) return { kdf: { alg: 'none' }, encrypted_private_key: b64(privateKey) };
+  const { kdf, encryptedPrivateKey } = await lockPrivateKey(privateKey, passphrase, onProgress);
+  return { kdf, encrypted_private_key: encryptedPrivateKey };
+}
+
 /** Works out whether this user needs to create a password, unlock with it, or is ready. */
 export async function loadIdentity(user: CloudUser): Promise<'needsSetup' | 'needsUnlock' | 'ready'> {
   const sb = getSupabase()!;
@@ -48,15 +58,20 @@ export async function loadIdentity(user: CloudUser): Promise<'needsSetup' | 'nee
       return 'ready';
     }
   }
+  if (profile.kdf.alg === 'none') {
+    const privateKey = unb64(profile.encrypted_private_key);
+    await secretStore.set(secretName(user.id), b64(privateKey));
+    identity = { privateKey, publicKey: publicKeyFor(privateKey) };
+    return 'ready';
+  }
   return 'needsUnlock';
 }
 
-/** First sign-in: create the identity key pair and back it up, encrypted with the password. */
-export async function setupIdentity(user: CloudUser, passphrase: string, onProgress?: (p: number) => void, replace = false) {
+/** First sign-in (or starting over): create the identity key pair and back it up. No password means Simple. */
+export async function setupIdentity(user: CloudUser, passphrase: string | null, onProgress?: (p: number) => void, replace = false) {
   const sb = getSupabase()!;
   const kp = newKeyPair();
-  const { kdf, encryptedPrivateKey } = await lockPrivateKey(kp.privateKey, passphrase, onProgress);
-  const profile: ProfileRow = { public_key: b64(kp.publicKey), encrypted_private_key: encryptedPrivateKey, kdf };
+  const profile: ProfileRow = { public_key: b64(kp.publicKey), ...(await keyBackup(kp.privateKey, passphrase, onProgress)) };
   const row = { id: user.id, email: user.email, display_name: user.name?.slice(0, 80) ?? null, ...profile, updated_at: new Date().toISOString() };
   if (replace) await keepPreviousKey(user);
   // First setup only inserts, so two devices setting a password at once can't silently replace each other's keys.
@@ -76,7 +91,7 @@ export async function unlockIdentity(user: CloudUser, passphrase: string, onProg
   if (!profile) throw new Error('Profile not loaded');
   let privateKey: Uint8Array;
   try {
-    privateKey = await unlockPrivateKey(profile.encrypted_private_key, profile.kdf, passphrase, onProgress);
+    privateKey = profile.kdf.alg === 'none' ? unb64(profile.encrypted_private_key) : await unlockPrivateKey(profile.encrypted_private_key, profile.kdf, passphrase, onProgress);
   } catch {
     throw new Error('That password isn’t right.');
   }
@@ -85,20 +100,25 @@ export async function unlockIdentity(user: CloudUser, passphrase: string, onProg
 }
 
 /**
- * Signed in and unlocked: lock the same key with a new password. Nothing is re-encrypted and no budget is lost,
- * so this is the way out of a forgotten password while any device still has Plan open.
+ * Signed in and unlocked: back up the same key with a new password, or with none (switching to Simple). Nothing is
+ * re-encrypted and no budget is lost, so this is also the way out of a forgotten password while a device is open.
  */
-export async function changePassword(user: CloudUser, passphrase: string, onProgress?: (p: number) => void) {
+export async function changePassword(user: CloudUser, passphrase: string | null, onProgress?: (p: number) => void) {
   if (!identity) throw new Error('Unlock encryption first.');
-  const { kdf, encryptedPrivateKey } = await lockPrivateKey(identity.privateKey, passphrase, onProgress);
-  const profile: ProfileRow = { public_key: b64(identity.publicKey), encrypted_private_key: encryptedPrivateKey, kdf };
-  const { error } = await getSupabase()!
+  const profile: ProfileRow = { public_key: b64(identity.publicKey), ...(await keyBackup(identity.privateKey, passphrase, onProgress)) };
+  const sb = getSupabase()!;
+  const { error } = await sb
     .from('profiles')
-    .update({ encrypted_private_key: encryptedPrivateKey, kdf, updated_at: new Date().toISOString() })
+    .update({ encrypted_private_key: profile.encrypted_private_key, kdf: profile.kdf, updated_at: new Date().toISOString() })
     .eq('id', user.id)
     .eq('public_key', profile.public_key);
   if (error) throw error;
   useCloud.setState({ profile });
+  if (passphrase === null) {
+    // Simple has nothing to recover; drop any recovery code so it can't be used.
+    await sb.from('profiles').update({ recovery_private_key: null, recovery_kdf: null }).eq('id', user.id);
+    useCloud.setState({ hasRecovery: null });
+  }
 }
 
 // ---------- Recovery code ----------
@@ -132,6 +152,12 @@ export async function createRecoveryCode(user: CloudUser, onProgress?: (p: numbe
   }
   useCloud.setState({ hasRecovery: true });
   return code;
+}
+
+/** Skipped saving a new recovery code: remove it so the account doesn't count as having one. */
+export async function dropRecoveryCode(user: CloudUser) {
+  await getSupabase()!.from('profiles').update({ recovery_private_key: null, recovery_kdf: null }).eq('id', user.id);
+  useCloud.setState({ hasRecovery: false });
 }
 
 /** Whether this account has a recovery code saved (null if the server can't tell, e.g. before 011 is run). */
@@ -187,6 +213,11 @@ export async function unlockPreviousKeys(passphrase: string, onProgress?: (p: nu
   const found: KeyPair[] = [];
   for (const [i, row] of rows.entries()) {
     try {
+      if (row.kdf.alg === 'none') {
+        const privateKey = unb64(row.encrypted_private_key);
+        found.push({ privateKey, publicKey: publicKeyFor(privateKey) });
+        continue;
+      }
       const privateKey = await unlockPrivateKey(row.encrypted_private_key, row.kdf, passphrase, (p) => onProgress?.((i + p) / rows.length));
       found.push({ privateKey, publicKey: publicKeyFor(privateKey) });
     } catch {

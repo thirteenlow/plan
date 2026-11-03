@@ -39,6 +39,12 @@ Native Apple sign-in needs a real iPhone (the Simulator can't complete it).
 
 ## How the encryption works
 
+At first sign-in people pick **Simple** (default: no extra password; the identity key is stored on the account as
+is, so every device unlocks by itself and the server could read their budgets) or **Private** (end-to-end: the key
+is locked with their password, plus an optional recovery code). They can switch any time under Account; the key
+stays the same, so nothing is re-encrypted. Simple accounts store `kdf = {"alg":"none"}` in `profiles`; no migration
+is needed. A shared budget is only as private as its least private member.
+
 | Piece | Where it lives | Protection |
 | --- | --- | --- |
 | Budgets on your device | AsyncStorage | XChaCha20-Poly1305 with a device key in the iOS Keychain / Android Keystore |
@@ -49,8 +55,8 @@ Native Apple sign-in needs a real iPhone (the Simulator can't complete it).
 
 - The server can't decrypt anything; row-level security also limits who can even download the ciphertext.
 - Removing a member rotates the budget key so they can't read future changes.
-- Recovery code: when someone sets their password they get a 20-character code (shown once) that locks a second copy
-  of their key backup. *Forgot password?* asks for it and then sets a new password, keeping everything. Run
+- Recovery code (Private only, optional): when someone sets their password they get a 20-character code (shown once,
+  skippable) that locks a second copy of their key backup. *Forgot password?* asks for it and then sets a new password, keeping everything. Run
   `supabase/011_recovery_code.sql` once to turn this on; existing users are prompted under Account.
 - Forgetting your password: if Plan is still open on any device, use *Change encryption password* there; nothing is lost.
   Without that or the recovery code, *Lost your code?* creates new keys (straight away if you signed in within 15 minutes, else after an emailed

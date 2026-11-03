@@ -72,7 +72,7 @@ export default function ShareBudgetScreen() {
             Sign in to share
           </Txt>
           <Txt tone="soft" center>
-            Sharing needs an account so everyone sees the same budget. Your data is end-to-end encrypted.
+            Sharing needs an account so everyone sees the same budget.
           </Txt>
           <Button title={status === 'unconfigured' ? 'See setup steps' : 'Sign in'} onPress={() => router.push('/account')} style={{ alignSelf: 'stretch', marginTop: 6 }} />
         </Card>
@@ -133,7 +133,7 @@ export default function ShareBudgetScreen() {
             }
           />
           <Txt variant="caption" tone="muted">
-            They need to have signed in to Plan once and created their password.
+            They need to have signed in to Plan once. A shared budget is only as private as its least private member.
           </Txt>
         </Card>
       )}

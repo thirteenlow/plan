@@ -1,11 +1,12 @@
 import type { Session } from '@supabase/supabase-js';
 import { useStore } from '@/store/store';
 import { cloudConfigured } from './config';
-import { type CloudUser, friendlyError, useCloud } from './cloudStore';
+import { type CloudUser, friendlyError, isSimple, useCloud } from './cloudStore';
 import {
   changePassword,
   checkRecoveryCode,
   createRecoveryCode,
+  dropRecoveryCode,
   forgetIdentityOnDevice,
   loadIdentity,
   loadIdentityOffline,
@@ -57,7 +58,7 @@ async function handleSession(session: Session | null) {
     useCloud.setState({ status });
     if (status === 'ready') {
       startSync();
-      void checkRecoveryCode(user);
+      if (!isSimple(useCloud.getState().profile)) void checkRecoveryCode(user);
     }
   } catch (e) {
     if (await loadIdentityOffline(user)) {
@@ -69,20 +70,38 @@ async function handleSession(session: Session | null) {
   }
 }
 
-export async function completeSetup(passphrase: string, onProgress?: (p: number) => void) {
+/** First sign-in: Simple (no passphrase) or Private (a password, then an optional recovery code). */
+export async function completeSetup(passphrase: string | null, onProgress?: (p: number) => void) {
   const { user } = useCloud.getState();
   if (!user) return;
   try {
     await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2));
   } catch (e) {
     if (!(e instanceof Error) || e.message !== 'PROFILE_EXISTS') throw e;
-    // A password was set on another device meanwhile: ask for that one instead.
-    useCloud.setState({ status: await loadIdentity(user) });
-    throw new Error('You already set a password on another device. Enter that password instead.');
+    // Set up on another device meanwhile: use that (Simple opens by itself; Private asks for that password).
+    const status = await loadIdentity(user);
+    useCloud.setState({ status });
+    if (status === 'ready') return startSync();
+    throw new Error('You already set a password on another device. Enter that one instead.');
   }
-  await issueRecoveryCode(onProgress);
+  if (passphrase !== null) await issueRecoveryCode(onProgress);
   useCloud.setState({ status: 'ready' });
   startSync();
+}
+
+/** Account: switch between Simple and Private. Same key, so nothing is re-encrypted or lost. */
+export async function setPrivacy(passphrase: string | null, onProgress?: (p: number) => void) {
+  const { user } = useCloud.getState();
+  if (!user) return;
+  await changePassword(user, passphrase, (p) => onProgress?.(passphrase === null ? p : p / 2));
+  if (passphrase !== null) await issueRecoveryCode(onProgress);
+}
+
+/** The person chose not to save the new recovery code. */
+export async function skipRecoveryCode() {
+  const { user } = useCloud.getState();
+  useCloud.setState({ recoveryCode: null });
+  if (user) await dropRecoveryCode(user).catch(() => undefined);
 }
 
 /** Makes a recovery code for the current key and queues it to be shown. Never blocks setup if the server lacks 011. */
@@ -150,17 +169,18 @@ function wipeDevice() {
 }
 
 /**
- * Forgot password: create new keys protected by a new password. Budgets you own keep syncing
+ * Forgot password: create new keys, protected by a new password (or none, for Simple). Budgets you own keep syncing
  * (their keys are re-sealed to your new key from this device). Budgets others shared with you can no
  * longer be decrypted; local copies are kept and the owner can invite you again.
  */
-export async function resetEncryption(passphrase: string, onProgress?: (p: number) => void) {
+export async function resetEncryption(passphrase: string | null, onProgress?: (p: number) => void) {
   const { user } = useCloud.getState();
   if (!user) return;
   stopSync();
   await setupIdentity(user, passphrase, (p) => onProgress?.(p / 2), true);
   // New key, so the old recovery code no longer opens it.
-  await issueRecoveryCode(onProgress);
+  if (passphrase !== null) await issueRecoveryCode(onProgress);
+  else await dropRecoveryCode(user).catch(() => undefined);
   const lost = await rewrapOwnKeys();
   useCloud.setState({
     status: 'ready',

@@ -12,7 +12,7 @@ const SECTIONS: [string, string[]][] = [
     'Summary',
     [
       'Plan is a budgeting app. You sign in so your budgets are saved to your account and synced across your devices.',
-      'Your budgets are end-to-end encrypted: they are encrypted on your device before upload, and we cannot read them.',
+      'Your budgets are encrypted on your device before upload. You choose how private: Simple (no extra password; we could technically read them) or Private (end-to-end encrypted; we cannot read them).',
       'We do not sell data, show ads, or use analytics or tracking.',
     ],
   ],
@@ -26,9 +26,9 @@ const SECTIONS: [string, string[]][] = [
     'Data stored on our servers',
     [
       'Account: your email address and, if provided by Google, your name, used to sign you in and to let others invite you by email.',
-      'Encryption keys: your public key, and your private key encrypted with your password. We cannot decrypt it.',
-      'Budgets: encrypted data we cannot read, plus who has access to each budget and when it was last changed.',
-      'Personal settings (your name, companion and notification choices): encrypted data we cannot read, so they follow you to your other devices.',
+      'Encryption keys: your public key and your private key. On Private, the private key is locked with your password (and optionally a recovery code) and we cannot decrypt it. On Simple, it is stored as is so any device you sign in on can open your budgets, which means we could.',
+      'Budgets: encrypted data, plus who has access to each budget and when it was last changed. A shared budget is only as private as its least private member.',
+      'Personal settings (your name, companion and notification choices): encrypted the same way as your budgets, so they follow you to your other devices.',
       'Apple Pay auto-logging (optional, iPhone): your Shortcut sends each payment’s amount, merchant and card name. These wait unencrypted, with no other details, until Plan next opens and imports them, then they’re deleted. Turning the feature off deletes anything still waiting.',
       'AI receipt scan (optional): the image you scan is passed to Anthropic’s Claude to read the amount, merchant, date, category and account, and is not stored by us. Scans from inside the app also send the names of your categories and accounts (no amounts or balances) so it can pick from them. Shortcut scans wait in the same way as Apple Pay payments.',
       'Data is hosted by Supabase (our database and sign-in provider). Google processes sign-in if you choose “Continue with Google”.',

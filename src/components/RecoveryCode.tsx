@@ -1,13 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, View } from 'react-native';
 import { useStore } from '@/store/store';
-import { GRADIENT, RADIUS, useTheme } from '@/theme';
+import { RADIUS, useTheme } from '@/theme';
 import { exportBudget } from '@/utils/importExport';
 import { saveFile } from '@/utils/saveFile';
-import { Button, Card, haptic, notify, Row, Tap, Txt } from './ui';
+import { Button, confirm, haptic, notify, Row, Tap, Txt } from './ui';
 
 const native = Platform.OS !== 'web';
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' });
@@ -18,14 +17,12 @@ const PATH = [
 ] as const;
 
 /**
- * Shown once after a password is set (or a code is renewed): the recovery code, what losing it means, and a nudge to
- * keep a CSV backup too. Can't be dismissed until the person says they saved the code.
+ * Shown once after setting a Private password (or asking for a new code): the code, one line on what losing it
+ * means, and a small animated pointer to CSV export. Saving it is encouraged, never forced.
  */
-export function RecoveryCodeView({ code, onDone }: { code: string; onDone: () => void }) {
+export function RecoveryCodeView({ code, onDone, onSkip }: { code: string; onDone: () => void; onSkip: () => void }) {
   const { colors } = useTheme();
-  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-  const budget = useStore((s) => (s.activeBudgetId ? s.budgets[s.activeBudgetId] : undefined));
 
   const copy = async () => {
     await Clipboard.setStringAsync(code);
@@ -33,27 +30,19 @@ export function RecoveryCodeView({ code, onDone }: { code: string; onDone: () =>
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  const download = () => saveFile('Plan recovery code.txt', new TextEncoder().encode(`Plan recovery code\n\n${code}\n\nKeep this somewhere safe. It unlocks your budgets if you forget your password.\n`), 'text/plain');
-  const exportNow = async () => {
-    if (!budget) return;
-    try {
-      await exportBudget(budget);
-    } catch (e) {
-      notify('Export failed', e instanceof Error ? e.message : undefined);
-    }
+  const download = () => saveFile('Plan recovery code.txt', new TextEncoder().encode(`Plan recovery code\n\n${code}\n\nUnlocks your budgets if you forget your password.\n`), 'text/plain');
+  const skip = async () => {
+    if (await confirm('Skip the recovery code?', 'Forget your password and your budgets are gone for good.', 'Skip', true)) onSkip();
   };
 
   return (
     <View style={{ gap: 14 }}>
       <View style={{ alignItems: 'center', gap: 6 }}>
-        <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-          <Ionicons name="key" size={26} color="#FFF" />
-        </LinearGradient>
         <Txt variant="h2" center>
-          Save your recovery code
+          Your recovery code
         </Txt>
         <Txt tone="soft" center>
-          Your only way back in if you forget your password.
+          The only way back in if you forget your password.
         </Txt>
       </View>
 
@@ -67,36 +56,30 @@ export function RecoveryCodeView({ code, onDone }: { code: string; onDone: () =>
         <Button title="Save as file" icon="download-outline" variant="soft" small style={{ flex: 1 }} onPress={() => void download()} />
       </Row>
 
-      <View style={{ flexDirection: 'row', gap: 10, padding: 14, borderRadius: RADIUS.lg, backgroundColor: colors.dangerSoft }}>
-        <Ionicons name="warning" size={20} color={colors.danger} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Txt variant="strong" style={{ color: colors.danger }}>
-            Lose this and your password, lose your budgets.
-          </Txt>
-          <Txt variant="caption" tone="soft">
-            Not even Plan can get them back.
-          </Txt>
-        </View>
-      </View>
+      <Row style={{ gap: 8, alignItems: 'flex-start' }}>
+        <Ionicons name="warning" size={16} color={colors.danger} style={{ marginTop: 1 }} />
+        <Txt variant="caption" style={{ flex: 1, color: colors.danger }}>
+          Lose this and your password, and your budgets are gone. Not even Plan can get them back.
+        </Txt>
+      </Row>
 
-      <Card style={{ gap: 10 }}>
-        <Txt variant="strong">Keep your own backup too</Txt>
+      <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+        <Txt variant="caption" tone="soft">
+          Back up anytime:
+        </Txt>
         <ExportPath />
-        {budget && <Button title="Export now" icon="share-outline" variant="outline" small onPress={() => void exportNow()} />}
-      </Card>
+      </Row>
 
-      <Tap onPress={() => setSaved(!saved)} accessibilityRole="checkbox" accessibilityState={{ checked: saved }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-        <Ionicons name={saved ? 'checkbox' : 'square-outline'} size={22} color={saved ? colors.accent : colors.muted} />
-        <Txt variant="body">I’ve saved my recovery code</Txt>
-      </Tap>
-      <Button title="Done" disabled={!saved} onPress={onDone} />
+      <Button title="I’ve saved it" onPress={onDone} />
+      <Button title="Skip" variant="ghost" small onPress={() => void skip()} />
     </View>
   );
 }
 
-/** "Settings → Export → CSV": steps slide in one after another, then the last one keeps pulsing. */
+/** "Settings › Export › CSV": steps slide in one after another, then the last keeps pulsing. Tap CSV to export now. */
 function ExportPath() {
   const { colors } = useTheme();
+  const budget = useStore((s) => (s.activeBudgetId ? s.budgets[s.activeBudgetId] : undefined));
   const [steps] = useState(() => PATH.map(() => new Animated.Value(0)));
   const [pulse] = useState(() => new Animated.Value(0));
 
@@ -118,37 +101,56 @@ function ExportPath() {
     };
   }, [steps, pulse]);
 
+  const exportNow = async () => {
+    if (!budget) return;
+    try {
+      await exportBudget(budget);
+    } catch (e) {
+      notify('Export failed', e instanceof Error ? e.message : undefined);
+    }
+  };
+
   return (
-    <Row style={{ flexWrap: 'wrap', gap: 6 }} accessibilityLabel="Settings, then Export, then CSV">
+    <Row style={{ gap: 4 }}>
       {PATH.map((step, i) => {
         const last = i === PATH.length - 1;
         const v = steps[i];
-        const scale = last ? Animated.add(v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }), pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] })) : v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+        const grow = v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+        const scale = last ? Animated.add(grow, pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.1] })) : grow;
+        const chip = (
+          <Animated.View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: RADIUS.pill,
+              backgroundColor: last ? colors.accent : colors.sunken,
+              opacity: v,
+              transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }, { scale }],
+            }}
+          >
+            <Ionicons name={step.icon} size={12} color={last ? '#FFF' : colors.textSoft} />
+            <Txt variant="caption" style={{ color: last ? '#FFF' : colors.textSoft, fontWeight: '600' }}>
+              {step.label}
+            </Txt>
+          </Animated.View>
+        );
         return (
-          <Row key={step.label} style={{ gap: 6 }}>
+          <Row key={step.label} style={{ gap: 4 }}>
             {i > 0 && (
               <Animated.View style={{ opacity: v }}>
-                <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+                <Ionicons name="chevron-forward" size={12} color={colors.muted} />
               </Animated.View>
             )}
-            <Animated.View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: RADIUS.pill,
-                backgroundColor: last ? colors.accent : colors.sunken,
-                opacity: v,
-                transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }, { scale }],
-              }}
-            >
-              <Ionicons name={step.icon} size={14} color={last ? '#FFF' : colors.textSoft} />
-              <Txt variant="label" style={{ color: last ? '#FFF' : colors.textSoft }}>
-                {step.label}
-              </Txt>
-            </Animated.View>
+            {last && budget ? (
+              <Tap onPress={() => void exportNow()} accessibilityRole="button" accessibilityLabel="Export CSV now">
+                {chip}
+              </Tap>
+            ) : (
+              chip
+            )}
           </Row>
         );
       })}

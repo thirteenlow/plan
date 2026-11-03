@@ -13,8 +13,12 @@ export interface CloudUser {
 export interface ProfileRow {
   public_key: string;
   encrypted_private_key: string;
-  kdf: import('@/security/crypto').KdfParams;
+  /** How the key backup is protected: a password (Private) or nothing (Simple, alg "none") */
+  kdf: import('@/security/crypto').KdfParams | { alg: 'none' };
 }
+
+/** Simple accounts: no encryption password, every signed-in device unlocks by itself. */
+export const isSimple = (profile: ProfileRow | null) => profile?.kdf.alg === 'none';
 
 /** Non-persisted cloud/session state for the UI. */
 export const useCloud = create<{
