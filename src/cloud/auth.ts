@@ -17,7 +17,9 @@ export async function signInWithProvider(provider: 'google' | 'apple') {
   const sb = getSupabase();
   if (!sb) throw new Error('Cloud sync isn’t configured');
   const url = redirectTo();
-  const { data, error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: url, skipBrowserRedirect: Platform.OS !== 'web' } });
+  // Without select_account Google silently reuses whichever account the browser last used, so you can't switch.
+  const queryParams = provider === 'google' ? { prompt: 'select_account' } : undefined;
+  const { data, error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: url, skipBrowserRedirect: Platform.OS !== 'web', queryParams } });
   if (error) throw error;
   if (Platform.OS === 'web') return; // the browser navigates away and comes back signed in
   const res = await WebBrowser.openAuthSessionAsync(data.url, url);
@@ -90,7 +92,12 @@ export async function verifyEmailCode(email: string, code: string) {
 
 function friendlyAuthError(error: { message: string; status?: number }) {
   const m = error.message.toLowerCase();
-  if (error.status === 429 || m.includes('rate limit') || m.includes('security purposes')) return new Error('Too many attempts. Please wait a minute and try again.');
+  // A short wait between codes for the same address ("…you can only request this after 42 seconds").
+  const wait = m.match(/after (\d+) seconds?/)?.[1];
+  if (wait) return new Error(`A code was just sent. Check your email, or wait ${wait} seconds to send another.`);
+  // The project's hourly email allowance (very low on Supabase's built-in email service), not anything you did.
+  if (m.includes('email rate limit')) return new Error('Plan has sent too many emails in the last hour. Please try again later.');
+  if (error.status === 429 || m.includes('rate limit')) return new Error('Too many attempts. Please wait a minute and try again.');
   if (m.includes('expired') || m.includes('invalid')) return new Error('That code is wrong or has expired. Check the latest email, or send a new code.');
   if (m.includes('signups not allowed')) return new Error('Email sign-in is turned off for this project.');
   return new Error(error.message);

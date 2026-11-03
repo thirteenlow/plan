@@ -2,9 +2,9 @@ import type { Session } from '@supabase/supabase-js';
 import { useStore } from '@/store/store';
 import { cloudConfigured } from './config';
 import { type CloudUser, friendlyError, useCloud } from './cloudStore';
-import { forgetIdentityOnDevice, loadIdentity, loadIdentityOffline, setupIdentity, unlockIdentity } from './identity';
+import { forgetIdentityOnDevice, loadIdentity, loadIdentityOffline, setupIdentity, unlockIdentity, unlockPreviousKeys } from './identity';
 import { getSupabase } from './supabase';
-import { flushAll, pullAll, removeLockedBudgets, rewrapOwnKeys, startSync, stopSync } from './sync';
+import { flushAll, pullAll, recoverLockedBudgets, rewrapOwnKeys, startSync, stopSync } from './sync';
 
 let started = false;
 
@@ -39,7 +39,7 @@ async function handleSession(session: Session | null) {
   if (session.user.id === currentUserId && (current === 'ready' || current === 'needsUnlock' || current === 'needsSetup')) return;
   currentUserId = session.user.id;
   const meta = session.user.user_metadata ?? {};
-  const user: CloudUser = { id: session.user.id, email: session.user.email ?? '', name: meta.full_name ?? meta.name };
+  const user: CloudUser = { id: session.user.id, email: session.user.email ?? '', name: meta.full_name ?? meta.name, signedInAt: session.user.last_sign_in_at };
   useCloud.setState({ status: 'loading', user, error: null });
   try {
     const status = await loadIdentity(user);
@@ -113,9 +113,16 @@ export async function resetEncryption(passphrase: string, onProgress?: (p: numbe
     notice: lost.length ? `Ask the owners of ${lost.map((n) => `“${n}”`).join(', ')} to invite you again. Your copies were kept on this device.` : null,
   });
   startSync();
-  // Budgets that weren't on this device are still sealed to the old key and can never be opened again.
+  // Budgets that weren't on this device are still sealed to the old key. They're kept on the account (shown as
+  // locked) so they can be opened again with the old password; only the person decides to remove them.
   await pullAll();
-  await removeLockedBudgets().catch(() => undefined);
+}
+
+/** Opens budgets locked by a password reset, using the old password. */
+export async function recoverWithOldPassword(oldPassphrase: string, onProgress?: (p: number) => void) {
+  const keys = await unlockPreviousKeys(oldPassphrase, onProgress);
+  if (!keys.length) throw new Error('That isn’t a password this account used before.');
+  return recoverLockedBudgets(keys);
 }
 
 /**

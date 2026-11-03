@@ -57,6 +57,7 @@ export async function setupIdentity(user: CloudUser, passphrase: string, onProgr
   const { kdf, encryptedPrivateKey } = await lockPrivateKey(kp.privateKey, passphrase, onProgress);
   const profile: ProfileRow = { public_key: b64(kp.publicKey), encrypted_private_key: encryptedPrivateKey, kdf };
   const row = { id: user.id, email: user.email, display_name: user.name?.slice(0, 80) ?? null, ...profile, updated_at: new Date().toISOString() };
+  if (replace) await keepPreviousKey(user);
   // First setup only inserts, so two devices setting a password at once can't silently replace each other's keys.
   const { error } = replace ? await sb.from('profiles').upsert(row) : await sb.from('profiles').insert(row);
   if (error) {
@@ -80,6 +81,59 @@ export async function unlockIdentity(user: CloudUser, passphrase: string, onProg
   }
   await secretStore.set(secretName(user.id), b64(privateKey));
   identity = { privateKey, publicKey: publicKeyFor(privateKey) };
+}
+
+/**
+ * Signed in and unlocked: lock the same key with a new password. Nothing is re-encrypted and no budget is lost,
+ * so this is the way out of a forgotten password while any device still has Plan open.
+ */
+export async function changePassword(user: CloudUser, passphrase: string, onProgress?: (p: number) => void) {
+  if (!identity) throw new Error('Unlock encryption first.');
+  const { kdf, encryptedPrivateKey } = await lockPrivateKey(identity.privateKey, passphrase, onProgress);
+  const profile: ProfileRow = { public_key: b64(identity.publicKey), encrypted_private_key: encryptedPrivateKey, kdf };
+  const { error } = await getSupabase()!
+    .from('profiles')
+    .update({ encrypted_private_key: encryptedPrivateKey, kdf, updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+    .eq('public_key', profile.public_key);
+  if (error) throw error;
+  useCloud.setState({ profile });
+}
+
+const missingTable =(e: { code?: string; message?: string }) => e.code === '42P01' || e.code === 'PGRST205' || /previous_keys/.test(e.message ?? '');
+
+/**
+ * Before a password reset replaces the key backup, keep the old one (still locked with the old password), so
+ * budgets sealed to it can be opened again if that password turns up. Needs supabase/010_previous_keys.sql.
+ */
+async function keepPreviousKey(user: CloudUser) {
+  const sb = getSupabase()!;
+  const { data, error } = await sb.from('profiles').select('public_key, encrypted_private_key, kdf').eq('id', user.id).maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+  const { error: saveError } = await sb.from('previous_keys').insert({ user_id: user.id, ...(data as ProfileRow) });
+  if (saveError && !missingTable(saveError)) throw saveError;
+}
+
+/** The old identity keys (from before password resets) that this password unlocks. */
+export async function unlockPreviousKeys(passphrase: string, onProgress?: (p: number) => void): Promise<KeyPair[]> {
+  const sb = getSupabase()!;
+  const { data, error } = await sb.from('previous_keys').select('encrypted_private_key, kdf').order('replaced_at', { ascending: false });
+  if (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+  const rows = (data ?? []) as Pick<ProfileRow, 'encrypted_private_key' | 'kdf'>[];
+  const found: KeyPair[] = [];
+  for (const [i, row] of rows.entries()) {
+    try {
+      const privateKey = await unlockPrivateKey(row.encrypted_private_key, row.kdf, passphrase, (p) => onProgress?.((i + p) / rows.length));
+      found.push({ privateKey, publicKey: publicKeyFor(privateKey) });
+    } catch {
+      // A different old password; try the next one.
+    }
+  }
+  return found;
 }
 
 export async function forgetIdentityOnDevice(uid: string | undefined) {

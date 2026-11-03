@@ -8,11 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
 import { Screen } from '@/components/Screen';
 import { Button, Card, confirm, Divider, haptic, ProgressBar, Row, Tap, TextField, Txt } from '@/components/ui';
-import { completeSetup, completeUnlock, deleteAccount, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
+import { completeSetup, completeUnlock, deleteAccount, recoverWithOldPassword, resetEncryption, signOutEverywhereOnDevice } from '@/cloud';
 import { nativeAppleAvailable, sendEmailCode, signInWithAppleNative, signInWithProvider, verifyEmailCode } from '@/cloud/auth';
 import { friendlyError, useCloud } from '@/cloud/cloudStore';
 import { APPLE_SIGN_IN_ENABLED, cloudConfigured } from '@/cloud/config';
-import { PASSWORD_RULES, validatePassword } from '@/cloud/identity';
+import { changePassword, PASSWORD_RULES, validatePassword } from '@/cloud/identity';
 import { pullAll, removeLockedBudgets } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { GRADIENT_SOFT, RADIUS, useTheme } from '@/theme';
@@ -72,32 +72,7 @@ export default function AccountScreen() {
             )}
           </Card>
 
-          {locked > 0 && (
-            <Card style={{ gap: 10, marginTop: 14 }}>
-              <Row style={{ gap: 10 }}>
-                <Ionicons name="lock-closed" size={18} color="#E8A019" />
-                <Txt variant="strong" style={{ flex: 1 }}>
-                  {locked === 1 ? '1 budget can’t be opened' : `${locked} budgets can’t be opened`}
-                </Txt>
-              </Row>
-              <Txt variant="caption" tone="soft">
-                {locked === 1 ? 'It was' : 'They were'} saved with an older password. Remove {locked === 1 ? 'it' : 'them'} from your account to stop sync errors.
-              </Txt>
-              <Button
-                title="Remove from account"
-                variant="danger"
-                small
-                onPress={async () => {
-                  if (!(await confirm('Remove locked budgets', 'This can’t be undone. Anyone else sharing them keeps their copy.', 'Remove', true))) return;
-                  try {
-                    await removeLockedBudgets();
-                  } catch (e) {
-                    useCloud.setState({ error: friendlyError(e) });
-                  }
-                }}
-              />
-            </Card>
-          )}
+          {locked > 0 && <LockedBudgets count={locked} />}
 
           <Txt variant="overline" tone="muted" style={{ marginTop: 22, marginBottom: 10, marginLeft: 4 }}>
             Budgets on your account
@@ -126,6 +101,7 @@ export default function AccountScreen() {
             )}
           </Card>
           <Button title="Manage budgets" variant="soft" icon="albums-outline" style={{ marginTop: 14 }} onPress={() => router.push('/budgets')} />
+          <ChangePassword email={user.email} />
           <DeleteAccount />
           <Button
             title="Sign out"
@@ -370,6 +346,7 @@ function EmailSignIn({ disabled }: { disabled: boolean }) {
 }
 
 type PasswordStage = 'create' | 'unlock' | 'verify' | 'reset';
+const signedInRecently = (at: string | undefined) => !!at && Date.now() - Date.parse(at) < 15 * 60_000;
 
 /** Create the password (first sign-in), enter it (new device), or reset it after confirming an emailed code. */
 function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
@@ -394,6 +371,12 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
     setPass('');
     setConfirmPass('');
     setCode('');
+  };
+
+  const forgot = () => {
+    // Just signed in (Google, Apple or an email code) proves it's you; another emailed code adds nothing.
+    if (signedInRecently(user?.signedInAt)) goTo('reset');
+    else void sendCode();
   };
 
   const sendCode = async () => {
@@ -451,7 +434,12 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
     create: ['Lock your budgets', 'Signing in proves it’s you. This separate password encrypts your budgets so only you can read them, not even Plan. You’ll only need it once on each new device.', 'Create password'],
     unlock: ['Unlock your budgets', `First time on this device as ${email}. Enter the encryption password you created, just this once. This device will remember it.`, 'Unlock'],
     verify: ['Check your email', `Enter the code we sent to ${email}.`, 'Continue'],
-    reset: ['Set a new password', 'Budgets on this device are kept. Budgets only stored online can’t be recovered.', 'Save new password'],
+    // Budgets aren't on a device after signing in fresh, so a reset here locks all of them until the old password turns up.
+    reset: [
+      'Set a new password',
+      'Budgets not on this device stay locked until you enter the old password under Account. If Plan is still open on another device, use Change encryption password there instead: that keeps everything.',
+      'Save new password',
+    ],
   };
   const [title, subtitle, action] = copy[stage];
   const ready = stage === 'verify' ? code.length >= 6 : choosing ? rulesMet && matches : !!pass;
@@ -560,11 +548,150 @@ function PasswordForm({ mode }: { mode: 'setup' | 'unlock' }) {
       {progress !== null && <ProgressBar progress={progress} height={5} />}
       <Button title={action} loading={busy || progress !== null} disabled={!ready} onPress={() => void submit()} />
 
-      {stage === 'unlock' && <Button title="Forgot password?" variant="ghost" small loading={busy} onPress={() => void sendCode()} />}
+      {stage === 'unlock' && <Button title="Forgot password?" variant="ghost" small loading={busy} onPress={forgot} />}
       {stage === 'verify' && <Button title="Resend code" variant="ghost" small disabled={busy} onPress={() => void sendCode()} />}
       {(stage === 'verify' || stage === 'reset') && <Button title="Back" variant="ghost" small onPress={() => goTo('unlock')} />}
       <Button title="Use a different account" variant="ghost" small onPress={() => void signOutEverywhereOnDevice()} />
     </View>
+  );
+}
+
+/** New encryption password from a device that's already unlocked: keeps every budget, unlike a reset. */
+function ChangePassword({ email }: { email: string }) {
+  const user = useCloud((s) => s.user);
+  const [open, setOpen] = useState(false);
+  const [pass, setPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const ready = PASSWORD_RULES.every((r) => r.test(pass)) && !!confirmPass && pass === confirmPass;
+
+  if (!open) return <Button title="Change encryption password" variant="ghost" icon="key-outline" style={{ marginTop: 6 }} onPress={() => setOpen(true)} />;
+
+  const save = async () => {
+    const v = validatePassword(pass, confirmPass, email);
+    if (v) return setErr(v);
+    if (!user) return;
+    setErr(null);
+    setProgress(0);
+    try {
+      await changePassword(user, pass, setProgress);
+      haptic('success');
+      setOpen(false);
+      setPass('');
+      setConfirmPass('');
+      useCloud.setState({ notice: 'Password changed. Use the new one on your next new device.' });
+    } catch (e) {
+      setErr(friendlyError(e));
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  return (
+    <Card style={{ gap: 10, marginTop: 14 }}>
+      <Txt variant="strong">Change encryption password</Txt>
+      <Txt variant="caption" tone="soft">
+        Every budget stays as it is. Devices already signed in aren’t affected.
+      </Txt>
+      <TextField icon="lock-closed-outline" placeholder="New password" value={pass} onChangeText={(t) => (setPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} />
+      <TextField icon="lock-closed-outline" placeholder="Type it again" value={confirmPass} onChangeText={(t) => (setConfirmPass(t), setErr(null))} filter={(t) => t.slice(0, 128)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={128} onSubmitEditing={() => void save()} />
+      <View style={{ gap: 4, paddingHorizontal: 4 }}>
+        {PASSWORD_RULES.map((r) => (
+          <Txt key={r.label} variant="caption" tone={r.test(pass) ? 'positive' : 'muted'}>
+            {r.test(pass) ? '✓' : '○'} {r.label}
+          </Txt>
+        ))}
+      </View>
+      {!!err && (
+        <Txt variant="caption" tone="danger">
+          {err}
+        </Txt>
+      )}
+      {progress !== null && <ProgressBar progress={progress} height={5} />}
+      <Row style={{ gap: 8 }}>
+        <Button title="Cancel" variant="ghost" small style={{ flex: 1 }} onPress={() => setOpen(false)} />
+        <Button title="Save" small style={{ flex: 1 }} loading={progress !== null} disabled={!ready} onPress={() => void save()} />
+      </Row>
+    </Card>
+  );
+}
+
+/** Budgets sealed to a key from before a password reset: open them with the old password, or remove them. */
+function LockedBudgets({ count }: { count: number }) {
+  const [pass, setPass] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const one = count === 1;
+
+  const recover = async () => {
+    if (!pass) return;
+    setErr(null);
+    setProgress(0);
+    try {
+      const { recovered, needOwner } = await recoverWithOldPassword(pass, setProgress);
+      setPass('');
+      if (recovered) haptic('success');
+      const parts = [recovered ? `Opened ${recovered} budget${recovered === 1 ? '' : 's'}.` : '', needOwner ? `Ask the owner to invite you again to ${needOwner} shared budget${needOwner === 1 ? '' : 's'}.` : ''];
+      const msg = parts.filter(Boolean).join(' ');
+      if (msg) useCloud.setState({ notice: msg });
+      else setErr('That password worked, but these budgets were locked with a different one. Try another old password.');
+    } catch (e) {
+      setErr(friendlyError(e));
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  return (
+    <Card style={{ gap: 10, marginTop: 14 }}>
+      <Row style={{ gap: 10 }}>
+        <Ionicons name="lock-closed" size={18} color="#E8A019" />
+        <Txt variant="strong" style={{ flex: 1 }}>
+          {one ? '1 budget is locked' : `${count} budgets are locked`}
+        </Txt>
+      </Row>
+      <Txt variant="caption" tone="soft">
+        {one ? 'It was' : 'They were'} saved with your password from before a reset. Enter that old password to open {one ? 'it' : 'them'} again.
+      </Txt>
+      <TextField
+        icon="key-outline"
+        placeholder="Old password"
+        value={pass}
+        onChangeText={(t) => {
+          setPass(t);
+          setErr(null);
+        }}
+        filter={(t) => t.slice(0, 128)}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="current-password"
+        textContentType="password"
+        maxLength={128}
+        onSubmitEditing={() => void recover()}
+      />
+      {!!err && (
+        <Txt variant="caption" tone="danger">
+          {err}
+        </Txt>
+      )}
+      {progress !== null && <ProgressBar progress={progress} height={5} />}
+      <Button title={one ? 'Unlock budget' : 'Unlock budgets'} small loading={progress !== null} disabled={!pass} onPress={() => void recover()} />
+      <Button
+        title="Remove from account"
+        variant="ghost"
+        small
+        onPress={async () => {
+          if (!(await confirm('Remove locked budgets', 'They’ll be deleted for good and can’t be opened even if you remember the old password. Anyone else sharing them keeps their copy.', 'Remove', true))) return;
+          try {
+            await removeLockedBudgets();
+          } catch (e) {
+            useCloud.setState({ error: friendlyError(e) });
+          }
+        }}
+      />
+    </Card>
   );
 }
 

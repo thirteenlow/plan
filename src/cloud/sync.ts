@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { AppState, type NativeEventSubscription } from 'react-native';
-import { b64, newKey, openJSON, sealJSON, unb64, unwrapKey, wrapKeyFor } from '@/security/crypto';
+import { b64, type KeyPair, newKey, openJSON, sealJSON, unb64, unwrapKey, wrapKeyFor } from '@/security/crypto';
 import { randomId } from '@/security/random';
 import { useStore } from '@/store/store';
 import type { SyncMeta } from '@/store/types';
@@ -433,6 +433,41 @@ export async function removeLockedBudgets() {
     locked.delete(id);
   }
   useCloud.setState({ locked: locked.size });
+}
+
+/**
+ * Opens locked budgets with old identity keys (from before a password reset): re-seals the ones you own to your
+ * current key and downloads them. Budgets others shared with you can only be re-sealed by their owner.
+ * Returns how many were recovered and how many still need their owner.
+ */
+export async function recoverLockedBudgets(oldKeys: KeyPair[]): Promise<{ recovered: number; needOwner: number }> {
+  const { user, identity } = me();
+  let recovered = 0;
+  let needOwner = 0;
+  for (const [id, mem] of [...locked]) {
+    const ctx = wrapContext(id, mem.key_version);
+    let key: Uint8Array | null = null;
+    for (const kp of oldKeys) {
+      try {
+        key = unwrapKey(mem.wrapped_key, kp, ctx);
+        break;
+      } catch {
+        // Sealed to a different old key.
+      }
+    }
+    if (!key) continue;
+    if (mem.role !== 'owner') {
+      needOwner++;
+      continue;
+    }
+    const { error } = await sb().from('budget_members').update({ wrapped_key: wrapKeyFor(key, identity.publicKey, ctx) }).eq('budget_id', id).eq('user_id', user.id);
+    if (error) throw error;
+    locked.delete(id);
+    recovered++;
+  }
+  useCloud.setState({ locked: locked.size });
+  if (recovered) await pullAll();
+  return { recovered, needOwner };
 }
 
 /** After an encryption reset: re-seal owned budgets' keys to the new identity; unlink the rest. Returns unlinked budget names. */

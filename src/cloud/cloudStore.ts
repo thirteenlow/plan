@@ -6,6 +6,8 @@ export interface CloudUser {
   id: string;
   email: string;
   name?: string;
+  /** When this sign-in happened (Google, Apple or an email code), not when the session was last refreshed */
+  signedInAt?: string;
 }
 
 export interface ProfileRow {

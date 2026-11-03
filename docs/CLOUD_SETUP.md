@@ -49,8 +49,10 @@ Native Apple sign-in needs a real iPhone (the Simulator can't complete it).
 
 - The server can't decrypt anything; row-level security also limits who can even download the ciphertext.
 - Removing a member rotates the budget key so they can't read future changes.
-- Forgetting your password: use *Forgot password?* (confirmed with an emailed code) to create new keys. Budgets you own keep syncing from
-  devices that still have them; budgets shared with you must be shared again. Data on your devices is never lost.
+- Forgetting your password: if Plan is still open on any device, use *Change encryption password* there; nothing is lost.
+  Otherwise *Forgot password?* creates new keys (straight away if you signed in within 15 minutes, else after an emailed
+  code). Budgets on that device are re-sealed to the new key; the rest stay on the account, locked, and open again if the
+  old password is entered under Account. Run `supabase/010_previous_keys.sql` once so old key backups are kept for this.
 - The web build stores its device key in the browser's localStorage (browsers have no Keychain), so on the web
   the at-rest encryption protects against stolen storage blobs but not someone with access to that browser profile.
 
