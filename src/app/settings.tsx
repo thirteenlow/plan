@@ -3,10 +3,11 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { Screen } from '@/components/Screen';
+import { signOutEverywhereOnDevice } from '@/cloud';
 import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
-import { Button, Card, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
+import { Button, Card, confirm, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
 import { isAndroidDevice, requirePro, usePlan } from '@/cloud/pro';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
@@ -28,6 +29,8 @@ export default function SettingsScreen() {
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const cloud = useCloud();
+  // Signed in, including while still finishing setup or unlocking.
+  const canLogOut = !!cloud.user && cloud.status !== 'signedOut' && cloud.status !== 'unconfigured';
   const cloudLabel =
     cloud.status === 'ready' ? (cloud.user?.email ?? 'Signed in') : cloud.status === 'unconfigured' ? 'Not set up' : cloud.status === 'signedOut' ? 'Sign in' : 'Finish setup';
 
@@ -151,7 +154,18 @@ export default function SettingsScreen() {
         <Rule n={3} title="Roll with the punches" text="Overspent? Move money from elsewhere." />
       </Group>
 
-      <Button title="Delete this budget" variant="danger" icon="trash-outline" style={{ marginTop: 24 }} onPress={() => setDeleting(true)} />
+      {canLogOut && (
+        <Button
+          title="Log out"
+          variant="outline"
+          icon="log-out-outline"
+          style={{ marginTop: 24 }}
+          onPress={async () => {
+            if (await confirm('Log out', 'Your budgets stay on your account and are removed from this device.', 'Log out')) await signOutEverywhereOnDevice();
+          }}
+        />
+      )}
+      <Button title="Delete this budget" variant="danger" icon="trash-outline" style={{ marginTop: canLogOut ? 10 : 24 }} onPress={() => setDeleting(true)} />
       <DeleteBudgetSheet budget={deleting ? data : null} onClose={() => setDeleting(false)} />
 
       <Txt variant="caption" tone="muted" center style={{ marginTop: 18 }}>
