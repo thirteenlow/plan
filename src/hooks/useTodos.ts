@@ -14,6 +14,8 @@ export interface Todo {
   action: string;
   /** Most affected category (for one-tap cover) */
   categoryId?: string;
+  /** Every affected category, most affected first (Cover asks which to fix when there are several) */
+  categoryIds?: string[];
 }
 
 /** Things that need the user's attention this month, shown as a checklist on Home. */
@@ -27,7 +29,8 @@ export function useTodos(): Todo[] {
     const visible = data.categories.filter((c) => !c.hidden && !data.groups.find((g) => g.id === c.groupId)?.hidden);
     const overspent = visible.filter((c) => categoryMonth(mb, c.id).available < 0);
     if (overspent.length) {
-      out.push({ kind: 'overspent', count: overspent.length, label: overspent.length === 1 ? 'Overspent category' : 'Overspent categories', action: 'Cover', categoryId: mostOverspent(overspent.map((c) => c.id), mb) });
+      const ids = overspent.map((c) => c.id).sort((a, b) => categoryMonth(mb, a).available - categoryMonth(mb, b).available);
+      out.push({ kind: 'overspent', count: overspent.length, label: overspent.length === 1 ? 'Overspent category' : 'Overspent categories', action: 'Cover', categoryId: mostOverspent(ids, mb), categoryIds: ids });
     }
     if (mb.readyToAssign > 0) out.push({ kind: 'assign', count: 1, label: `${formatMoney(mb.readyToAssign)} ready to assign`, action: 'Assign' });
     if (mb.readyToAssign < 0) out.push({ kind: 'overassigned', count: 1, label: `Assigned ${formatMoney(-mb.readyToAssign)} too much`, action: 'Fix' });

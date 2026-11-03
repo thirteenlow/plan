@@ -62,8 +62,6 @@ export function MoneyFlow({ info, onDone }: { info: MoneyFlowInfo; onDone: () =>
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onDone}>
       <View style={{ flex: 1, backgroundColor: 'rgba(14,17,28,0.45)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        {/* Tapping outside closes it (a sibling, so the Done button isn't nested in another button). */}
-        {!warn && <Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel="Close" style={StyleSheet.absoluteFill} />}
         <View style={[{ width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: RADIUS.xl, padding: 22, gap: 18 }, shadow]}>
           <Txt variant="h3" center>
             {info.title}
@@ -96,8 +94,10 @@ export function MoneyFlow({ info, onDone }: { info: MoneyFlowInfo; onDone: () =>
               {info.note}
             </Txt>
           </View>
-          <Button title={warn ? 'Got it' : 'Done'} variant={warn ? 'gradient' : 'soft'} onPress={onDone} />
+          {warn && <Button title="Got it" onPress={onDone} />}
         </View>
+        {/* It closes by itself; a tap anywhere (card included) closes it early. A warning waits for "Got it". */}
+        {!warn && <Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel="Close" style={StyleSheet.absoluteFill} />}
       </View>
     </Modal>
   );
