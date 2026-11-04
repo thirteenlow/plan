@@ -39,7 +39,7 @@ const iosSteps = (app: string): { title: string; text: string }[] => [
   { title: `Pick ${app}`, text: `Tap App and pick ${app}. Then tap Body next to “Message contains” and type Fare. Leave Run Immediately on.` },
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
-  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount and card, tap the value, pick Notification, then Body.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, keys in lowercase. For amount and card, tap the value, scroll the bar above the keyboard, tap Notification, then tap it again and pick Body.' },
   { title: 'Name and save', text: `Tap the name › Rename to “${app} Fares”, then tap back.` },
 ];
 

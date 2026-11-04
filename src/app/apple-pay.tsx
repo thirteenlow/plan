@@ -23,7 +23,7 @@ const STEPS_27: { title: string; text: string }[] = [
   { title: 'Pick your cards', text: 'Tap Cards and tick yours. Leave Run Immediately on.' },
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
-  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount, merchant and card, tap the value, pick the trigger’s variable, then the item.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount, merchant and card, tap the value, tap Shortcut Input in the bar above the keyboard, then tap it again and pick the item.' },
   { title: 'Name and save', text: 'Tap the name › Rename to “Apple Pay Auto-log”, then tap back.' },
 ];
 

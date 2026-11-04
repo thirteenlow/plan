@@ -440,8 +440,32 @@ function FieldsScreen({ kind, app }: { kind: Kind; app: string }) {
       />
       {phase === 1 && (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 100, backgroundColor: D.card }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', paddingVertical: 8, backgroundColor: D.card2 }}>
-            <Pill label={source} color={D.purple} icon={kind === 'wallet' ? 'wallet' : 'notifications'} />
+          {/* The bar above the keyboard: scroll past Select Variable to the trigger's variables. */}
+          <View style={{ position: 'absolute', top: -34, left: 8, right: 8, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={{ flex: 1, height: 28, borderRadius: 14, backgroundColor: D.card2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="layers-outline" size={10} color={D.text} />
+                <T size={9} color={D.text}>
+                  Shortcut Input
+                </T>
+              </View>
+              {kind === 'notify' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Ionicons name="notifications-outline" size={10} color={D.text} />
+                  <T size={9} color={D.text}>
+                    Notification
+                  </T>
+                </View>
+              )}
+            </View>
+            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: D.card2, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="close" size={13} color={D.text} />
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 8, justifyContent: 'center' }}>
+            {'qwertyuiopasdfghjkl'.split('').map((k) => (
+              <View key={k} style={{ width: 18, height: 22, borderRadius: 4, backgroundColor: '#3A3A3C' }} />
+            ))}
           </View>
         </View>
       )}
@@ -457,17 +481,17 @@ function FieldsScreen({ kind, app }: { kind: Kind; app: string }) {
           })}
         </View>
       )}
-      <T size={9} color={D.soft} style={{ position: 'absolute', left: 0, right: 0, bottom: phase === 1 ? 108 : 18, textAlign: 'center' }}>
+      <T size={9} color={D.soft} style={{ position: 'absolute', left: 0, right: 0, bottom: phase === 1 ? 142 : 18, textAlign: 'center' }}>
         {[
           'token: paste your key',
-          `amount: tap the value, then ${source}`,
+          kind === 'notify' ? 'amount: tap it, scroll the bar, tap Notification' : 'amount: tap it, then Shortcut Input',
           `Tap it again, pick ${kind === 'wallet' ? 'Amount' : 'Body'}`,
           kind === 'wallet' ? 'merchant: Shortcut Input › Merchant' : `merchant: type ${app}`,
           kind === 'wallet' ? 'card: Shortcut Input › Name' : 'card: Notification › Body again',
           'All four, in lowercase',
         ][phase]}
       </T>
-      {phase < 5 && <Taps key={phase} points={[[{ x: 150, y: 36 + 8 + 34 + 28 + 14 }, { x: 150, y: 36 + 8 + 34 + 2 * 28 + 14 }, { x: W / 2, y: 150 + 4 + 2 * 21 + 10 }, { x: 150, y: 36 + 8 + 34 + 3 * 28 + 14 }, { x: 150, y: 36 + 8 + 34 + 4 * 28 + 14 }][phase]]} />}
+      {phase < 5 && <Taps key={phase} points={[[{ x: 150, y: 36 + 8 + 34 + 28 + 14 }, { x: kind === 'notify' ? 165 : 110, y: 400 - 100 - 34 + 14 }, { x: W / 2, y: 150 + 4 + 2 * 21 + 10 }, { x: 150, y: 36 + 8 + 34 + 3 * 28 + 14 }, { x: 150, y: 36 + 8 + 34 + 4 * 28 + 14 }][phase]]} />}
     </Phone>
   );
 }
