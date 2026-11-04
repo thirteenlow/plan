@@ -42,7 +42,7 @@ function prompt(categories: string[], accounts: string[]) {
   const account = accounts.length
     ? `which of the user's accounts below paid, copied exactly, judged from the card, bank or wallet shown (name or last 4 digits), or "" if the screen doesn't say.\n  Accounts: ${JSON.stringify(accounts)}`
     : 'the card, bank or wallet shown as paying, short (e.g. "DBS Visa 1234", "GrabPay"), or "" if not shown';
-  return `This is a screenshot taken right after a payment (a payment confirmation, banking or wallet app, or checkout screen) or a photo of a receipt.
+  return `This is a screenshot taken right after a payment (a payment confirmation, banking or wallet app, or checkout screen, or a payment notification on the lock screen or as a banner) or a photo of a receipt.
 Find the payment that was just made and return:
 - is_payment: false if the screen doesn't show a completed or pending payment
 - amount: the total paid as a plain number with a dot for decimals and no currency symbol or thousands separators (e.g. "1234.50")
@@ -51,7 +51,8 @@ Find the payment that was just made and return:
 - date: the payment date as YYYY-MM-DD if shown, otherwise ""
 - category: ${category}
 - account: ${account}
-If several amounts appear, use the final total actually charged, not subtotals, balances or rewards.`;
+If several amounts appear, use the final total actually charged, not subtotals, balances or rewards.
+If it shows notifications, use the newest payment notification (the top one), and its app as the merchant when the text doesn't name one (e.g. a SimplyGo fare charge is merchant "SimplyGo", and its category is transport or the closest fit).`;
 }
 
 /** Names from the app: strings only, trimmed, short, and not too many. */
