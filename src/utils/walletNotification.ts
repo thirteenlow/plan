@@ -13,12 +13,18 @@ export type WalletPayment = { wallet: string; amount: number; merchant: string |
 
 const WALLET_NAME = /^(google wallet|google pay|g pay|wallet|samsung wallet|samsung pay|google play services)$/i;
 
-/** Splits "<app name>: <text>" when the text is the same notification that came in as the amount. */
-function forwarded(amount: string | null, card: string | null) {
-  const m = card?.match(/^([^:]{2,40}): ([\s\S]+)$/);
-  if (!m || !amount) return null;
-  const head = amount.trim().slice(0, 20);
-  return head && m[2].trim().startsWith(head) ? { wallet: m[1].trim(), text: m[2].trim() } : null;
+/**
+ * Splits "<app name>: <text>" when the text is the same notification that came in as the amount. The iOS 27
+ * automation can also send the notification's text as both amount and card, with the app as the merchant.
+ */
+function forwarded(amount: string | null, card: string | null, merchant: string | null) {
+  const head = amount?.trim().slice(0, 20);
+  if (!head || !card) return null;
+  const m = card.match(/^([^:]{2,40}): ([\s\S]+)$/);
+  if (m && m[2].trim().startsWith(head)) return { wallet: m[1].trim(), text: m[2].trim() };
+  // Same text in both, with words in it (not just "4.50"): a whole notification.
+  if (merchant?.trim() && /[a-z]{2}/i.test(head) && card.trim().startsWith(head)) return { wallet: merchant.trim(), text: card.trim() };
+  return null;
 }
 
 /** The first money amount in the text: one with a currency mark or decimals, so "•••• 1234" isn't taken for it. */
@@ -51,7 +57,7 @@ function merchantInText(text: string): string | null {
  * an iOS 27 notification automation sending the same fields. Null for anything else (Apple Pay taps, scans).
  */
 export function readWalletPayment(row: { amount: string | null; merchant: string | null; card: string | null }): WalletPayment | null {
-  const f = forwarded(row.amount, row.card);
+  const f = forwarded(row.amount, row.card, row.merchant);
   if (!f) return null;
   const title = row.merchant?.trim() ?? '';
   const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);

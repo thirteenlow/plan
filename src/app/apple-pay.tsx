@@ -6,15 +6,29 @@ import { CopyRow } from '@/components/CopyRow';
 import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { SHORTCUT_MOCKS } from '@/components/ShortcutMocks';
+import { shortcuts27Mocks } from '@/components/Shortcuts27Mocks';
 import { Button, Card, confirm, Divider, FieldRow, haptic, notify, Row, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { requirePro } from '@/cloud/pro';
+import { iosMajor, requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, removeInboxKey, sendTestPayment } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
 import { goBack } from '@/utils/nav';
 
-const STEPS: { title: string; text: string }[] = [
+/** iOS 27 Shortcuts: an automation is a new shortcut that starts with a trigger. */
+const STEPS_27: { title: string; text: string }[] = [
+  { title: 'New shortcut', text: 'Open Shortcuts and tap + at the bottom.' },
+  { title: 'Skip the prompt', text: 'Tap ✕ next to “Describe a shortcut”.' },
+  { title: 'Add the trigger', text: 'In the sheet, tap Automation, then Wallet.' },
+  { title: 'Pick your cards', text: 'Tap Cards and tick yours. Leave Run Immediately on.' },
+  { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
+  { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount, merchant and card, tap the value, pick the trigger’s variable, then the item.' },
+  { title: 'Name and save', text: 'Tap the name › Rename to “Apple Pay Auto-log”, then tap back.' },
+];
+
+/** iOS 17 to 26: the Automation tab. */
+const STEPS_OLD: { title: string; text: string }[] = [
   { title: 'Open Shortcuts', text: 'It’s already on your iPhone.' },
   { title: 'New automation', text: 'Tap Automation, then +.' },
   { title: 'Choose Wallet', text: 'Scroll down and tap Wallet.' },
@@ -25,6 +39,9 @@ const STEPS: { title: string; text: string }[] = [
   { title: 'Save', text: 'Tap ✓. Done!' },
 ];
 
+const MODERN = (iosMajor() ?? 27) >= 27;
+const STEPS = MODERN ? STEPS_27 : STEPS_OLD;
+const MOCKS = MODERN ? shortcuts27Mocks('wallet') : SHORTCUT_MOCKS;
 const TOTAL = STEPS.length + 2; // intro + steps + test
 
 /** Guided setup for logging Apple Pay payments automatically through an iPhone Shortcuts automation. */
@@ -118,7 +135,7 @@ export default function ApplePayScreen() {
     }
   };
 
-  const Mock = step >= 1 && step <= STEPS.length ? SHORTCUT_MOCKS[step - 1] : null;
+  const Mock = step >= 1 && step <= STEPS.length ? MOCKS[step - 1] : null;
   const isTest = step === TOTAL - 1;
 
   return (

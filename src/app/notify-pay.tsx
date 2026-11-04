@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { CopyRow } from '@/components/CopyRow';
 import { notifyDroidMocks } from '@/components/AndroidMocks';
-import { notifyMocks } from '@/components/NotifyMocks';
+import { shortcuts27Mocks } from '@/components/Shortcuts27Mocks';
 import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, Divider, FieldRow, haptic, notify, Row, TextField, Txt } from '@/components/ui';
@@ -33,17 +33,14 @@ const androidSteps = (app: string): { title: string; text: string }[] => [
 ];
 
 const iosSteps = (app: string): { title: string; text: string }[] => [
-  { title: 'Open Shortcuts', text: 'It’s already on your iPhone.' },
-  { title: 'New automation', text: 'Tap Automation, then +.' },
-  { title: 'Choose Notification', text: 'Scroll down and tap Notification.' },
-  { title: `Pick ${app}`, text: `Choose ${app}, then Run Immediately and Next. Optional: set Message Contains to $.` },
-  { title: 'Add the action', text: 'Tap Create New Shortcut, search “Get Contents of URL” and tap it.' },
+  { title: 'New shortcut', text: 'Open Shortcuts and tap + at the bottom.' },
+  { title: 'Skip the prompt', text: 'Tap ✕ next to “Describe a shortcut”.' },
+  { title: 'Add the trigger', text: 'In the sheet, tap Automation, then Notification.' },
+  { title: `Pick ${app}`, text: `Tap App and pick ${app}. Then tap Body next to “Message contains” and type Fare. Leave Run Immediately on.` },
+  { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
-  {
-    title: 'Add the fields',
-    text: 'Add a Text field for each row below, in lowercase. For amount, tap the value › Shortcut Input › Message (or Body).',
-  },
-  { title: 'Save', text: 'Tap ✓. Done!' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount and card, tap the value, pick Notification, then Body.' },
+  { title: 'Name and save', text: `Tap the name › Rename to “${app} Fares”, then tap back.` },
 ];
 
 /**
@@ -62,7 +59,7 @@ export default function NotifyPayScreen() {
   const [android] = useState(isAndroidDevice);
   const STEPS = android ? androidSteps(appName) : iosSteps(appName);
   const TOTAL = STEPS.length + 2; // intro + steps + test
-  const mocks = useMemo(() => (android ? notifyDroidMocks(appName) : notifyMocks(appName)), [android, appName]);
+  const mocks = useMemo(() => (android ? notifyDroidMocks(appName) : shortcuts27Mocks('notify', appName)), [android, appName]);
   const [step, setStep] = useState(() => Math.max(0, Math.min(TOTAL - 1, Number(params.step) || 0)));
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -243,14 +240,11 @@ export default function NotifyPayScreen() {
                   </Row>
                 )}
                 <Divider />
-                <MapRow field="amount" from="Shortcut Input › Message" />
+                <MapRow field="amount" from="Notification › Body" />
                 <Divider />
                 <CopyRow label="merchant" value={appName} />
                 <Divider />
-                <CopyRow label="card (then add Message)" value={`${appName}: `} />
-                <Txt variant="caption" tone="muted">
-                  card is the app name, a colon, a space, then Message. Keep the space.
-                </Txt>
+                <MapRow field="card" from="Notification › Body" />
               </View>
             )}
           </Card>
@@ -285,8 +279,8 @@ export default function NotifyPayScreen() {
                   ['See what happened', 'MacroDroid’s System Log shows each run.'],
                 ]
               : [
-                  ['It never runs', `Check ${appName}’s notifications are on and Run Immediately is set. Try removing Message Contains.`],
-                  ['Logged as 0', `Check card is “${appName}: ” then Message.`],
+                  ['It never runs', `Check ${appName}’s notifications are on and Run Immediately is set. Check “Message contains” says Fare.`],
+                  ['Logged as 0', 'Check amount and card are both Notification › Body.'],
                   ['Hide “Running your automation”', 'In the automation, turn off Notify When Run.'],
                 ]
             ).map(([t, d]) => (

@@ -224,6 +224,13 @@ describe('Android wallet notifications (MacroDroid)', () => {
     expect(readWalletPayment({ amount: train, merchant: 'Trip Fare Alert', card: `SimplyGo: ${train}` })).toMatchObject({ amount: $(0.54), merchant: 'SimplyGo', card: null, note: 'Bishan - Raffles Place - 2 Mar 08:45' });
   });
 
+  it('reads a notification sent as both amount and card, with the app as merchant (iOS 27)', () => {
+    const bus = 'Fare $1.28 - Bus 12 Blk 108 - Clementi Int Alighting - 2 Mar 18:40';
+    expect(readWalletPayment({ amount: bus.slice(0, 40), merchant: 'SimplyGo', card: bus })).toMatchObject({ wallet: 'SimplyGo', amount: $(1.28), merchant: 'SimplyGo', note: 'Bus 12 Blk 108 - Clementi Int Alighting - 2 Mar 18:40' });
+    // An ordinary Apple Pay row is untouched.
+    expect(readWalletPayment({ amount: 'S$4.50', merchant: 'Kopi', card: 'S$4.50 card' })).toBeNull();
+  });
+
   it('ignores rows that are not forwarded notifications (Apple Pay, scans)', () => {
     expect(readWalletPayment({ amount: '4.50', merchant: 'Starbucks', card: 'Visa' })).toBeNull();
   });
