@@ -1,6 +1,8 @@
 // Plan: screenshot capture. The "Scan Payment" iPhone Shortcut posts a screenshot of a payment screen here
 // (multipart form: token + image). Claude reads the amount and merchant, and the result lands in the same
 // payment inbox the app already imports from. The screenshot is never stored.
+// Auto-log sends the text of an alert email or notification Plan couldn't read itself ({ token, text, accounts,
+// currency }) and gets back the amount, payee, account and direction. The text is only read, never stored.
 // The app's "Scan receipt" button sends JSON instead ({ token, image: base64 or data URL, mode: 'read', categories,
 // accounts }) and gets the result back to fill in the transaction form, without anything going to the inbox. The
 // lists are just the names of the user's categories and accounts, so Claude can pick from them; the shortcut can't
@@ -117,6 +119,54 @@ async function readScreenshot(bytes: Uint8Array, categories: string[], accounts:
   return { scan: JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')) as Scan, usage };
 }
 
+const TEXT_SCHEMA = {
+  type: 'object',
+  properties: {
+    is_payment: { type: 'boolean' },
+    direction: { type: 'string', enum: ['out', 'in', 'none'] },
+    amount: { type: 'string' },
+    currency: { type: 'string' },
+    merchant: { type: 'string' },
+    account: { type: 'string' },
+  },
+  required: ['is_payment', 'direction', 'amount', 'currency', 'merchant', 'account'],
+  additionalProperties: false,
+};
+type TextScan = { is_payment: boolean; direction: 'out' | 'in' | 'none'; amount: string; currency: string; merchant: string; account: string };
+
+/** Reads an alert email or notification's text: the same fields as a screenshot, plus whether money went out or in. */
+async function readText(text: string, accounts: string[], home: string): Promise<{ scan: TextScan; usage: Usage }> {
+  const account = accounts.length
+    ? `which of the user's accounts below paid (or received), copied exactly, judged from the card, bank or wallet named (name or last 4 digits), or "" if it doesn't say.\n  Accounts: ${JSON.stringify(accounts)}`
+    : 'the card, bank or wallet named as paying, short (e.g. "DBS Visa 1234"), or "" if not named';
+  const res = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    output_config: { format: { type: 'json_schema', schema: TEXT_SCHEMA } },
+    messages: [
+      {
+        role: 'user',
+        content: `Below is the text of a payment alert (a bank or wallet email, or an app notification). Return:
+- is_payment: false if it isn't about a payment or transfer that went through
+- direction: "out" for money spent or sent, "in" for money received, refunded or credited, "none" for top-ups between the user's own accounts, declined or failed payments
+- amount: the amount as a plain number with a dot for decimals (e.g. "32.70"). If it shows several currencies, use the amount in ${home || 'the local currency'} if there is one
+- currency: its ISO code, or ""
+- merchant: who was paid (out) or who sent it (in), as a short clean name without masked numbers like "(MOBILE ending 1234)", or ""
+- account: ${account}
+
+<alert>
+${text}
+</alert>`,
+      },
+    ],
+  });
+  const usage: Usage = { model: res.model, input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens };
+  console.log(JSON.stringify({ event: 'scan_usage', kind: 'text', ...usage }));
+  if (res.stop_reason === 'refusal') return { scan: { is_payment: false, direction: 'none', amount: '', currency: '', merchant: '', account: '' }, usage };
+  const out = res.content.find((b) => b.type === 'text')?.text ?? '';
+  return { scan: JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')) as TextScan, usage };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return reply(405, { error: 'Use POST.' });
@@ -126,10 +176,14 @@ Deno.serve(async (req) => {
   let readOnly = false;
   let categories: string[] = [];
   let accounts: string[] = [];
+  let text = '';
+  let home = '';
   try {
     if ((req.headers.get('content-type') ?? '').includes('application/json')) {
-      const body = (await req.json()) as { token?: string; image?: string; mode?: string; categories?: unknown; accounts?: unknown };
+      const body = (await req.json()) as { token?: string; image?: string; mode?: string; categories?: unknown; accounts?: unknown; text?: unknown; currency?: unknown };
       token = String(body.token ?? '').trim();
+      text = typeof body.text === 'string' ? body.text.trim().slice(0, 4000) : '';
+      home = typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency) ? body.currency : '';
       readOnly = body.mode === 'read';
       categories = names(body.categories, 150);
       accounts = names(body.accounts, 40);
@@ -145,6 +199,7 @@ Deno.serve(async (req) => {
     return reply(400, { error: 'Send a form with token and image.' });
   }
   if (!token) return reply(401, { error: 'Missing token.' });
+  if (text) return readTextRequest(token, text, accounts, home);
   if (!bytes?.length) return reply(400, { error: 'Missing image. Set the image field to File.' });
   if (bytes.length > MAX_BYTES) return reply(413, { error: 'Screenshot too large. Add Convert Image (JPEG) before sending.' });
 
@@ -202,3 +257,27 @@ Deno.serve(async (req) => {
   const shown = `${scan.currency ? scan.currency + ' ' : ''}${amount}${merchant ? ` at ${merchant}` : ''}`;
   return reply(200, { ok: true, amount, currency: scan.currency, merchant, message: `Logged ${shown}`, usage });
 });
+
+/** Auto-log: read one alert's text and send back what it says. Counts toward the daily scan limit; stores nothing. */
+async function readTextRequest(token: string, text: string, accounts: string[], home: string) {
+  const { data: uid, error } = await admin.rpc('begin_scan', { token, daily_limit: DAILY_LIMIT });
+  if (error || !uid) {
+    const msg = error?.message ?? '';
+    if (/invalid key/.test(msg)) return reply(401, { error: 'Key not accepted.' });
+    if (/limit|full/.test(msg)) return reply(429, { error: msg });
+    console.error('begin_scan', msg);
+    return reply(500, { error: 'Server error.' });
+  }
+  try {
+    const { scan, usage } = await readText(text, accounts, home);
+    const { error: usageError } = await admin.rpc('record_scan_tokens', { p_user: uid, p_input: usage.input_tokens, p_output: usage.output_tokens });
+    if (usageError) console.error('record_scan_tokens', usageError.message);
+    const amount = scan.amount.replace(/[^0-9.]/g, '');
+    const account = accounts.find((a) => a === scan.account.trim()) ?? (accounts.length ? null : scan.account.trim().slice(0, 60) || null);
+    return reply(200, { ok: true, is_payment: scan.is_payment && !!Number(amount), direction: scan.direction, amount, currency: scan.currency, merchant: scan.merchant.trim().slice(0, 60) || null, account });
+  } catch (e) {
+    if (e instanceof Anthropic.RateLimitError) return reply(429, { error: 'Busy. Try again in a minute.' });
+    console.error('read text', e);
+    return reply(502, { error: 'Couldn’t read it right now.' });
+  }
+}

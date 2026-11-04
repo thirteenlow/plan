@@ -9,7 +9,8 @@ declare class PaymentNotificationsModule extends NativeModule<Events> {
   hasAccess(): boolean;
   openAccessSettings(): void;
   configure(wallets: boolean, apps: string[]): void;
-  getConfig(): { wallets: boolean; apps: string[] };
+  getConfig(): { wallets: boolean; apps: string[]; paused: boolean };
+  setPaused(paused: boolean): void;
   peek(): QueuedNotification[];
   ack(upTo: number): void;
 }

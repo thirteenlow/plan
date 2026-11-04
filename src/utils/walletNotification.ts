@@ -75,32 +75,194 @@ function merchantInText(text: string): string | null {
   return m?.[1].trim() || null;
 }
 
+// ---------- Reading any payment text (alert emails, other apps' notifications) ----------
+//
+// How each part is decided, in order:
+//   Amount: a labelled amount ("Amount paid", "Total amount", "Amount", "Total", "Transaction amount"…), preferring
+//           the budget's own currency (Instarem: "Amount paid 32.7 SGD" over "Transaction amount 25 USD"); otherwise
+//           the first amount in the budget's currency; otherwise the first amount with a currency.
+//   Payee:  a labelled payee ("Merchant", "To", "Payee", "Recipient"…), without "(MOBILE ending 1234)"; otherwise
+//           who a sentence says was paid ("at X", "to X", "paid X"); money in: who it came from.
+//   Card:   a labelled payment method ("Payment source", "From", "Card"…) or a card/account mentioned
+//           ("card *9012", "A/C ending 4321", "Visa •••• 1234"). The account is picked from it later (inbox.ts).
+//   Kind:   money in ("sent you", "received", "refund", or sent to your own wallet), or nothing spent (top-ups,
+//           declined), otherwise spending.
+
+const LABELS = {
+  amount: ['amount paid', 'total amount', 'amount charged', 'amount debited', 'debit amount', 'paid amount', 'amount', 'total', 'transaction amount'],
+  payee: ['merchant name', 'merchant', 'paid to', 'payee', 'recipient', 'beneficiary', 'to'],
+  method: ['payment source', 'payment method', 'paid with', 'paid from', 'debited from', 'card', 'from'],
+  other: ['date & time', 'date, time', 'date and time', 'date', 'time', 'transaction ref', 'reference no', 'reference', 'ref', 'status', 'description', 'location'],
+};
+const ALL_LABELS = [...LABELS.amount, ...LABELS.payee, ...LABELS.method, ...LABELS.other].sort((x, y) => y.length - x.length);
+const LABEL_RE = ALL_LABELS.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+')).join('|');
+/** Labels that are also everyday words: only trusted with a colon or on a line of their own. */
+const COMMON = new Set(['to', 'from', 'paid', 'total', 'card', 'date', 'time', 'status', 'description', 'reference', 'ref', 'location', 'amount']);
+/** Where a value runs into the email's closing text. */
+const VALUE_END = /\s+(?:To view|If (?:you|unauthori[sz]ed)|Thank you|Please|Yours|Don'?t recogni[sz]e|Kindly)\b.*$/is;
+
+const labelKey = (l: string) => l.toLowerCase().replace(/\s+/g, ' ');
+
+/** "Label: value" pairs, whether on one line, a label on its own line with the value under it, or run together. */
+export function labelledFields(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const set = (label: string, value: string | undefined) => {
+    const k = labelKey(label);
+    const v = (value ?? '').replace(VALUE_END, '').trim();
+    if (v && !(k in out)) out[k] = v.slice(0, 120);
+  };
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const alone = new RegExp(`^(${LABEL_RE})\\s*:?$`, 'i');
+  const inline = new RegExp(`(?:^|\\s)(${LABEL_RE})\\s*:\\s*`, 'gi');
+  const spaced = new RegExp(`^(${LABEL_RE})\\s+(.+)$`, 'i');
+  const isLabel = (line: string | undefined) => !!line && (alone.test(line) || new RegExp(`^(${LABEL_RE})\\s*:`, 'i').test(line));
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const own = line.match(alone);
+    if (own) {
+      if (!isLabel(lines[i + 1])) set(own[1], lines[++i]);
+      continue;
+    }
+    const hits = [...line.matchAll(inline)];
+    if (hits.length) {
+      hits.forEach((h, k) => {
+        const start = (h.index ?? 0) + h[0].length;
+        const value = line.slice(start, hits[k + 1]?.index ?? line.length).trim();
+        // "Amount:" at the end of a line, with the value on the next.
+        if (!value && k === hits.length - 1 && !isLabel(lines[i + 1])) set(h[1], lines[++i]);
+        else set(h[1], value);
+      });
+      continue;
+    }
+    // "Merchant Google Play" (a table without colons): only labels that aren't everyday words.
+    const sp = line.match(spaced);
+    if (sp && !COMMON.has(labelKey(sp[1]))) set(sp[1], sp[2]);
+  }
+  return out;
+}
+
+/** Currency marks and codes, to tell which amount is in the budget's own currency. Not time zones. */
+const CUR = String.raw`S\$|US\$|A\$|HK\$|RM|Rp|[$€£¥₹₩₱₫฿]|\b(?!SGT|GMT|UTC|EST|PST|CET|JST|HKT|AEST)[A-Z]{3}\b`;
+const NUM = String.raw`\d{1,3}(?:[,\u00a0\u202f ]\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?`;
+const MARK_CODE: Record<string, string> = { 'S$': 'SGD', 'US$': 'USD', 'A$': 'AUD', 'HK$': 'HKD', RM: 'MYR', Rp: 'IDR', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR', '₩': 'KRW', '₱': 'PHP', '₫': 'VND', '฿': 'THB' };
+
+export type Money = { amount: number; currency: string | null };
+
+/** Every amount with a currency in the text, in order ("SGD3.5", "32.7 SGD", "S$4.50"). `$` alone has no code. */
+export function amountsInText(text: string): Money[] {
+  const re = new RegExp(`(?:(${CUR})\\s?(${NUM}))|(?:(${NUM})\\s?(${CUR}))`, 'g');
+  const out: Money[] = [];
+  for (const m of text.matchAll(re)) {
+    const mark = m[1] ?? m[4];
+    const amount = Math.abs(parseAmountText((m[2] ?? m[3]).replace(/[\u00a0\u202f ,]/g, '')));
+    if (amount) out.push({ amount, currency: mark === '$' ? null : (MARK_CODE[mark] ?? mark.toUpperCase()) });
+  }
+  return out;
+}
+
+/** The amount to log: in the budget's currency if there is one (or a plain "$"), otherwise the first. */
+function pickMoney(list: Money[], home?: string): Money | undefined {
+  return list.find((m) => !!home && m.currency === home) ?? list.find((m) => m.currency === null) ?? list[0];
+}
+
+/** "JOXXX LIXXX (MOBILE ending 5678)" → "JOXXX LIXXX". */
+const cleanName = (v: string) =>
+  v
+    .replace(/\s*\((?:mobile|a\/c|acct|account|card|nric|uen)[^)]*\)/gi, '')
+    .replace(/\s+(?:via|using|on)\s+.*$/i, '')
+    .trim()
+    .slice(0, 60) || null;
+
+/** A card or account mentioned anywhere: "card *9012", "A/C ending 4321", "Visa •••• 1234". */
+function methodInText(text: string): string | null {
+  const m = text.match(/\b(?:card|a\/c|acct|account)\s*(?:no\.?|number|ending(?:\s+in)?)?\s*[*xX•·.]*\s*\d{4}\b/i);
+  return m ? m[0].trim() : (cardInText(text) ?? null);
+}
+
+/** Who a sentence says was paid: "at STARBUCKS", "to KOPI CORNER", "paid Grab". Names start with a capital. */
+function payeeInSentence(text: string): string | null {
+  const m = text.match(/\b(?:[Aa]t|[Tt]o|[Pp]aid)\s+(?!You\b|Your\b|The\b|This\b|Our\b|(?:S|US|A|HK)?\$|[A-Z]{2,3}\s?\d|\d)([A-Z0-9][^\n.,!?]{1,40}?)(?=\s+(?:on|using|with|via|for|from|was|has|is|and)\b|[.,!?\n]|$)/);
+  return m ? cleanName(m[1]) : null;
+}
+
+/** Sent to your own wallet or account: money in. */
+const OWN_ACCOUNT = /paylah!?\s*wallet|\b(?:your|my)\s+(?:account|card|wallet)\b/i;
+
+export type TextRead = { amount: number; currency: string | null; merchant: string | null; card: string | null; kind?: 'in' | 'skip'; labelled: boolean };
+
+/** Reads amount, payee, card and kind from any payment text (see the rules above). `home`: the budget's currency. */
+export function readPaymentText(text: string, home?: string): TextRead {
+  const f = labelledFields(text);
+  const get = (labels: string[]) => labels.map((l) => f[l]).find(Boolean);
+  // Amount: labelled ones first (in their order), preferring the budget's currency.
+  const labelledMoney = LABELS.amount.flatMap((l) => (f[l] ? (amountsInText(f[l]).length ? amountsInText(f[l]) : amountInText(f[l]) ? [{ amount: amountInText(f[l]), currency: null }] : []) : []));
+  const money = pickMoney(labelledMoney, home) ?? pickMoney(amountsInText(text), home);
+  const amount = money?.amount ?? amountInText(text);
+  const payeeRaw = get(LABELS.payee);
+  const methodRaw = get(LABELS.method);
+  const toSelf = !!payeeRaw && OWN_ACCOUNT.test(payeeRaw);
+  const kind = kindOf(text) ?? (toSelf ? 'in' : undefined);
+  const merchant =
+    kind === 'in'
+      ? toSelf
+        ? (methodRaw ? cleanName(methodRaw) : null) ?? senderInText(text)
+        : senderInText(text)
+      : (payeeRaw ? cleanName(payeeRaw) : null) ?? payeeInSentence(text);
+  // Money in: the card is where it arrived (your own), otherwise where it was paid from.
+  const card = kind === 'in' && toSelf ? cleanName(payeeRaw!) : methodRaw ? methodRaw.slice(0, 60) : methodInText(text);
+  return { amount, currency: money?.currency ?? null, merchant, card, ...(kind ? { kind } : {}), labelled: Object.keys(f).length > 0 };
+}
+
+/**
+ * Reads a bank's alert email sent whole by an iPhone "When I receive an email" automation (DBS PayLah!, PayNow,
+ * card alerts, Instarem…). `card`: what the automation sends as card (an account's name, which wins over the email's
+ * own); `sourceName`: the Auto-log source, sent as merchant. Null when no amount can be found (the AI may read it).
+ */
+export function readAlertEmail(text: string, card: string | null, sourceName?: string | null, home?: string): WalletPayment | null {
+  const r = readPaymentText(text, home);
+  if (!r.amount) return null;
+  return {
+    // The Auto-log source's name, which the email automation sends as `merchant` (older setups send the email).
+    wallet: sourceName && sourceName.trim().length <= 40 && !text.startsWith(sourceName.trim()) ? sourceName.trim() : /paylah/i.test(text) ? 'PayLah!' : 'Bank alert',
+    amount: r.amount,
+    merchant: r.merchant,
+    card: card?.trim() || r.card,
+    ...(r.kind ? { kind: r.kind } : {}),
+  };
+}
+
 /**
  * Reads a payment notification forwarded whole: Google or Samsung Wallet via MacroDroid, or any app's notification via
- * an iOS 27 notification automation sending the same fields. Null for anything else (Apple Pay taps, scans).
+ * an iOS 27 notification automation sending the same fields, or a bank's alert email (`details`, its full text).
+ * Null for anything else (Apple Pay taps, scans). `home`: the budget's currency.
  */
-export function readWalletPayment(row: { amount: string | null; merchant: string | null; card: string | null }): WalletPayment | null {
+export function readWalletPayment(row: { amount: string | null; merchant: string | null; card: string | null; details?: string | null }, home?: string): WalletPayment | null {
+  if (row.details) {
+    const email = readAlertEmail(row.details, row.card && row.card.length <= 60 && !row.details.startsWith(row.card.slice(0, 20)) ? row.card : null, row.merchant, home);
+    if (email) return email;
+  }
   const f = forwarded(row.amount, row.card, row.merchant);
   if (!f) return null;
-  const p = readForwarded(f, row.merchant?.trim() ?? '');
+  const p = readForwarded(f, row.merchant?.trim() ?? '', home);
   const kind = kindOf(`${row.merchant ?? ''} ${f.text}`);
   if (!kind) return p;
   // Money in: the sender (if named) rather than the wallet, and no SimplyGo-style memo trimming.
   return { ...p, kind, merchant: kind === 'in' ? (senderInText(f.text) ?? p.merchant) : p.merchant };
 }
 
-function readForwarded(f: { wallet: string; text: string }, title: string): WalletPayment {
+function readForwarded(f: { wallet: string; text: string }, title: string, home?: string): WalletPayment {
   const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);
   if (other) {
-    // Another app (SimplyGo: "Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15"). The automation
-    // sends the app's name as the merchant; the rest of the text, minus "Fare $0.20 - ", goes in the memo.
-    const masked = f.text.match(/([A-Za-z][\w&' -]{0,30}?)\s*[•*·.]{2,}\s*(\d{4})/);
+    // Another app (SimplyGo: "Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15"; PayLah!: "You
+    // have paid SGD 3.50 to KOPI CORNER"). Payee: a labelled or named one in the text, else the title unless it's
+    // generic ("Trip Fare Alert") or the app's own name, else the app. The rest of the text goes in the memo.
+    const r = readPaymentText(f.text, home);
+    const generic = !title || /\b(alert|notification|reminder|update|receipt)s?\b/i.test(title) || title.toLowerCase() === f.wallet.toLowerCase();
     return {
       wallet: f.wallet,
-      amount: amountInText(f.text),
-      // A generic title ("Trip Fare Alert", from a macro that sends the title) isn't a merchant: use the app.
-      merchant: title && !/\b(alert|notification|reminder|update|receipt)s?\b/i.test(title) ? title : f.wallet,
-      card: masked ? cardInText(f.text) : null,
+      amount: r.amount || amountInText(f.text),
+      merchant: r.merchant ?? (generic ? f.wallet : title),
+      card: r.card,
       note: f.text.replace(/^[^\n]*?\d[.,]\d{2}\s*[-–—·|:]\s*/, '').slice(0, 80) || undefined,
     };
   }

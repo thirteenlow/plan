@@ -5,7 +5,7 @@ import { RADIUS, useTheme } from '@/theme';
 import { useDialog } from './dialogStore';
 import { Button, Txt } from './ui';
 
-/** Confirm and notice dialogs for the web app, in place of the browser's plain pop-ups. Mounted once at the root. */
+/** Confirm and notice dialogs, in place of the browser's and the phone's plain pop-ups. Mounted once at the root. */
 export function DialogHost() {
   const current = useDialog((s) => s.current);
   const { colors, shadow } = useTheme();
@@ -22,7 +22,7 @@ export function DialogHost() {
     current.resolve(ok);
     useDialog.setState({ current: null });
   };
-  const icon = current.destructive ? 'trash-outline' : current.cancelLabel ? 'help-circle-outline' : 'information-circle-outline';
+  const icon = (current.icon ?? (current.destructive ? 'trash-outline' : current.cancelLabel ? 'help-circle-outline' : 'information-circle-outline')) as React.ComponentProps<typeof Ionicons>['name'];
   const tint = current.destructive ? colors.danger : colors.accent;
 
   return (

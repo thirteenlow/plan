@@ -5,7 +5,7 @@ import { addDays, addMonths, addMonthsToDate, daysBetween, daysInMonth, formatDa
 import { CURRENCIES, DEFAULT_CURRENCY, formatMoney, milliToInput, parseMoney, signedInput } from '@/utils/money';
 import { matchAccount, matchCategory, merchantKey, payeeCategory } from '@/utils/scanMatch';
 import { filterAmountTyping, isValidBudget, sanitizeText, validateAmount, validateName } from '@/utils/validation';
-import { amountInText, readWalletPayment } from '@/utils/walletNotification';
+import { amountInText, readAlertEmail, readPaymentText, readWalletPayment } from '@/utils/walletNotification';
 import { $, assign, income, makeBudget, NOW, spend, THIS_MONTH, tx } from '../helpers/budget';
 
 const USD = DEFAULT_CURRENCY;
@@ -275,5 +275,111 @@ describe('signedInput', () => {
     expect(parseMoney(signedInput(-30_000, c), c)).toBe(-30_000);
     expect(signedInput(12_500, c)).toBe(milliToInput(12_500, c));
     expect(signedInput(0, c)).toBe('');
+  });
+});
+
+describe('readAlertEmail (bank alert emails via an iPhone email automation)', () => {
+  // DBS PayLah! "Transaction Alerts", as the email's text comes through Shortcuts (wallet number changed).
+  const paylah = [
+    'Transaction Alerts',
+    'Problems viewing this email? Select "always display images".',
+    'Transaction Ref: MT0000000000000000000',
+    'Dear Sir / Madam,',
+    'We refer to your PayLah! Bill Payment Transfer dated 15 Mar. We are pleased to confirm that the transaction was completed.',
+    'Date & Time:',
+    '15 Mar 13:20 (SGT)',
+    'Amount:',
+    'SGD3.5',
+    'From:',
+    'PayLah! Wallet (Mobile ending 0000)',
+    'To:',
+    'KOPI CORNER',
+    'To view your transactions, login to your PayLah! app.',
+  ].join('\n');
+
+  it('reads the amount and the shop', () => {
+    expect(readAlertEmail(paylah, 'DBS Everyday')).toEqual({ wallet: 'PayLah!', amount: $(3.5), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
+  });
+
+  it('works when the labels and values run together on one line', () => {
+    const flat = paylah.replace(/\n/g, ' ');
+    expect(readAlertEmail(flat, null)).toMatchObject({ amount: $(3.5), merchant: 'KOPI CORNER' });
+  });
+
+  it('money sent to your own wallet is money in, from the sender', () => {
+    const incoming = paylah.replace('Bill Payment Transfer', 'Transfer').replace('PayLah! Wallet (Mobile ending 0000)\nTo:\nKOPI CORNER', 'ALEX TAN\nTo:\nPayLah! Wallet (Mobile ending 0000)');
+    expect(readAlertEmail(incoming, null)).toMatchObject({ amount: $(3.5), merchant: 'ALEX TAN', kind: 'in' });
+  });
+
+  it('goes through readWalletPayment when the server kept the full text', () => {
+    expect(readWalletPayment({ amount: paylah.slice(0, 40), merchant: paylah.slice(0, 120), card: 'DBS Everyday', details: paylah })).toMatchObject({ amount: $(3.5), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
+  });
+
+  it('is null for text without an Amount line', () => {
+    expect(readAlertEmail('Your parcel is on the way', null)).toBeNull();
+  });
+});
+
+describe('readPaymentText: how amount, payee and card are decided', () => {
+  // Instarem amaze, a table without colons (name changed).
+  const instarem = [
+    'Your amaze transaction is a success',
+    'ALEX TAN, thanks for using amaze. Here\'s a breakdown of your transaction:',
+    'Transaction amount',
+    '25 USD',
+    'Amount paid',
+    '32.7 SGD',
+    'Merchant',
+    'Google Play',
+    'Date, time',
+    '1st Nov, 2026 12:25 AM SGT',
+    'Payment source',
+    'card *9012',
+    'Don\'t recognise this transaction?',
+  ].join('\n');
+
+  // DBS PayNow to a person (names masked as DBS does).
+  const paynow = [
+    'Dear Customer,',
+    'We refer to your PAYNOW dated 21 Jun. We are pleased to confirm that the transaction was completed.',
+    'Date & Time:',
+    '21 Jun 16:10 (SGT)',
+    'Amount:',
+    'SGD6.50',
+    'From:',
+    'POSB Savings A/C ending 4321',
+    'To:',
+    'JOXXX LIXXX (MOBILE ending 5678)',
+    'If unauthorised, please call our DBS hotline. To view transaction details, please login to digibank.',
+  ].join('\n');
+
+  it('Instarem: the amount paid in the budget’s currency, the merchant, and the card', () => {
+    expect(readPaymentText(instarem, 'SGD')).toMatchObject({ amount: $(32.7), currency: 'SGD', merchant: 'Google Play', card: 'card *9012' });
+    // A USD budget would log the USD amount instead.
+    expect(readPaymentText(instarem, 'USD')).toMatchObject({ amount: $(25), currency: 'USD' });
+  });
+
+  it('PayNow to a person: spending, without the masked mobile number, from the account it names', () => {
+    const r = readPaymentText(paynow, 'SGD');
+    expect(r).toMatchObject({ amount: $(6.5), merchant: 'JOXXX LIXXX', card: 'POSB Savings A/C ending 4321' });
+    expect(r.kind).toBeUndefined();
+  });
+
+  it('the time zone isn’t mistaken for a currency', () => {
+    expect(readPaymentText('Date & Time: 21 Jun 16:10 (SGT)\nAmount: SGD6.50', 'SGD').amount).toBe($(6.5));
+  });
+
+  it('sentence-style alerts: amount, who was paid and the card', () => {
+    const r = readPaymentText('A transaction of SGD 12.34 was made with your card ending 1234 at KOUFU PTE LTD on 02 Nov.', 'SGD');
+    expect(r).toMatchObject({ amount: $(12.34), merchant: 'KOUFU PTE LTD', card: 'card ending 1234' });
+  });
+
+  it('money in from a sentence', () => {
+    expect(readPaymentText('You have received SGD 20.00 from ALEX TAN via PayNow.', 'SGD')).toMatchObject({ amount: $(20), merchant: 'ALEX TAN', kind: 'in' });
+  });
+
+  it('the automation’s card (an account name) wins over the one in the email', () => {
+    expect(readAlertEmail(paynow, 'DBS Everyday', 'DBS emails', 'SGD')).toMatchObject({ wallet: 'DBS emails', card: 'DBS Everyday' });
+    expect(readAlertEmail(paynow, null, 'DBS emails', 'SGD')).toMatchObject({ card: 'POSB Savings A/C ending 4321' });
   });
 });

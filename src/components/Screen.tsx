@@ -123,7 +123,8 @@ export function Screen({
   }
 
   const inner = (
-    <Animated.View style={[frame, contentStyle, { opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>{children}</Animated.View>
+    // Without scrolling the content fills the space (on Android, flex children otherwise get no height).
+    <Animated.View style={[frame, !scroll && { flex: 1 }, contentStyle, { opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>{children}</Animated.View>
   );
 
   return (

@@ -11,7 +11,8 @@ import { useStore } from '@/store/store';
 import type { BudgetData } from '@/store/types';
 import { parseAmountText } from '@/utils/budgetCsv';
 import { addDays } from '@/utils/date';
-import { readWalletPayment } from '@/utils/walletNotification';
+import { readWalletPayment, type WalletPayment } from '@/utils/walletNotification';
+import { sourceFor } from '@/utils/autoLogSources';
 import { matchAccount, matchCategory, payeeCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
 import { useCloud } from './cloudStore';
@@ -130,6 +131,58 @@ export async function readReceipt(dataUrl: string, hints?: { categories: string[
   return { amount: body.amount, merchant: body.merchant ?? null, currency: body.currency ?? '', date: body.date ?? null, category: body.category ?? null, account: body.account ?? null };
 }
 
+/** The text behind a forwarded payment: an alert email's full text, or a notification's ("App: text"). */
+function paymentText(row: InboxRow): string | null {
+  if (row.details) return row.details;
+  return row.card?.match(/^([^:]{2,40}): ([\s\S]{12,})$/)?.[2] ?? null;
+}
+
+/** How many unclear payments one import may send to the AI (each counts toward the daily scan limit). */
+const AI_PER_IMPORT = 5;
+
+/**
+ * Payments Plan couldn't read itself (no amount, or no payee) go to the AI, if their source allows it. The AI's
+ * answer is attached as `read`, so savePayments uses it as is. Without an inbox key, or offline, rows pass through.
+ */
+export async function readUnclearWithAI(data: BudgetData, rows: InboxRow[]): Promise<InboxRow[]> {
+  const home = data.settings.currency.code;
+  const token = rows.some((r) => paymentText(r)) ? await getInboxKey().catch(() => null) : null;
+  if (!token) return rows;
+  const accounts = data.accounts.filter((a) => !a.closed && a.onBudget).map((a) => a.name);
+  let left = AI_PER_IMPORT;
+  const out: InboxRow[] = [];
+  for (const row of rows) {
+    const text = paymentText(row);
+    const mine = text ? readWalletPayment(row, home) : null;
+    // Where it came from: the reader's answer, the email source's name, or the notification's app.
+    const via = mine?.wallet ?? (row.details ? (row.merchant && row.merchant.length <= 40 ? row.merchant : 'Bank alert') : (row.card?.split(':')[0] ?? ''));
+    const source = sourceFor(data.settings.autoLogSources, via);
+    const clear = !!mine && (mine.kind === 'skip' || (!!mine.amount && !!mine.merchant));
+    if (!text || row.read || clear || left <= 0 || source?.ai === false || (source && !source.enabled)) {
+      out.push(row);
+      continue;
+    }
+    left--;
+    try {
+      const res = await fetch(scanPaymentUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, text, accounts, currency: home }) });
+      const b = (await res.json().catch(() => ({}))) as { ok?: boolean; is_payment?: boolean; direction?: string; amount?: string; merchant?: string | null; account?: string | null };
+      if (!res.ok || !b.ok) throw new Error('not read');
+      const amount = Math.round(Number(b.amount) * 1000);
+      out.push({
+        ...row,
+        read:
+          !b.is_payment || b.direction === 'none' || !amount
+            ? { wallet: via, amount: 0, merchant: null, card: null, kind: 'skip' }
+            : { wallet: via, amount, merchant: b.merchant ?? mine?.merchant ?? null, card: row.details && row.card && row.card.length <= 60 ? row.card : (b.account ?? mine?.card ?? null), note: 'read by AI', ...(b.direction === 'in' ? { kind: 'in' as const } : {}) },
+      });
+    } catch {
+      // Not read: saved the usual way (amount 0 if unreadable, so it can be fixed in Spending).
+      out.push(row);
+    }
+  }
+  return out;
+}
+
 /** Picks the account for a Wallet card: a name match, then the chosen default, then the first card/checking account. */
 export function accountForCard(data: BudgetData, card: string | null): string | undefined {
   const open = data.accounts.filter((a) => !a.closed && a.onBudget);
@@ -168,7 +221,7 @@ export function inboxBudget(): BudgetData | undefined {
 }
 
 /** A logged payment: from the server inbox, or a notification the Android app kept on the phone. */
-export type InboxRow = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
+export type InboxRow = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null; details?: string | null; /** Already read (by the AI) before saving */ read?: WalletPayment | null };
 
 /**
  * Saves payments as unapproved spending (category from the merchant's last use) in the auto-log budget. Returns how
@@ -186,18 +239,25 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
       continue;
     }
     // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
-    const wallet = readWalletPayment(row);
+    // Read with the budget's currency, so "Amount paid 32.7 SGD" wins over "Transaction amount 25 USD".
+    const wallet = row.read ?? readWalletPayment(row, data.settings.currency.code);
     // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log. Same for a top-up or
     // a declined payment.
     if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) continue;
     if (wallet?.kind === 'skip') continue;
+    const scannedRow = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
+    // The Auto-log source it came from, with its own options. Turned off: leave it out.
+    const source = scannedRow ? undefined : sourceFor(data.settings.autoLogSources, wallet?.wallet ?? 'Apple Pay');
+    if (source && !source.enabled) continue;
+    if (source?.moneyIn === 'ignore' && wallet?.kind === 'in') continue;
     // Money in (a friend's transfer, a refund) is logged as an inflow, not spending.
     const sign = wallet?.kind === 'in' ? 1 : -1;
     const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
     const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
     const cardName = wallet ? wallet.card : row.card === SCREENSHOT_CARD ? null : row.card;
     // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
-    const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
+    const sourceAccount = source?.accountId && data.accounts.some((a) => a.id === source.accountId && !a.closed) ? source.accountId : null;
+    const accountId = sourceAccount ?? (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
     if (!accountId) {
       noAccount++;
       continue;
@@ -219,7 +279,7 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
         date,
         amount: amount ? sign * amount : 0,
         payeeName: merchant,
-        categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
+        categoryId: known ?? (source?.categoryId && data.categories.some((c) => c.id === source.categoryId) ? source.categoryId : null) ?? (scanned ? matchCategory(data, row.category) : null),
         memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, wallet?.kind === 'in' ? 'Money in' : '', wallet?.note ?? '', !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
         cleared: 'uncleared',
         approved: false,
@@ -252,7 +312,7 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       if (/function .* does not exist|Could not find the function/i.test(error.message)) return { imported: 0, tests: 0, claimed: 0 };
       throw error;
     }
-    const { imported, tests, notes } = savePayments(data, (rows ?? []) as InboxRow[]);
+    const { imported, tests, notes } = savePayments(data, await readUnclearWithAI(data, (rows ?? []) as InboxRow[]));
     if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     if (expectingSince && Date.now() - expectingSince < 120_000) {
       if (!(rows ?? []).length) notes.push('Nothing new here. Another device may have logged it; it’ll appear after syncing.');

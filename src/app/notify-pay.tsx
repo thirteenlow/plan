@@ -25,11 +25,11 @@ const androidSteps = (app: string): { title: string; text: string }[] => [
   { title: 'New macro', text: 'Tap Add Macro, then + in the red Triggers box.' },
   { title: 'Choose Notification', text: 'Tap Device Events › Notification. Allow access if asked.' },
   { title: `Pick ${app}`, text: `Choose Notification Received › Select Applications. Tick ${app}, then OK.` },
-  { title: 'Only fares', text: 'Choose Contains, paste the text below, tick Enable regex, then OK.' },
+  { title: 'Only payments', text: 'Choose Contains, paste the text below, tick Enable regex, then OK.' },
   { title: 'Add the action', text: 'Tap + in the blue Actions box › Web Interactions › HTTP Request.' },
   { title: 'Paste the link', text: 'Set Request method to POST. Paste the link below into URL.' },
   { title: 'Paste the body', text: 'Open Content Body, set Content type to application/json and paste the text below. Tap ✓.' },
-  { title: 'Save', text: `Name it “${app} fares” and tap ✓. Done!` },
+  { title: 'Save', text: `Name it “${app} Auto-log” and tap ✓. Done!` },
 ];
 
 const iosSteps = (app: string): { title: string; text: string }[] => [
@@ -40,7 +40,7 @@ const iosSteps = (app: string): { title: string; text: string }[] => [
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
   { title: 'Add the fields', text: 'Add a Text field for each row below, keys in lowercase. For amount, tap the value, scroll the bar above the keyboard, tap Notification, then tap it again and pick Body. No card field needed.' },
-  { title: 'Name and save', text: `Tap the name › Rename to “${app} Fares”. Tap the button at the top right to save.` },
+  { title: 'Name and save', text: `Tap the name › Rename to “${app} Auto-log”. Tap the button at the top right to save.` },
 ];
 
 /**
@@ -53,9 +53,12 @@ export default function NotifyPayScreen() {
   const status = useCloud((s) => s.status);
   const updateSettings = useStore((s) => s.updateSettings);
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ step?: string }>();
-  const [app, setApp] = useState(DEFAULT_APP);
+  // `?app=` comes from an Auto-log source (e.g. Grab); SimplyGo otherwise.
+  const params = useLocalSearchParams<{ step?: string; app?: string }>();
+  const [app, setApp] = useState(params.app || DEFAULT_APP);
   const appName = app.trim() || DEFAULT_APP;
+  // SimplyGo talks about fares; any other app about payments.
+  const fares = appName.toLowerCase() === DEFAULT_APP.toLowerCase();
   const [android] = useState(isAndroidDevice);
   const STEPS = android ? androidSteps(appName) : iosSteps(appName);
   const TOTAL = STEPS.length + 2; // intro + steps + test
@@ -123,7 +126,7 @@ export default function NotifyPayScreen() {
     <Screen
       back="close"
       modal
-      title={`${appName} fare auto-log`}
+      title={appName === DEFAULT_APP ? `${appName} fare auto-log` : `${appName} auto-log`}
       maxWidth={560}
       footer={
         step > 0 ? (
@@ -149,10 +152,10 @@ export default function NotifyPayScreen() {
               <Ionicons name="bus-outline" size={30} color={colors.accent} />
             </View>
             <Txt variant="h2" center>
-              Bus and train fares, logged
+              {fares ? 'Bus and train fares, logged' : `${appName} payments, logged`}
             </Txt>
             <Txt tone="soft" center>
-              Tap through the gantry as usual. When {appName} sends your fare alert, Plan logs the exact fare.
+              {fares ? `Tap through the gantry as usual. When ${appName} sends your fare alert, Plan logs the exact fare.` : `When ${appName} sends a payment alert, Plan logs it. Review it in Spending.`}
             </Txt>
             <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Ionicons name={android ? 'logo-android' : 'logo-apple'} size={13} color={colors.textSoft} />
@@ -170,7 +173,7 @@ export default function NotifyPayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Fares go here. Pick the card linked to {appName}.
+              {fares ? 'Fares go here.' : 'Payments go here.'} Pick the card linked to {appName}.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
@@ -260,7 +263,7 @@ export default function NotifyPayScreen() {
               {test === 'ok' ? 'It works' : test === 'failed' ? 'That didn’t work' : 'Check the connection'}
             </Txt>
             <Txt tone="soft" center>
-              {test === 'ok' ? `Plan got it. Your next ${appName} fare will show up in Spending.` : test === 'failed' ? testError : 'Sends a test to Plan. Nothing is added to your budget.'}
+              {test === 'ok' ? `Plan got it. Your next ${appName} ${fares ? 'fare' : 'payment'} will show up in Spending.` : test === 'failed' ? testError : 'Sends a test to Plan. Nothing is added to your budget.'}
             </Txt>
             <Button title={test === 'ok' ? 'Test again' : 'Send a test'} variant="soft" icon="paper-plane-outline" onPress={() => void runTest()} />
           </Card>

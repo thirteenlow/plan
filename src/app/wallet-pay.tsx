@@ -167,13 +167,13 @@ export default function WalletPayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Used when a card doesn’t match. Add its last 4 digits to an account name to match (e.g. “DBS Visa 1234”).
+              Used when Plan can’t tell which card paid.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              The amount, merchant and card digits wait on the server unencrypted until Plan picks them up, then they’re deleted.
+              The amount, merchant and card wait on the server unencrypted until Plan picks them up, then they’re deleted.
             </Txt>
           </Row>
           {!!key && (
@@ -258,7 +258,7 @@ export default function WalletPayScreen() {
               ['Nothing shows up', 'Check MacroDroid has notification access and your wallet’s notifications are on.'],
               ['It stops after a while', 'Set MacroDroid’s battery use to Unrestricted in Settings › Apps.'],
               ['Nothing from Google Wallet', 'Some phones send it as Google Play services. Tick that too.'],
-              ['Wrong account', 'Add the card’s last 4 digits to the account name, or change Log to.'],
+              ['Wrong account', 'Change Log to on the first screen.'],
               ['No decimals (¥, ₩)', 'Change the text to match to \\d.'],
               ['See what happened', 'MacroDroid’s System Log shows each run.'],
             ].map(([t, d]) => (

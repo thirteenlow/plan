@@ -53,7 +53,7 @@ class PaymentNotificationsModule : Module() {
     Function("configure") { wallets: Boolean, apps: List<String> ->
       PaymentQueue.configure(context, wallets, apps)
       // Android sometimes stops a listener (e.g. after an update): ask for it to be connected again.
-      if (wallets || apps.isNotEmpty()) {
+      if ((wallets || apps.isNotEmpty()) && !PaymentQueue.paused(context)) {
         try {
           NotificationListenerService.requestRebind(component)
         } catch (e: Exception) {
@@ -62,7 +62,20 @@ class PaymentNotificationsModule : Module() {
     }
 
     Function("getConfig") {
-      mapOf("wallets" to PaymentQueue.walletsOn(context), "apps" to PaymentQueue.apps(context).toList())
+      mapOf("wallets" to PaymentQueue.walletsOn(context), "apps" to PaymentQueue.apps(context).toList(), "paused" to PaymentQueue.paused(context))
+    }
+
+    /** Turns reading notifications off (disconnects the listener) or back on, without leaving Plan. */
+    Function("setPaused") { paused: Boolean ->
+      PaymentQueue.setPaused(context, paused)
+      if (paused) {
+        PaymentListenerService.connected?.requestUnbind()
+      } else {
+        try {
+          NotificationListenerService.requestRebind(component)
+        } catch (e: Exception) {
+        }
+      }
     }
 
     Function("peek") { PaymentQueue.peek(context) }

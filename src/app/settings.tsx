@@ -8,8 +8,6 @@ import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
 import { Button, Card, confirm, Divider, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
-import { nativeAutoLog } from '@/cloud/nativePayments';
-import { isAndroidDevice } from '@/utils/device';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
 import { LIMITS } from '@/utils/validation';
@@ -56,6 +54,8 @@ export default function SettingsScreen() {
   };
 
   const unapproved = data.transactions.filter((t) => !t.approved).length;
+  const sourcesOn = data.settings.autoLogSources?.filter((s) => s.enabled).length;
+  const autoLogValue = sourcesOn === undefined ? 'Wallet, apps, emails' : sourcesOn ? `${sourcesOn} ${sourcesOn === 1 ? 'source' : 'sources'} on` : 'Off';
 
   return (
     <Screen back="back" title="Settings">
@@ -102,20 +102,7 @@ export default function SettingsScreen() {
       </Group>
 
       <Group title="Automation">
-        {nativeAutoLog() ? (
-          // The Android app reads notifications itself: one screen for wallets and SimplyGo.
-          <Item icon="phone-portrait-outline" label="Payment auto-log" value="Wallet · SimplyGo" onPress={() => router.push('/auto-log')} />
-        ) : isAndroidDevice() ? (
-          <>
-            <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" onPress={() => router.push('/wallet-pay')} />
-            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="Android" onPress={() => router.push('/notify-pay')} />
-          </>
-        ) : (
-          <>
-            <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" onPress={() => router.push('/apple-pay')} />
-            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="iPhone · iOS 27+" onPress={() => router.push('/notify-pay')} />
-          </>
-        )}
+        <Item icon="flash-outline" label="Auto-log" value={autoLogValue} onPress={() => router.push('/auto-log')} />
         <Item icon="scan-outline" label="AI receipt scan" value="Any device" onPress={() => router.push('/screenshot-capture')} />
       </Group>
 
@@ -138,7 +125,7 @@ export default function SettingsScreen() {
           icon="log-out-outline"
           style={{ marginTop: 24 }}
           onPress={async () => {
-            if (!(await confirm('Log out', 'Your budgets stay on your account and are removed from this device.', 'Log out'))) return;
+            if (!(await confirm('Log out?', 'Your budgets stay on your account and are removed from this device.', 'Log out', false, 'log-out-outline'))) return;
             await signOutEverywhereOnDevice();
             // The budgets are gone from this device: go home, where the sign-in gate takes over.
             router.replace('/');

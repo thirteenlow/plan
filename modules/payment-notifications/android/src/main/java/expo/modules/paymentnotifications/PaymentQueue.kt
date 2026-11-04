@@ -23,20 +23,30 @@ object PaymentQueue {
 
   fun walletsOn(context: Context) = prefs(context).getBoolean("wallets", false)
 
-  /** Other apps to listen to, by name or package (e.g. "SimplyGo", "sg.com.transitlink"), lowercased. */
+  /** Turned off in Plan: read nothing until it's turned back on. */
+  fun paused(context: Context) = prefs(context).getBoolean("paused", false)
+
+  fun setPaused(context: Context, paused: Boolean) {
+    prefs(context).edit().putBoolean("paused", paused).apply()
+  }
+
+  /** Other apps to listen to, by name or package (e.g. "SimplyGo", "sg.com.transitlink"). */
   fun apps(context: Context): Set<String> = prefs(context).getStringSet("apps", emptySet()) ?: emptySet()
 
   fun configure(context: Context, wallets: Boolean, apps: List<String>) {
     prefs(context).edit()
       .putBoolean("wallets", wallets)
-      .putStringSet("apps", apps.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet())
+      .putStringSet("apps", apps.map { it.trim() }.filter { it.isNotEmpty() }.toSet())
       .apply()
   }
 
   fun isWatched(context: Context, pkg: String, label: String): Boolean {
+    if (paused(context)) return false
     if (walletsOn(context) && pkg in WALLETS) return true
-    val apps = apps(context)
-    return pkg.lowercase() in apps || label.lowercase() in apps
+    // Names are kept as typed (shown back in Plan) and matched ignoring case: the package exactly, or any part of
+    // the app's name of 3+ letters ("dbs" finds "DBS digibank"). Only notifications with an amount are kept anyway.
+    val name = label.lowercase()
+    return apps(context).map { it.lowercase() }.any { it == pkg.lowercase() || it == name || (it.length >= 3 && name.contains(it)) }
   }
 
   @Synchronized

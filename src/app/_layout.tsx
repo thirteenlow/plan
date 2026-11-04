@@ -12,7 +12,7 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initCloud } from '@/cloud';
-import { importNativePayments, PaymentNotifications } from '@/cloud/nativePayments';
+import { importNativePayments, PaymentNotifications, syncListener } from '@/cloud/nativePayments';
 import { DialogHost } from '@/components/Dialog';
 import '@/utils/webSetup';
 import { useStore } from '@/store/store';
@@ -29,6 +29,9 @@ export default function RootLayout() {
   });
   const hydrated = useStore((s) => s.hydrated);
   const activeBudgetId = useStore((s) => s.activeBudgetId);
+  // Android app: keep the notification listener in step with the Auto-log sources (they sync between devices).
+  const autoLogSources = useStore((s) => (s.activeBudgetId ? s.budgets[s.activeBudgetId]?.settings.autoLogSources : undefined));
+  useEffect(() => syncListener(autoLogSources), [autoLogSources]);
   const { colors, isDark } = useTheme();
   useWebChrome(isDark, colors.bg);
 
@@ -43,14 +46,14 @@ export default function RootLayout() {
     if (!hydrated) return;
     const run = () => {
       useStore.getState().processScheduled();
-      importNativePayments();
+      void importNativePayments();
     };
     run();
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') run();
     });
     // A payment while Plan is open: log it straight away.
-    const paid = PaymentNotifications?.addListener('onPayment', () => importNativePayments());
+    const paid = PaymentNotifications?.addListener('onPayment', () => void importNativePayments());
     return () => {
       sub.remove();
       paid?.remove();
@@ -84,6 +87,8 @@ export default function RootLayout() {
           <Stack.Screen name="target/[id]" options={modal} />
           <Stack.Screen name="apple-pay" options={modal} />
           <Stack.Screen name="auto-log" options={modal} />
+          <Stack.Screen name="auto-log-source" options={modal} />
+          <Stack.Screen name="email-pay" options={modal} />
           <Stack.Screen name="wallet-pay" options={modal} />
           <Stack.Screen name="notify-pay" options={modal} />
           <Stack.Screen name="screenshot-capture" options={modal} />

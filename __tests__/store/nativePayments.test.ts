@@ -27,12 +27,12 @@ function load() {
 describe('importNativePayments (Android app)', () => {
   beforeEach(() => queue.splice(0));
 
-  it('logs a Google Wallet tap and a SimplyGo fare, then empties the phone’s queue', () => {
+  it('logs a Google Wallet tap and a SimplyGo fare, then empties the phone’s queue', async () => {
     const d = load();
     queue.push(notification(1, 'Wallet', 'Starbucks', '$4.50 with Mastercard •••• 1234'));
     queue.push(notification(2, 'SimplyGo', 'Trip Fare Alert', 'Fare $1.28 - Bus 12 Blk 108 - Clementi Int'));
 
-    expect(importNativePayments()).toBe(2);
+    expect(await importNativePayments()).toBe(2);
     const saved = useStore.getState().budgets[d.id];
     const payee = (id?: string | null) => saved.payees.find((p) => p.id === id)?.name;
     const txs = saved.transactions.filter((t) => !t.approved);
@@ -43,14 +43,14 @@ describe('importNativePayments (Android app)', () => {
     expect(queue).toHaveLength(0);
   });
 
-  it('logs money coming in as an inflow, and skips top-ups and declined payments', () => {
+  it('logs money coming in as an inflow, and skips top-ups and declined payments', async () => {
     const d = load();
     queue.push(notification(1, 'YouTrip', 'YouTrip', 'Alex sent you S$20.00'));
     queue.push(notification(2, 'Wallet', 'Starbucks', 'Refund of $4.50 to Mastercard •••• 1234'));
     queue.push(notification(3, 'YouTrip', 'YouTrip', 'You topped up S$100.00 from DBS'));
     queue.push(notification(4, 'Wallet', 'Starbucks', 'Payment of $4.50 declined'));
 
-    expect(importNativePayments()).toBe(2);
+    expect(await importNativePayments()).toBe(2);
     const saved = useStore.getState().budgets[d.id];
     const payee = (id?: string | null) => saved.payees.find((p) => p.id === id)?.name;
     const txs = saved.transactions.filter((t) => !t.approved);
@@ -61,11 +61,11 @@ describe('importNativePayments (Android app)', () => {
     expect(queue).toHaveLength(0);
   });
 
-  it('leaves notifications on the phone when there is no account to log them to', () => {
+  it('leaves notifications on the phone when there is no account to log them to', async () => {
     const d = makeBudget({ accounts: [] });
     useStore.setState({ budgets: { [d.id]: d }, activeBudgetId: d.id, sync: {}, hydrated: true });
     queue.push(notification(1, 'Wallet', 'Starbucks', '$4.50 with Mastercard •••• 1234'));
-    expect(importNativePayments()).toBe(0);
+    expect(await importNativePayments()).toBe(0);
     expect(queue).toHaveLength(1);
   });
 });

@@ -190,7 +190,7 @@ export default function ApplePayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Used when a card doesn’t match an account name.
+              Used when Plan can’t tell which card paid.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
@@ -277,7 +277,7 @@ export default function ApplePayScreen() {
           <Card style={{ gap: 12 }}>
             {[
               ['Nothing shows up', 'Check Automation (or Run Immediately) is on, your cards are ticked, and Method is POST with JSON.'],
-              ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to.'],
+              ['Wrong account', 'Change Log to on the first screen.'],
               ['No merchant', 'Some payments don’t have one. They’re logged as “Apple Pay”.'],
               ['Bus and train taps', 'Skipped, since there’s no fare yet. Set up SimplyGo fare auto-log for those.'],
               ['Hide “Running your automation”', 'Turn off Notify (or Notify When Run).'],

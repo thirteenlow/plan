@@ -161,10 +161,35 @@ export interface BudgetSettings {
   currentGoalId?: string;
   /** Apple Pay auto-logging: account used when a Wallet card's name doesn't match an account */
   payAccountId?: string;
+  /** Where automatic payments come from (src/utils/autoLogSources.ts). Undefined until the Auto-log screen is opened. */
+  autoLogSources?: AutoLogSource[];
   /** Companion that roams the app and reacts to the budget (src/engine/pet.ts). Personal: not shared with budget members, but saved to the user's account (src/cloud/personal.ts). */
   pet?: { kind: PetKind; name: string; hidden?: boolean };
   /** Notification choices (src/notifications/reminders.ts). Personal, like pet. */
   reminders?: ReminderPrefs;
+}
+
+/** How a source's payments arrive: a tap-to-pay wallet, another app's notifications, or a bank's alert emails. */
+export type AutoLogKind = 'tap' | 'app' | 'email';
+
+export interface AutoLogSource {
+  id: string;
+  kind: AutoLogKind;
+  /** Shown in Plan, and (apps) the name Android matches notifications against */
+  name: string;
+  /** How its payments say where they came from ("Apple Pay", "Google Wallet", "SimplyGo", "PayLah!") */
+  match: string;
+  enabled: boolean;
+  /** Log to this account instead of matching the card */
+  accountId?: string;
+  /** Category for payees Plan hasn't seen before */
+  categoryId?: string;
+  /** Money coming in (transfers, refunds): log it, or leave it out */
+  moneyIn?: 'log' | 'ignore';
+  /** When Plan can't read a payment itself, let the AI read its text (default on) */
+  ai?: boolean;
+  /** Email sources: the sender to filter on in the iPhone automation */
+  sender?: string;
 }
 
 export interface ReminderPrefs {

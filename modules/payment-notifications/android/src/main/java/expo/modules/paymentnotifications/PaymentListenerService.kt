@@ -13,6 +13,20 @@ class PaymentListenerService : NotificationListenerService() {
   private val amount = Regex("""\d[.,]\d\d""")
   private val labels = HashMap<String, String>()
 
+  companion object {
+    /** The connected listener, so Plan can disconnect it when turned off. */
+    @Volatile var connected: PaymentListenerService? = null
+  }
+
+  override fun onListenerConnected() {
+    // Turned off in Plan while Android was reconnecting: let go again.
+    if (PaymentQueue.paused(this)) requestUnbind() else connected = this
+  }
+
+  override fun onListenerDisconnected() {
+    connected = null
+  }
+
   override fun onNotificationPosted(sbn: StatusBarNotification) {
     val pkg = sbn.packageName ?: return
     if (pkg == packageName) return

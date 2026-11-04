@@ -17,9 +17,8 @@ import { GRADIENT, RADIUS, useTheme } from '@/theme';
 
 const native = Platform.OS !== 'web';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
-type Tier = 'free';
 type Chip = { icon: IconName; label: string };
-type Slide = { key: string; icon: IconName; title: string; text: string; tier: Tier; tierLabel?: string; where?: string; chips: Chip[]; scene?: 'brand' | 'pets' | 'tap' | 'notify' | 'wallet' | 'scan' };
+type Slide = { key: string; icon: IconName; title: string; text: string; badge?: string; where?: string; chips: Chip[]; scene?: 'brand' | 'pets' | 'tap' | 'notify' | 'wallet' | 'scan' };
 
 function slides(): Slide[] {
   const apple = isAppleDevice();
@@ -31,10 +30,9 @@ function slides(): Slide[] {
           icon: 'phone-portrait-outline',
           title: 'Tap to pay, it’s logged',
           text: 'Pay with Google or Samsung Wallet. It’s in your budget before you put your phone away.',
-          tier: 'free',
-          tierLabel: 'Free · Android',
+          badge: 'Android',
           chips: [],
-          where: 'Set up in Settings › Automation › Google Pay auto-log',
+          where: 'Set up in Settings › Automation › Auto-log',
           scene: 'wallet',
         },
         {
@@ -42,10 +40,9 @@ function slides(): Slide[] {
           icon: 'notifications-outline',
           title: 'Bus and train fares, logged',
           text: 'Tap through the gantry as usual. When SimplyGo sends your Trip Fare Alert, Plan logs the exact fare.',
-          tier: 'free',
-          tierLabel: 'Free · Android',
+          badge: 'Android',
           chips: [],
-          where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
+          where: 'Set up in Settings › Automation › Auto-log',
           scene: 'notify',
         },
       ]
@@ -55,10 +52,9 @@ function slides(): Slide[] {
           icon: 'phone-portrait-outline',
           title: 'Tap to pay, it’s logged',
           text: apple ? 'Pay with Apple Pay. It’s in your budget before you put your phone away.' : 'Every Apple Pay or Google Wallet tap goes straight into your budget.',
-          tier: 'free',
-          tierLabel: 'Free · iPhone iOS 17+',
+          badge: 'iPhone iOS 17+',
           chips: [],
-          where: 'Set up in Settings › Automation › Apple Pay auto-log',
+          where: 'Set up in Settings › Automation › Auto-log',
           scene: 'tap',
         },
         {
@@ -66,10 +62,9 @@ function slides(): Slide[] {
           icon: 'notifications-outline',
           title: 'Bus and train fares, logged',
           text: 'Tap through the gantry as usual. When SimplyGo sends your Trip Fare Alert, Plan logs the exact fare.',
-          tier: 'free',
-          tierLabel: 'Free · iPhone iOS 27+',
+          badge: 'iPhone iOS 27+',
           chips: [],
-          where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
+          where: 'Set up in Settings › Automation › Auto-log',
           scene: 'notify',
         },
       ];
@@ -79,8 +74,7 @@ function slides(): Slide[] {
       icon: 'sparkles',
       title: 'Welcome to Plan',
       text: 'Give every dollar a job and feel in control.',
-      tier: 'free',
-      tierLabel: 'Let’s take a quick look',
+      badge: 'Let’s take a quick look',
       chips: [
         { icon: 'wallet-outline', label: 'Budget' },
         { icon: 'trending-up-outline', label: 'Grow' },
@@ -93,7 +87,6 @@ function slides(): Slide[] {
       icon: 'grid-outline',
       title: 'Give every dollar a job',
       text: 'Plan your money before you spend it. Overspent? Cover it in one tap.',
-      tier: 'free',
       chips: [
         { icon: 'home-outline', label: 'Rent' },
         { icon: 'cart-outline', label: 'Groceries' },
@@ -106,7 +99,6 @@ function slides(): Slide[] {
       icon: 'receipt-outline',
       title: 'Every account, one place',
       text: 'Cards, banks and cash together. Split, schedule and reconcile in seconds.',
-      tier: 'free',
       chips: [
         { icon: 'card-outline', label: 'Cards' },
         { icon: 'repeat-outline', label: 'Scheduled' },
@@ -119,7 +111,6 @@ function slides(): Slide[] {
       icon: 'flag-outline',
       title: 'Targets and insights',
       text: 'Set targets for bills and savings. See trends and how you’re really doing.',
-      tier: 'free',
       chips: [
         { icon: 'flag-outline', label: 'Targets' },
         { icon: 'bar-chart-outline', label: 'Reports' },
@@ -132,9 +123,7 @@ function slides(): Slide[] {
       icon: 'paw',
       title: 'Meet your companion',
       text: 'A little pet that cheers you on. Happiest when your budget’s on track.',
-      tier: 'free',
-      tierLabel: 'Free · every companion',
-      chips: [],
+            chips: [],
       where: 'Pick one in Settings › Companion',
           scene: 'pets',
     },
@@ -144,8 +133,7 @@ function slides(): Slide[] {
       icon: 'scan-outline',
       title: 'Snap it, AI logs it',
       text: android ? 'Snap a receipt or screenshot a payment. AI fills in the rest.' : 'Snap a receipt, or triple-tap your iPhone on a payment screen. AI fills in the rest.',
-      tier: 'free',
-      tierLabel: 'Free · any device',
+      badge: 'Any device',
       chips: [],
       where: android ? 'Tap Scan receipt when adding a transaction' : 'Set up one tap in Settings › Automation › AI receipt scan',
           scene: 'scan',
@@ -156,7 +144,6 @@ function slides(): Slide[] {
       where: 'Set up in Settings › Account & sharing',
       title: 'Budget together',
       text: 'Share with a partner or housemates. Keep separate budgets for anything.',
-      tier: 'free',
       chips: [
         { icon: 'person-outline', label: 'You' },
         { icon: 'heart-outline', label: 'Partner' },
@@ -168,7 +155,6 @@ function slides(): Slide[] {
       icon: 'lock-closed-outline',
       title: 'Private by design',
       text: 'Encrypted on your device, synced everywhere you use Plan.',
-      tier: 'free',
       chips: [
         { icon: 'shield-checkmark-outline', label: 'Encrypted' },
         { icon: 'sync-outline', label: 'Sync' },
@@ -213,13 +199,14 @@ function useStory(active: boolean, ms = 3200) {
   return t;
 }
 
-function TierBadge({ tier, label }: { tier: Tier; label?: string }) {
+/** A small pill above the title: what the feature needs (e.g. "Android") or a friendly hello. */
+function Badge({ label }: { label: string }) {
   const { colors } = useTheme();
   return (
     <Row style={{ gap: 5, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: colors.positiveSoft }}>
       <Ionicons name="checkmark-circle" size={12} color={colors.positive} />
       <Txt variant="label" style={{ color: colors.positive }}>
-        {label ?? 'Free'}
+        {label}
       </Txt>
     </Row>
   );
@@ -393,8 +380,9 @@ function ScanScene({ active }: { active: boolean }) {
 
 function SlideView({ slide, active, width, height }: { slide: Slide; active: boolean; width: number; height: number }) {
   // Short screens (e.g. iPhone SE): shrink the animation so the words still fit above the buttons.
-  // `height` is the screen's; the header, dots and buttons take about 230 of it, the words about 230.
-  const scale = Math.max(0.5, Math.min(1, (height - 460) / 260));
+  // `height` is the screen's; the header, dots and buttons take about 230 of it, the words and the "Set up in"
+  // pill about 290 (two lines on narrow phones), plus room above the dots.
+  const scale = Math.max(0.5, Math.min(1, (height - 560) / 260));
   const [text] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!active) return text.setValue(0);
@@ -411,12 +399,12 @@ function SlideView({ slide, active, width, height }: { slide: Slide; active: boo
       <IconScene slide={slide} active={active} />
     );
   return (
-    <View style={{ width, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: scale < 1 ? 12 : 26 }}>
+    <View style={{ width, paddingHorizontal: 8, paddingBottom: 20, alignItems: 'center', justifyContent: 'center', gap: scale < 1 ? 12 : 26 }}>
       <View style={{ height: 260 * scale, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ transform: [{ scale }] }}>{scene}</View>
       </View>
       <Animated.View style={{ alignItems: 'center', gap: 10, opacity: text, transform: [{ translateY: text.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>
-        <TierBadge tier={slide.tier} label={slide.tierLabel} />
+        {!!slide.badge && <Badge label={slide.badge} />}
         <Txt variant="title" center>
           {slide.title}
         </Txt>

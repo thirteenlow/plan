@@ -7,10 +7,12 @@ export interface DialogRequest {
   /** null for a plain notice with a single button */
   cancelLabel: string | null;
   destructive: boolean;
+  /** Ionicons name for the badge; defaults by kind (trash, question, info) */
+  icon?: string;
   resolve: (ok: boolean) => void;
 }
 
-/** The in-app dialog being shown (web), rendered by DialogHost. */
+/** The in-app dialog being shown, rendered by DialogHost. */
 export const useDialog = create<{ current: DialogRequest | null }>(() => ({ current: null }));
 
 export function showDialog(req: Omit<DialogRequest, 'resolve'>): Promise<boolean> {

@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   type PressableProps,
@@ -33,20 +32,13 @@ export function haptic(kind: 'light' | 'success' | 'warning' = 'light') {
   else Haptics.notificationAsync(kind === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => {});
 }
 
-/** Cross-platform confirm dialog (Alert on native, window.confirm on web). */
-export function confirm(title: string, message: string, confirmLabel = 'OK', destructive = false): Promise<boolean> {
-  if (Platform.OS === 'web') return showDialog({ title, message, confirmLabel, cancelLabel: 'Cancel', destructive });
-  return new Promise((resolve) =>
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-      { text: confirmLabel, style: destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
-    ]),
-  );
+/** Confirm dialog in Plan's own style, on every platform. `icon` overrides the badge (an Ionicons name). */
+export function confirm(title: string, message: string, confirmLabel = 'OK', destructive = false, icon?: string): Promise<boolean> {
+  return showDialog({ title, message, confirmLabel, cancelLabel: 'Cancel', destructive, icon });
 }
 
 export function notify(title: string, message?: string) {
-  if (Platform.OS === 'web') void showDialog({ title, message, confirmLabel: 'OK', cancelLabel: null, destructive: false });
-  else Alert.alert(title, message);
+  void showDialog({ title, message, confirmLabel: 'OK', cancelLabel: null, destructive: false });
 }
 
 // ---------- Typography ----------
@@ -222,7 +214,8 @@ export function Button({
       style={[{ borderRadius: small ? RADIUS.md : RADIUS.lg, overflow: 'hidden', opacity: disabled ? 0.45 : 1 }, bg[variant], style]}
     >
       {variant === 'gradient' ? (
-        <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}>
+        // Fills the button even when a row stretches it (e.g. next to an outlined button, which is taller by its border).
+        <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={{ flexGrow: 1, justifyContent: 'center' }}>
           {content}
         </LinearGradient>
       ) : (
