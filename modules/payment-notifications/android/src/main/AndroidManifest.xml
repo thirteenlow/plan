@@ -1,0 +1,21 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Reads payment notifications (Google Wallet, Samsung Wallet, SimplyGo…) once the user allows notification access. -->
+    <service
+      android:name="expo.modules.paymentnotifications.PaymentListenerService"
+      android:label="Plan payments"
+      android:exported="true"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+
+  <!-- So the names of these apps can be read (Android 11+ package visibility). -->
+  <queries>
+    <package android:name="com.google.android.apps.walletnfcrel" />
+    <package android:name="com.samsung.android.spay" />
+    <package android:name="sg.com.transitlink" />
+  </queries>
+</manifest>

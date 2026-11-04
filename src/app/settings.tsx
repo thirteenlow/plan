@@ -8,6 +8,7 @@ import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
 import { Button, Card, confirm, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
+import { nativeAutoLog } from '@/cloud/nativePayments';
 import { isAndroidDevice, requirePro, usePlan } from '@/cloud/pro';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
@@ -134,7 +135,10 @@ export default function SettingsScreen() {
       </Group>
 
       <Group title="Automation">
-        {isAndroidDevice() ? (
+        {nativeAutoLog() ? (
+          // The Android app reads notifications itself: one screen for wallets and SimplyGo.
+          <Item icon="phone-portrait-outline" label="Payment auto-log" value="Wallet · SimplyGo" pro={!pro} onPress={() => router.push('/auto-log')} />
+        ) : isAndroidDevice() ? (
           <>
             <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
             <Item icon="bus-outline" label="SimplyGo fare auto-log" value="Android" pro={!pro} onPress={() => requirePro('notifyPay') && router.push('/notify-pay')} />

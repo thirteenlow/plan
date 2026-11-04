@@ -12,6 +12,7 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initCloud } from '@/cloud';
+import { importNativePayments, PaymentNotifications } from '@/cloud/nativePayments';
 import { DialogHost } from '@/components/Dialog';
 import '@/utils/webSetup';
 import { useStore } from '@/store/store';
@@ -36,14 +37,24 @@ export default function RootLayout() {
     if (hydrated) void initCloud();
   }, [hydrated]);
 
-  // Enter any scheduled transactions that came due, on launch and whenever the app returns to the foreground.
+  // Enter any scheduled transactions that came due, and (Android app) log payment notifications the phone kept,
+  // on launch and whenever the app returns to the foreground.
   useEffect(() => {
     if (!hydrated) return;
-    useStore.getState().processScheduled();
+    const run = () => {
+      useStore.getState().processScheduled();
+      importNativePayments();
+    };
+    run();
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') useStore.getState().processScheduled();
+      if (s === 'active') run();
     });
-    return () => sub.remove();
+    // A payment while Plan is open: log it straight away.
+    const paid = PaymentNotifications?.addListener('onPayment', () => importNativePayments());
+    return () => {
+      sub.remove();
+      paid?.remove();
+    };
   }, [hydrated, activeBudgetId]);
 
   const navTheme = isDark
@@ -72,6 +83,7 @@ export default function RootLayout() {
           <Stack.Screen name="category/[id]" options={modal} />
           <Stack.Screen name="target/[id]" options={modal} />
           <Stack.Screen name="apple-pay" options={modal} />
+          <Stack.Screen name="auto-log" options={modal} />
           <Stack.Screen name="wallet-pay" options={modal} />
           <Stack.Screen name="notify-pay" options={modal} />
           <Stack.Screen name="screenshot-capture" options={modal} />

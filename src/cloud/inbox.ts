@@ -156,7 +156,7 @@ if (typeof window !== 'undefined' && typeof window.location?.search === 'string'
  * The budget automatic payments go into: the one Apple Pay was set up in (it has a "Log to" account), so they
  * don't land in whichever budget happens to be open, e.g. the demo. Otherwise the open budget.
  */
-function inboxBudget(): BudgetData | undefined {
+export function inboxBudget(): BudgetData | undefined {
   const { budgets, activeBudgetId } = useStore.getState();
   const active = activeBudgetId ? budgets[activeBudgetId] : undefined;
   const hasPayAccount = (b: BudgetData) => !!b.settings.payAccountId && b.accounts.some((a) => a.id === b.settings.payAccountId && !a.closed);
@@ -165,6 +165,75 @@ function inboxBudget(): BudgetData | undefined {
     .filter(hasPayAccount)
     .sort((a, b) => (a.lastOpenedAt < b.lastOpenedAt ? 1 : -1))[0];
   return configured ?? active;
+}
+
+/** A logged payment: from the server inbox, or a notification the Android app kept on the phone. */
+export type InboxRow = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
+
+/**
+ * Saves payments as unapproved spending (category from the merchant's last use) in the auto-log budget. Returns how
+ * many were saved, how many were connection tests, and what to tell the user.
+ */
+export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: number; tests: number; notes: string[] } {
+  let imported = 0;
+  let tests = 0;
+  // Rows are already off the server once claimed, so never drop one silently.
+  let unreadable = 0;
+  let noAccount = 0;
+  for (const row of rows) {
+    if (row.merchant === TEST_MERCHANT) {
+      tests++;
+      continue;
+    }
+    // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
+    const wallet = readWalletPayment(row);
+    // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log. Same for a top-up or
+    // a declined payment.
+    if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) continue;
+    if (wallet?.kind === 'skip') continue;
+    // Money in (a friend's transfer, a refund) is logged as an inflow, not spending.
+    const sign = wallet?.kind === 'in' ? 1 : -1;
+    const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
+    const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
+    const cardName = wallet ? wallet.card : row.card === SCREENSHOT_CARD ? null : row.card;
+    // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
+    const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
+    if (!accountId) {
+      noAccount++;
+      continue;
+    }
+    // An amount we can't read is still logged (at 0, with what came through) so it can be fixed in Spending.
+    if (!amount) unreadable++;
+    const when = new Date(row.created_at);
+    const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
+    // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
+    const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
+    const via = wallet?.wallet ?? 'Apple Pay';
+    const merchant = (wallet ? wallet.merchant : row.merchant?.trim()) || (scanned ? 'Payment' : via);
+    // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
+    // suggestion matched to your categories.
+    const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
+    useStore.getState().saveTransaction(
+      {
+        accountId,
+        date,
+        amount: amount ? sign * amount : 0,
+        payeeName: merchant,
+        categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
+        memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, wallet?.kind === 'in' ? 'Money in' : '', wallet?.note ?? '', !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
+        cleared: 'uncleared',
+        approved: false,
+      },
+      data.id,
+    );
+    imported++;
+  }
+  const notes = [
+    imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically${data.id !== useStore.getState().activeBudgetId ? ` in “${data.name}”` : ''}. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
+    unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
+    noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
+  ].filter(Boolean);
+  return { imported, tests, notes };
 }
 
 /**
@@ -183,61 +252,7 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       if (/function .* does not exist|Could not find the function/i.test(error.message)) return { imported: 0, tests: 0, claimed: 0 };
       throw error;
     }
-    let imported = 0;
-    let tests = 0;
-    // Rows are already off the server once claimed, so never drop one silently.
-    let unreadable = 0;
-    let noAccount = 0;
-    type Row = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
-    for (const row of (rows ?? []) as Row[]) {
-      if (row.merchant === TEST_MERCHANT) {
-        tests++;
-        continue;
-      }
-      // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
-      const wallet = readWalletPayment(row);
-      // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log.
-      if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) continue;
-      const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
-      const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
-      const cardName = wallet ? wallet.card : row.card === SCREENSHOT_CARD ? null : row.card;
-      // Scans: the account the AI saw on screen if it matches one; otherwise the usual default.
-      const accountId = (scanned ? matchAccount(data, cardName) : null) ?? accountForCard(data, scanned ? null : cardName);
-      if (!accountId) {
-        noAccount++;
-        continue;
-      }
-      // An amount we can't read is still logged (at 0, with what came through) so it can be fixed in Spending.
-      if (!amount) unreadable++;
-      const when = new Date(row.created_at);
-      const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
-      // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
-      const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
-      const via = wallet?.wallet ?? 'Apple Pay';
-      const merchant = (wallet ? wallet.merchant : row.merchant?.trim()) || (scanned ? 'Payment' : via);
-      // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
-      // suggestion matched to your categories.
-      const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
-      useStore.getState().saveTransaction(
-        {
-          accountId,
-          date,
-          amount: amount ? -amount : 0,
-          payeeName: merchant,
-          categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
-          memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, wallet?.note ?? '', !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
-          cleared: 'uncleared',
-          approved: false,
-        },
-        data.id,
-      );
-      imported++;
-    }
-    const notes = [
-      imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically${data.id !== useStore.getState().activeBudgetId ? ` in “${data.name}”` : ''}. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
-      unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
-      noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
-    ].filter(Boolean);
+    const { imported, tests, notes } = savePayments(data, (rows ?? []) as InboxRow[]);
     if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     if (expectingSince && Date.now() - expectingSince < 120_000) {
       if (!(rows ?? []).length) notes.push('Nothing new here. Another device may have logged it; it’ll appear after syncing.');

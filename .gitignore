@@ -52,3 +52,6 @@ supabase/.temp/
 
 # Local Claude tool settings (machine-specific)
 .claude/
+
+# local native module build output
+modules/*/android/build/

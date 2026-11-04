@@ -8,8 +8,29 @@ import { parseAmountText } from './budgetCsv';
  * some versions put the wallet's own name in the title and the merchant in the text ("… at STARBUCKS").
  */
 
-/** `note`: for apps other than a wallet, what the notification says besides the amount (e.g. a SimplyGo trip). */
-export type WalletPayment = { wallet: string; amount: number; merchant: string | null; card: string | null; note?: string };
+/**
+ * `note`: for apps other than a wallet, what the notification says besides the amount (e.g. a SimplyGo trip).
+ * `kind`: 'in' for money coming in (a friend's transfer, a refund), 'skip' for nothing spent (a top-up, a declined
+ * payment); left out for an ordinary payment.
+ */
+export type WalletPayment = { wallet: string; amount: number; merchant: string | null; card: string | null; note?: string; kind?: 'in' | 'skip' };
+
+/** Money coming in: "Alex sent you $20", "You received S$20 from Alex", "Refund of $4.50", "$5 cashback credited". */
+const INCOMING = /\b(?:sent you|paid you|transferred (?:to )?you|you(?:'ve| have)? received|received (?:S?\$|[A-Z]{3}|from)|refund(?:ed)?|cash ?back|credited|incoming)\b/i;
+/** Nothing spent: moving your own money in (top-ups) or a payment that didn't go through. */
+const NOT_SPENT = /\b(?:top[- ]?up|topped up|reload(?:ed)?|declined|failed|unsuccessful|not (?:approved|completed)|cancell?ed|reversed)\b/i;
+
+function kindOf(text: string): WalletPayment['kind'] {
+  if (NOT_SPENT.test(text)) return 'skip';
+  if (INCOMING.test(text)) return 'in';
+  return undefined;
+}
+
+/** Who sent the money: "Alex sent you…" / "…from Alex". */
+function senderInText(text: string): string | null {
+  const m = text.match(/^(.+?)\s+(?:sent|paid|transferred)\s+you\b/i) ?? text.match(/\bfrom\s+(.+?)(?:\s+(?:via|on|to|with)\b|[.,\n]|$)/i);
+  return m?.[1].trim().slice(0, 60) || null;
+}
 
 const WALLET_NAME = /^(google wallet|google pay|g pay|wallet|samsung wallet|samsung pay|google play services)$/i;
 
@@ -61,7 +82,14 @@ function merchantInText(text: string): string | null {
 export function readWalletPayment(row: { amount: string | null; merchant: string | null; card: string | null }): WalletPayment | null {
   const f = forwarded(row.amount, row.card, row.merchant);
   if (!f) return null;
-  const title = row.merchant?.trim() ?? '';
+  const p = readForwarded(f, row.merchant?.trim() ?? '');
+  const kind = kindOf(`${row.merchant ?? ''} ${f.text}`);
+  if (!kind) return p;
+  // Money in: the sender (if named) rather than the wallet, and no SimplyGo-style memo trimming.
+  return { ...p, kind, merchant: kind === 'in' ? (senderInText(f.text) ?? p.merchant) : p.merchant };
+}
+
+function readForwarded(f: { wallet: string; text: string }, title: string): WalletPayment {
   const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);
   if (other) {
     // Another app (SimplyGo: "Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15"). The automation
