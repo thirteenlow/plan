@@ -9,7 +9,7 @@ import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, FieldRow, haptic, notify, Row, SectionTitle, Tap, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { requirePro } from '@/cloud/pro';
+import { isAndroidDevice, requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, scanPaymentUrl, scanScreenshot } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -37,6 +37,8 @@ export default function ScreenshotCaptureScreen() {
   const data = useActiveBudget();
   const status = useCloud((s) => s.status);
   const updateSettings = useStore((s) => s.updateSettings);
+  // One-tap (Triple Tap / Action Button) is an iPhone Shortcut; Android scans from Add transaction or here.
+  const [android] = useState(isAndroidDevice);
   const { colors } = useTheme();
   const params = useLocalSearchParams<{ step?: string }>();
   const [step, setStep] = useState(() => Math.max(0, Math.min(TOTAL - 1, Number(params.step) || 0)));
@@ -133,16 +135,18 @@ export default function ScreenshotCaptureScreen() {
             <Button title="Back" variant="soft" icon="chevron-back" style={{ flex: 1 }} onPress={() => setStep(step - 1)} />
             <Button title={isDone ? 'Done' : 'Next'} style={{ flex: 1.4 }} onPress={() => (isDone ? goBack() : setStep(step + 1))} />
           </Row>
-        ) : (
+        ) : android ? undefined : (
           <Button title={key ? 'Show me the iPhone steps' : 'Set up one-tap on iPhone'} loading={busy} onPress={() => void start()} />
         )
       }
     >
-      <Row style={{ gap: 5, marginBottom: 18 }}>
-        {Array.from({ length: TOTAL }, (_, i) => (
-          <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? colors.accent : colors.sunken }} />
-        ))}
-      </Row>
+      {!android && (
+        <Row style={{ gap: 5, marginBottom: 18 }}>
+          {Array.from({ length: TOTAL }, (_, i) => (
+            <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? colors.accent : colors.sunken }} />
+          ))}
+        </Row>
+      )}
 
       {step === 0 && (
         <View style={{ gap: 16 }}>
@@ -166,6 +170,15 @@ export default function ScreenshotCaptureScreen() {
             </Row>
             <Button title={test === 'sending' ? 'Reading…' : 'Choose image'} small variant="soft" icon="image-outline" loading={test === 'sending'} onPress={() => void runTest()} />
           </Card>
+          {android ? (
+            <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
+              <Ionicons name="flash-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
+              <Txt variant="caption" tone="soft" style={{ flex: 1 }}>
+                Quickest: tap + to add a transaction, then Scan receipt.
+              </Txt>
+            </Row>
+          ) : (
+            <>
           <SectionTitle title="One tap on iPhone" />
           <Card style={{ gap: 14 }}>
             {(
@@ -187,6 +200,8 @@ export default function ScreenshotCaptureScreen() {
               One tap needs iPhone 8 or later
             </Txt>
           </Row>
+            </>
+          )}
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
           </Card>

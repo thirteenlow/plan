@@ -34,7 +34,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · Android',
           chips: [],
-          where: 'Settings › Automation › Google Pay auto-log',
+          where: 'Set up in Settings › Automation › Google Pay auto-log',
           scene: 'wallet',
         },
         {
@@ -45,7 +45,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · Android',
           chips: [],
-          where: 'Settings › Automation › SimplyGo fare auto-log',
+          where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
         },
       ]
@@ -58,7 +58,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · iPhone iOS 17+',
           chips: [],
-          where: 'Settings › Automation › Apple Pay auto-log',
+          where: 'Set up in Settings › Automation › Apple Pay auto-log',
           scene: 'tap',
         },
         {
@@ -69,7 +69,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · iPhone iOS 27+',
           chips: [],
-          where: 'Settings › Automation › SimplyGo fare auto-log',
+          where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
         },
       ];
@@ -135,7 +135,7 @@ function slides(): Slide[] {
       tier: 'mixed',
       tierLabel: '3 free · every companion with Pro',
       chips: [],
-      where: 'Settings › Companion',
+      where: 'Pick one in Settings › Companion',
           scene: 'pets',
     },
     ...automation,
@@ -143,17 +143,17 @@ function slides(): Slide[] {
       key: 'scan',
       icon: 'scan-outline',
       title: 'Snap it, AI logs it',
-      text: 'Snap a receipt or screenshot a payment. AI fills in the rest.',
+      text: android ? 'Snap a receipt or screenshot a payment. AI fills in the rest.' : 'Snap a receipt, or triple-tap your iPhone on a payment screen. AI fills in the rest.',
       tier: 'pro',
       tierLabel: 'Pro · any device',
       chips: [],
-      where: 'Settings › Automation › AI receipt scan',
+      where: android ? 'Tap Scan receipt when adding a transaction' : 'Set up one tap in Settings › Automation › AI receipt scan',
           scene: 'scan',
     },
     {
       key: 'share',
       icon: 'people-outline',
-      where: 'Settings › Account & sharing',
+      where: 'Set up in Settings › Account & sharing',
       title: 'Budget together',
       text: 'Share with a partner or housemates. Keep separate budgets for anything.',
       tier: 'pro',
@@ -454,14 +454,14 @@ function SlideView({ slide, active, width, height }: { slide: Slide; active: boo
   );
 }
 
-/** Where to set the feature up later, e.g. "Settings › Companion". */
+/** Where to find the feature later, e.g. "Pick one in Settings › Companion". */
 function Where({ path }: { path: string }) {
   const { colors } = useTheme();
   return (
     <Row style={{ gap: 6, backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 6, maxWidth: 360 }}>
-      <Ionicons name="settings-outline" size={13} color={colors.textSoft} />
+      <Ionicons name={path.startsWith('Tap') ? 'add-circle-outline' : 'settings-outline'} size={13} color={colors.textSoft} />
       <Txt variant="caption" tone="soft" style={{ flexShrink: 1 }}>
-        Set up in {path}
+        {path}
       </Txt>
     </Row>
   );
