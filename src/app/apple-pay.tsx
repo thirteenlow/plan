@@ -20,9 +20,9 @@ const STEPS: { title: string; text: string }[] = [
   { title: 'Choose Wallet', text: 'Scroll down and tap Wallet.' },
   { title: 'Pick your cards', text: 'Tick your cards, choose Run Immediately, then Next.' },
   { title: 'Add the action', text: 'Tap Create New Shortcut, search “Get Contents of URL” and tap it.' },
-  { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
-  { title: 'Add the fields', text: 'Add a Text field for each row, named in lowercase. For amount, merchant and card, tap the value, pick Shortcut Input, tap it again and choose the item.' },
-  { title: 'Save', text: 'Tap ✓. Every Apple Pay tap now goes to Plan.' },
+  { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount, merchant and card, tap the value › Shortcut Input › the item.' },
+  { title: 'Save', text: 'Tap ✓. Done!' },
 ];
 
 const TOTAL = STEPS.length + 2; // intro + steps + test
@@ -89,7 +89,7 @@ export default function ApplePayScreen() {
       await sendTestPayment(key);
       const { tests } = await importPayments();
       setTest(tests > 0 ? 'ok' : 'failed');
-      if (!tests) setTestError('The test reached the server but didn’t come back. Pull down to refresh, then try again.');
+      if (!tests) setTestError('It reached the server but didn’t come back. Try again.');
       haptic(tests > 0 ? 'success' : 'warning');
     } catch (e) {
       setTest('failed');
@@ -98,7 +98,7 @@ export default function ApplePayScreen() {
   };
 
   const newKey = async () => {
-    if (!(await confirm('Make a new key?', 'Your current Shortcut will stop working until you paste the new key into its token field.', 'Make new key'))) return;
+    if (!(await confirm('Make a new key?', 'Your Shortcut stops working until you paste the new key into it.', 'Make new key'))) return;
     try {
       setKey(await createInboxKey());
       setTest('idle');
@@ -108,7 +108,7 @@ export default function ApplePayScreen() {
   };
 
   const turnOff = async () => {
-    if (!(await confirm('Turn off auto-logging?', 'Your Shortcut will stop working and anything still waiting is deleted. You can delete the automation in Shortcuts too.', 'Turn off', true))) return;
+    if (!(await confirm('Turn off auto-logging?', 'Your Shortcut stops working and anything waiting is deleted.', 'Turn off', true))) return;
     try {
       await removeInboxKey();
       setKey(null);
@@ -154,7 +154,7 @@ export default function ApplePayScreen() {
               Tap to pay, and it’s logged
             </Txt>
             <Txt tone="soft" center>
-              A Shortcuts automation sends each Apple Pay payment to Plan. Review it in Spending next time you open the app.
+              Every Apple Pay payment goes to Plan. Review it in Spending.
             </Txt>
             <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
@@ -166,13 +166,13 @@ export default function ApplePayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              For cards that don’t match an account name.
+              Used when a card doesn’t match an account name.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              Shortcuts can’t encrypt, so the amount, merchant and card wait on the server until Plan picks them up, then they’re deleted. Everything else stays encrypted.
+              The amount, merchant and card wait on the server unencrypted until Plan picks them up, then they’re deleted.
             </Txt>
           </Row>
           {!!key && (
@@ -240,10 +240,10 @@ export default function ApplePayScreen() {
             </Txt>
             <Txt tone="soft" center>
               {test === 'ok'
-                ? 'Plan got the test. Pay with Apple Pay and it’ll show up in Spending.'
+                ? 'Plan got it. Your next Apple Pay payment will show up in Spending.'
                 : test === 'failed'
                   ? testError
-                  : 'Sends a test payment to Plan. Nothing is added to your budget.'}
+                  : 'Sends a test to Plan. Nothing is added to your budget.'}
             </Txt>
             <Button title={test === 'ok' ? 'Test again' : 'Send a test'} variant="soft" icon="paper-plane-outline" onPress={() => void runTest()} />
           </Card>
@@ -252,12 +252,12 @@ export default function ApplePayScreen() {
           </Txt>
           <Card style={{ gap: 12 }}>
             {[
-              ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with Request Body JSON.'],
-              ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to on the first screen.'],
-              ['No merchant', 'Some payments don’t include one. They’re logged as “Apple Pay”.'],
-              ['Transit fares (SimplyGo)', 'Gantry taps have no amount yet, so they’re skipped. Set up Notification auto-log to log the fare when it’s charged.'],
-              ['Hide “Running your automation”', 'Open the automation in Shortcuts and turn off Notify When Run.'],
-              ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it; anything else says why not.'],
+              ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with JSON.'],
+              ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to.'],
+              ['No merchant', 'Some payments don’t have one. They’re logged as “Apple Pay”.'],
+              ['Bus and train taps', 'Skipped, since there’s no fare yet. Set up SimplyGo fare auto-log for those.'],
+              ['Hide “Running your automation”', 'In the automation, turn off Notify When Run.'],
+              ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it.'],
             ].map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>

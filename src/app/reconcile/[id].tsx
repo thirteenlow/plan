@@ -46,7 +46,7 @@ export default function ReconcileScreen() {
         </Txt>
         <Txt variant="display">{formatMoney(cleared)}</Txt>
         <Txt tone="soft" center style={{ maxWidth: 320, marginTop: 6 }}>
-          {step === 'ask' ? 'Does this match the balance your bank shows right now (excluding pending transactions)?' : `Enter the ${debt ? 'amount owed' : 'balance'} shown by your bank.`}
+          {step === 'ask' ? 'Does this match your bank balance (excluding pending)?' : `Enter the ${debt ? 'amount owed' : 'balance'} shown by your bank.`}
         </Txt>
       </Card>
 

@@ -359,7 +359,7 @@ export async function inviteMember(localId: string, email: string) {
   const { data, error } = await sb().rpc('find_profile_by_email', { p_email: email });
   if (error) throw error;
   const found = (data as { id: string; public_key: string }[])[0];
-  if (!found) throw new Error('No Plan account uses that email yet. Ask them to sign in to Plan once and set up encryption, then invite them again.');
+  if (!found) throw new Error('No Plan account uses that email yet. Ask them to sign in to Plan once, then invite them again.');
   if (found.id === user.id) throw new Error('That’s you — you already have access.');
   const wrapped = wrapKeyFor(unb64(meta.key), unb64(found.public_key), wrapContext(meta.remoteId, meta.keyVersion));
   const { error: insertError } = await sb()
@@ -388,7 +388,7 @@ async function rotateKey(localId: string) {
   const shared = sharedPart(local);
   const ciphertext = sealJSON(key, { ...shared, id: meta.remoteId }, aad(meta.remoteId, keyVersion));
   const { data: version, error } = await sb().rpc('push_budget', { p_id: meta.remoteId, p_expected: meta.version, p_ciphertext: ciphertext, p_key_version: keyVersion });
-  if (error) throw new Error('Someone saved changes at the same time. Pull to refresh and try removing them again.');
+  if (error) throw new Error('Someone else saved at the same time. Refresh and try again.');
   const members = await listMembers(localId);
   for (const m of members) {
     const wrapped = wrapKeyFor(key, unb64(m.public_key), wrapContext(meta.remoteId, keyVersion));

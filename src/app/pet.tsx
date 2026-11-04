@@ -150,7 +150,7 @@ export default function PetScreen() {
                 <View style={{ flex: 1 }}>
                   <Txt variant="strong">Show around the app</Txt>
                   <Txt variant="caption" tone="muted">
-                    Tap for a status, tap 3× or rub to tickle, drag to move it.
+                    Tap for a status, tap 3× to tickle, drag to move.
                   </Txt>
                 </View>
                 <Toggle label="Show around the app" value={!pet.hidden} onChange={(v) => updateSettings({ pet: { ...pet, hidden: !v } })} />
@@ -167,7 +167,7 @@ export default function PetScreen() {
               ))}
             </Card>
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Mood comes from this month: overspending, Ready to Assign, your spending pace against usual, targets, card debt and savings.
+              Its mood follows this month: overspending, spending pace, targets, card debt and savings.
             </Txt>
           </>
         )}

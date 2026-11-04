@@ -19,15 +19,15 @@ type Mode = 'backTap' | 'actionButton';
 
 const STEPS: { title: string; text: string; Mock: React.ComponentType }[] = [
   { title: 'New shortcut', text: 'Open Shortcuts, tap the Shortcuts tab, then +.', Mock: NewShortcutScreen },
-  { title: 'Add two actions', text: 'Search “Take Screenshot” and tap it. Then search “Get Contents of URL” and tap it.', Mock: AddActionsScreen },
-  { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, then set Method to POST and Request Body to Form.', Mock: ScanLinkScreen },
-  { title: 'Add the fields', text: 'Tap Add new field. token: choose Text and paste your key. image: choose File, tap the value and pick Screenshot. File only shows when Request Body is Form.', Mock: ScanFieldsScreen },
-  { title: 'Name it', text: 'Tap the name at the top, choose Rename, call it Scan Payment, then tap Done.', Mock: NameScreen },
+  { title: 'Add two actions', text: 'Search and add “Take Screenshot”, then “Get Contents of URL”.', Mock: AddActionsScreen },
+  { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to Form.', Mock: ScanLinkScreen },
+  { title: 'Add the fields', text: 'Add two fields. token: Text, paste your key. image: File, then pick Screenshot.', Mock: ScanFieldsScreen },
+  { title: 'Name it', text: 'Tap the name at the top › Rename. Call it Scan Payment.', Mock: NameScreen },
 ];
 
 const ACTIVATION: Record<Mode, { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; sub: string; text: string }> = {
   backTap: { label: 'Triple Tap', icon: 'hand-left-outline', sub: 'Tap the back of your iPhone', text: 'Settings › Accessibility › Touch › Back Tap › Triple Tap, then pick Scan Payment.' },
-  actionButton: { label: 'Action Button', icon: 'radio-button-on-outline', sub: 'Press the side button', text: 'Settings › Action Button, swipe to Shortcut, tap Choose a Shortcut and pick Scan Payment.' },
+  actionButton: { label: 'Action Button', icon: 'radio-button-on-outline', sub: 'Press the side button', text: 'Settings › Action Button › Shortcut, then pick Scan Payment.' },
 };
 
 const TOTAL = STEPS.length + 3; // intro + steps + activation + all set
@@ -58,7 +58,7 @@ export default function ScreenshotCaptureScreen() {
 
   const makeKey = async () => {
     if (status !== 'ready') {
-      notify('Sign in first', 'Screenshot capture works through your Plan account.');
+      notify('Sign in first', 'Scanning works through your Plan account.');
       return false;
     }
     if (!requirePro('screenshot')) return false;
@@ -160,7 +160,7 @@ export default function ScreenshotCaptureScreen() {
               <View style={{ flex: 1 }}>
                 <Txt variant="strong">Scan one now</Txt>
                 <Txt variant="caption" tone="soft">
-                  {testText ?? 'Upload a payment screenshot or a photo of a receipt. Works on any phone or computer.'}
+                  {testText ?? 'Upload a screenshot or receipt photo. Works on any device.'}
                 </Txt>
               </View>
             </Row>
@@ -170,7 +170,7 @@ export default function ScreenshotCaptureScreen() {
           <Card style={{ gap: 14 }}>
             {(
               [
-                ['hand-left-outline', 'Triple-tap the back of your iPhone (or press the Action Button) on any payment screen'],
+                ['hand-left-outline', 'Triple-tap the back of your iPhone on any payment screen'],
                 ['sparkles-outline', 'AI reads the amount and merchant'],
                 ['flash-outline', 'Logged to Plan instantly'],
               ] as const
@@ -184,7 +184,7 @@ export default function ScreenshotCaptureScreen() {
           <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
             <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
             <Txt variant="caption" tone="soft">
-              One-tap needs iPhone 8 or later · iOS 14+
+              One tap needs iPhone 8 or later
             </Txt>
           </Row>
           <Card style={{ gap: 4 }}>
@@ -193,7 +193,7 @@ export default function ScreenshotCaptureScreen() {
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              The image goes to Claude (Anthropic) to read, and is never stored. Only what it read (amount, merchant, date, a suggested category and the card used) waits on the server until Plan picks it up.
+              Claude (Anthropic) reads the image, and it’s never stored. Only the details it reads wait on the server until Plan picks them up.
             </Txt>
           </Row>
         </View>
@@ -295,15 +295,15 @@ export default function ScreenshotCaptureScreen() {
               {test === 'ok' ? 'It works' : test === 'failed' ? 'That didn’t work' : test === 'sending' ? 'Reading…' : 'Try a screenshot'}
             </Txt>
             <Txt tone="soft" center>
-              {testText ?? 'Pick a payment screenshot. It’s read and logged exactly like the Shortcut does.'}
+              {testText ?? 'Pick a payment screenshot to read and log.'}
             </Txt>
             <Button title={test === 'idle' ? 'Choose screenshot' : 'Try another'} variant="soft" icon="image-outline" disabled={!key || test === 'sending'} onPress={() => void runTest()} />
           </Card>
           <Card style={{ gap: 12 }}>
             {[
-              ['See what was read', 'Add a Show Notification action after Get Contents of URL and pick Contents of URL.'],
-              ['Screenshot too large', 'Add Convert Image (JPEG) between Take Screenshot and Get Contents of URL, then use Converted Image for image.'],
-              ['Nothing found', 'Trigger it on the screen that shows the amount, like the payment confirmation or receipt.'],
+              ['See what was read', 'Add Show Notification after Get Contents of URL.'],
+              ['Screenshot too large', 'Add Convert Image (JPEG) after Take Screenshot, and use it for image.'],
+              ['Nothing found', 'Use it on a screen that shows the amount.'],
             ].map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>

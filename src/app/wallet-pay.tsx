@@ -20,13 +20,13 @@ const AMOUNT_FILTER = String.raw`\d[.,]\d\d`;
 const STEPS: { title: string; text: string }[] = [
   { title: 'Get MacroDroid', text: 'Install it free from the Play Store and open it.' },
   { title: 'New macro', text: 'Tap Add Macro, then + in the red Triggers box.' },
-  { title: 'Choose Notification', text: 'Tap Device Events, then Notification. Allow notification access if asked.' },
-  { title: 'Pick your wallets', text: 'Choose Notification Received, then Select Applications. Tick Wallet (Google) or Samsung Wallet, then OK.' },
+  { title: 'Choose Notification', text: 'Tap Device Events › Notification. Allow access if asked.' },
+  { title: 'Pick your wallets', text: 'Choose Notification Received › Select Applications. Tick Wallet or Samsung Wallet, then OK.' },
   { title: 'Only payments', text: 'Choose Contains, paste the text below, tick Enable regex, then OK.' },
-  { title: 'Add the action', text: 'Tap + in the blue Actions box, then Web Interactions › HTTP Request.' },
-  { title: 'Paste the link', text: 'Set Request method to POST and paste the link below into URL.' },
-  { title: 'Paste the body', text: 'Open Content Body, set Content type to application/json, paste the text below, then tap ✓.' },
-  { title: 'Save', text: 'Name the macro and tap ✓. Every wallet tap now goes to Plan.' },
+  { title: 'Add the action', text: 'Tap + in the blue Actions box › Web Interactions › HTTP Request.' },
+  { title: 'Paste the link', text: 'Set Request method to POST. Paste the link below into URL.' },
+  { title: 'Paste the body', text: 'Open Content Body, set Content type to application/json and paste the text below. Tap ✓.' },
+  { title: 'Save', text: 'Name the macro and tap ✓. Done!' },
 ];
 
 const TOTAL = STEPS.length + 2; // intro + steps + test
@@ -93,7 +93,7 @@ export default function WalletPayScreen() {
       await sendTestPayment(key);
       const { tests } = await importPayments();
       setTest(tests > 0 ? 'ok' : 'failed');
-      if (!tests) setTestError('The test reached the server but didn’t come back. Pull down to refresh, then try again.');
+      if (!tests) setTestError('It reached the server but didn’t come back. Try again.');
       haptic(tests > 0 ? 'success' : 'warning');
     } catch (e) {
       setTest('failed');
@@ -112,7 +112,7 @@ export default function WalletPayScreen() {
   };
 
   const turnOff = async () => {
-    if (!(await confirm('Turn off auto-logging?', 'Your macro will stop working and anything still waiting is deleted. You can delete the macro in MacroDroid too.', 'Turn off', true))) return;
+    if (!(await confirm('Turn off auto-logging?', 'Your macro stops working and anything waiting is deleted.', 'Turn off', true))) return;
     try {
       await removeInboxKey();
       setKey(null);
@@ -158,7 +158,7 @@ export default function WalletPayScreen() {
               Tap to pay, and it’s logged
             </Txt>
             <Txt tone="soft" center>
-              A MacroDroid automation sends each Google or Samsung Wallet payment to Plan. Review it in Spending next time you open the app.
+              Every Google or Samsung Wallet payment goes to Plan. Review it in Spending.
             </Txt>
             <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Ionicons name="logo-android" size={13} color={colors.textSoft} />
@@ -170,13 +170,13 @@ export default function WalletPayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              For cards that don’t match an account name. Add the card’s last 4 digits to match (e.g. “DBS Visa 1234”).
+              Used when a card doesn’t match. Add its last 4 digits to an account name to match (e.g. “DBS Visa 1234”).
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              MacroDroid can’t encrypt, so the amount, merchant and card digits wait on the server until Plan picks them up, then they’re deleted. Everything else stays encrypted.
+              The amount, merchant and card digits wait on the server unencrypted until Plan picks them up, then they’re deleted.
             </Txt>
           </Row>
           {!!key && (
@@ -246,10 +246,10 @@ export default function WalletPayScreen() {
             </Txt>
             <Txt tone="soft" center>
               {test === 'ok'
-                ? 'Plan got the test. Tap to pay and it’ll show up in Spending.'
+                ? 'Plan got it. Your next tap will show up in Spending.'
                 : test === 'failed'
                   ? testError
-                  : 'Sends a test payment to Plan. Nothing is added to your budget.'}
+                  : 'Sends a test to Plan. Nothing is added to your budget.'}
             </Txt>
             <Button title={test === 'ok' ? 'Test again' : 'Send a test'} variant="soft" icon="paper-plane-outline" onPress={() => void runTest()} />
           </Card>
@@ -258,12 +258,12 @@ export default function WalletPayScreen() {
           </Txt>
           <Card style={{ gap: 12 }}>
             {[
-              ['Nothing shows up', 'Check MacroDroid has notification access, the macro is on, and your wallet’s payment notifications are on.'],
-              ['It stops after a while', 'Set MacroDroid’s battery use to Unrestricted in Android Settings › Apps.'],
-              ['Nothing from Google Wallet', 'On some phones it comes from Google Play services. Tick that in the trigger too.'],
-              ['Wrong account', 'Add the card’s last 4 digits to the account name (e.g. “DBS Visa 1234”), or change Log to on the first screen.'],
+              ['Nothing shows up', 'Check MacroDroid has notification access and your wallet’s notifications are on.'],
+              ['It stops after a while', 'Set MacroDroid’s battery use to Unrestricted in Settings › Apps.'],
+              ['Nothing from Google Wallet', 'Some phones send it as Google Play services. Tick that too.'],
+              ['Wrong account', 'Add the card’s last 4 digits to the account name, or change Log to.'],
               ['No decimals (¥, ₩)', 'Change the text to match to \\d.'],
-              ['See what happened', 'MacroDroid’s System Log shows each run and any error.'],
+              ['See what happened', 'MacroDroid’s System Log shows each run.'],
             ].map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>

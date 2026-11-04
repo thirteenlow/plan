@@ -83,7 +83,7 @@ export async function sendTestPayment(token: string) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
-      /pro required/i.test(text) ? 'Tap-to-pay auto-log needs Plan Pro.' : /invalid key/i.test(text) ? 'The key wasn’t accepted. Create a new one and update your automation.' : `The server said no (${res.status}).`,
+      /pro required/i.test(text) ? 'Auto-logging needs Plan Pro.' : /invalid key/i.test(text) ? 'Key not accepted. Make a new one and update your automation.' : `The server said no (${res.status}).`,
     );
   }
 }
@@ -240,7 +240,7 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
     ].filter(Boolean);
     if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     if (expectingSince && Date.now() - expectingSince < 120_000) {
-      if (!(rows ?? []).length) notes.push('Nothing new was waiting. If Plan is open on another device, it may have logged this payment there; it’ll appear here after syncing.');
+      if (!(rows ?? []).length) notes.push('Nothing new here. Another device may have logged it; it’ll appear after syncing.');
       expectingSince = 0;
       if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     }

@@ -28,13 +28,13 @@ function initialFrom(t: Target | undefined): { cadence: TargetCadence; behavior:
 
 const BEHAVIOR_HELP: Record<'repeating' | 'custom', Partial<Record<Behavior, [string | null, string]>>> = {
   repeating: {
-    setAside: ['Most people choose this', 'For bills, subscriptions and savings. Assigns the full amount every time, even if some is left over.'],
-    refill: [null, 'For groceries, fun money and dining out. Tops the category back up, so leftovers count toward next time.'],
+    setAside: ['Most people choose this', 'For bills and subscriptions. Assigns the full amount every time.'],
+    refill: [null, 'For groceries and fun money. Tops it back up, so leftovers count.'],
   },
   custom: {
-    setAside: ['Most people choose this', 'Assign this much in total by the due date. Spending along the way doesn’t set you back.'],
+    setAside: ['Most people choose this', 'Assign this much in total by the due date.'],
     refill: [null, 'Top the category up to this amount by the due date, replacing what you spend.'],
-    balance: [null, 'Save until the category holds this amount by the due date, e.g. for a big purchase.'],
+    balance: [null, 'Save up to this amount by the due date, e.g. for a big purchase.'],
   },
 };
 

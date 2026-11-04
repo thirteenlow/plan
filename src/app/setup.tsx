@@ -666,7 +666,7 @@ function FundStep({ onBack, onNext, stepNumber }: { onBack: () => void; onNext: 
         )}
       </GradientCard>
       <Txt tone="soft" style={{ marginTop: 14 }}>
-        {available > 0 ? 'Fund what’s due soonest first: bills, then everyday spending, then goals.' : 'No money to assign yet. Add an account, or skip and come back when you’re paid.'}
+        {available > 0 ? 'Start with what’s due soonest: bills, then everyday, then goals.' : 'Nothing to assign yet. Add an account, or skip for now.'}
       </Txt>
 
       {groups.map(({ group, categories }) => (

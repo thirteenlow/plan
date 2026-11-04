@@ -191,7 +191,7 @@ export default function ShareBudgetScreen() {
           style={{ marginTop: 22 }}
           loading={busy === 'stop'}
           onPress={async () => {
-            if (await confirm('Stop sharing', 'Deletes the cloud copy for everyone. Each person keeps their own copy, but it stops syncing.', 'Stop sharing', true)) {
+            if (await confirm('Stop sharing', 'Deletes the shared copy. Everyone keeps their own, but it stops syncing.', 'Stop sharing', true)) {
               await run('stop', () => stopSharing(id));
             }
           }}

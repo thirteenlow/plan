@@ -60,7 +60,7 @@ export default function AccountEditScreen() {
         const effect = !to.onBudget
           ? 'It will be tracked for net worth only and leave your budget.'
           : to.credit
-            ? 'It gets a credit card payment category, and its starting balance becomes card debt to plan for.'
+            ? 'Its balance becomes card debt to plan for.'
             : 'Its balance will count as money in your budget (Ready to Assign).';
         if (!(await confirm(`Change to ${to.label}?`, effect, 'Change type'))) return;
       }
@@ -160,7 +160,7 @@ export default function AccountEditScreen() {
             <Txt variant="caption" tone="muted" style={{ marginTop: 6, marginHorizontal: 4 }}>
               {newWorking !== working
                 ? `Saving adds a ${formatMoney(newWorking - working, { sign: true })} balance adjustment${info.onBudget && !info.credit ? ' (from Ready to Assign)' : ''}.`
-                : 'Change this to match your bank. An adjustment transaction is added for the difference.'}
+                : 'Match your bank. The difference is added as an adjustment.'}
             </Txt>
           </View>
         )}

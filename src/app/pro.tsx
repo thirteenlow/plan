@@ -170,8 +170,8 @@ export default function ProScreen() {
                   : plan === 'trial'
                     ? `Everything is unlocked until ${until}. Keep it going with Pro.`
                     : phone
-                      ? `${apple ? 'Apple Pay' : 'Wallet taps'}, payment notifications and screenshots log themselves, budgets are shared, and every companion is yours.`
-                      : 'AI logs receipts for you, budgets are shared, and every companion is yours.'}
+                      ? `${apple ? 'Apple Pay' : 'Wallet taps'}, fares and receipts log themselves. Share budgets and unlock every companion.`
+                      : 'AI logs receipts. Share budgets and unlock every companion.'}
               </Txt>
             </View>
             <Row style={{ marginLeft: 8 }}>
@@ -185,7 +185,7 @@ export default function ProScreen() {
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="information-circle-outline" size={18} color={colors.accent} style={{ marginTop: 1 }} />
             <Txt variant="caption" tone="soft" style={{ flex: 1 }}>
-              Tap-to-pay and notification auto-log run on your phone, but everything else in Pro works on computers too, including AI receipt scanning.
+              Auto-logging needs your phone. Everything else in Pro works here too.
             </Txt>
           </Row>
         )}
@@ -198,7 +198,7 @@ export default function ProScreen() {
               <Txt variant="strong">{sub.cancelAtPeriodEnd ? `Pro features until ${endsOn}` : `Renews on ${endsOn}`}</Txt>
               <Txt variant="caption" tone="muted">
                 {sub.cancelAtPeriodEnd
-                  ? 'Cancelled. You won’t be charged again, and you can resume anytime before then.'
+                  ? 'Cancelled. You won’t be charged again. Resume anytime before then.'
                   : `${sub.priceLabel ? `${sub.priceLabel} · ` : ''}Cancel anytime, and Pro stays on until the end of the period.`}
               </Txt>
             </View>
@@ -212,7 +212,7 @@ export default function ProScreen() {
             <View style={{ flex: 1 }}>
               <Txt variant="strong">Pro until {until}</Txt>
               <Txt variant="caption" tone="muted">
-                Your subscription is cancelled. Resubscribe and you won’t be charged until then.
+                Cancelled. Resubscribe and you won’t be charged until then.
               </Txt>
             </View>
           </Card>

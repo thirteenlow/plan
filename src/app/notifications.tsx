@@ -87,7 +87,7 @@ export default function NotificationsScreen() {
                 Add Plan to your Home Screen first
               </Txt>
               <Txt tone="soft" center>
-                On iPhone, notifications work from the Home Screen app (iOS 16.4 or later). In Safari, tap Share, then Add to Home Screen. Open Plan from there and come back here.
+                On iPhone, add Plan to your Home Screen first: in Safari, tap Share › Add to Home Screen. Then open it from there.
               </Txt>
             </>
           ) : status === 'unsupported' ? (
@@ -96,7 +96,7 @@ export default function NotificationsScreen() {
                 Not available here
               </Txt>
               <Txt tone="soft" center>
-                This browser can’t show notifications. Try Chrome, Edge, Firefox or Safari, or the Home Screen app on iPhone.
+                This browser can’t show notifications. Try Chrome, Edge, Firefox or Safari.
               </Txt>
             </>
           ) : status === 'denied' ? (
@@ -105,7 +105,7 @@ export default function NotificationsScreen() {
                 Notifications are blocked
               </Txt>
               <Txt tone="soft" center>
-                Allow notifications for Plan in your browser or phone settings, then come back here.
+                Allow notifications for Plan in your settings, then come back.
               </Txt>
               <Button title="Check again" small variant="soft" onPress={refresh} />
             </>
@@ -115,7 +115,7 @@ export default function NotificationsScreen() {
                 Notifications are on
               </Txt>
               <Txt tone="soft" center>
-                Reminders come to this device. Turn them on on your other devices too.
+                Reminders come to this device only. Turn them on on others too.
               </Txt>
               <Button title="Turn off" small variant="soft" loading={busy} onPress={() => void turnOff()} />
             </>
@@ -125,7 +125,7 @@ export default function NotificationsScreen() {
                 Gentle reminders, only when useful
               </Txt>
               <Txt tone="soft" center>
-                Bills, payments to review, money to assign and a daily nudge. Pick exactly which ones below.
+                Bills, payments to review, money to assign and a daily nudge. Pick which below.
               </Txt>
               <Button title={signedIn ? 'Turn on notifications' : 'Sign in to turn on'} icon="notifications-outline" loading={busy} onPress={() => (signedIn ? void turnOn() : router.push('/account'))} />
               {!pushConfigured() && (
@@ -202,7 +202,7 @@ export default function NotificationsScreen() {
               <View style={{ flex: 1 }}>
                 <Txt variant="strong">Show amounts and names</Txt>
                 <Txt variant="caption" tone="muted">
-                  Off: notifications say “A bill is due tomorrow” without details, so nothing private shows on your lock screen or reaches the server.
+                  Off: they just say “A bill is due tomorrow”, so nothing private shows on your lock screen.
                 </Txt>
               </View>
               <Toggle label="Show amounts and names" value={prefs.details} onChange={(v) => update({ details: v })} />

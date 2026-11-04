@@ -683,11 +683,11 @@ function DeleteAccount() {
         Delete your account
       </Txt>
       <Txt tone="soft">
-        Deletes your account and every budget you own, for everyone you shared them with, and clears this device. This can’t be undone.
+        Deletes your account and every budget you own, for everyone you shared them with. This can’t be undone.
       </Txt>
       {pro && (
         <Txt tone="soft">
-          Your Pro subscription is cancelled too, so you won’t be charged again. Pro stays on until the end of the period you paid for.
+          Your Pro subscription is cancelled too. You won’t be charged again.
         </Txt>
       )}
       <TextField label="Type DELETE to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} maxLength={10} error={err} />
