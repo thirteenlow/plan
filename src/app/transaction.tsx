@@ -6,7 +6,6 @@ import { ActivityIndicator, Image, TextInput, View } from 'react-native';
 import { useCloud } from '@/cloud/cloudStore';
 import { readReceipt } from '@/cloud/inbox';
 import { matchAccount, matchCategory, payeeCategory, scanHints } from '@/utils/scanMatch';
-import { requirePro, useIsPro } from '@/cloud/pro';
 import { CalendarSheet } from '@/components/Calendar';
 import { useCalculator, useInputRef } from '@/components/Calculator';
 import { Screen } from '@/components/Screen';
@@ -234,10 +233,9 @@ export default function TransactionScreen() {
   // Scan receipt: AI reads a photo or screenshot and fills in the form; the image is kept as the receipt photo.
   const [scanning, setScanning] = useState(false);
   const cloudReady = useCloud((s) => s.status === 'ready');
-  const pro = useIsPro();
   const startScan = () => {
     if (!cloudReady) return notify('Sign in first', 'Receipt scanning works through your Plan account.');
-    if (requirePro('screenshot')) setPicker({ kind: 'scan' });
+    setPicker({ kind: 'scan' });
   };
   const scanReceipt = async (source: 'camera' | 'library') => {
     setPicker(null);
@@ -448,13 +446,6 @@ export default function TransactionScreen() {
           <Txt variant="label" tone="accent">
             {scanning ? 'Reading…' : 'Scan receipt'}
           </Txt>
-          {!pro && (
-            <View style={{ backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
-              <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
-                PRO
-              </Txt>
-            </View>
-          )}
         </Tap>
       )}
       <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: RADIUS.pill, paddingHorizontal: 30, marginVertical: 22, minWidth: 220, justifyContent: 'center' }}>

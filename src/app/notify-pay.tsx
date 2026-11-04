@@ -10,7 +10,7 @@ import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, Divider, FieldRow, haptic, notify, Row, TextField, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
 import { accountForCard, appNotificationBody, createInboxKey, getInboxKey, importPayments, logPaymentUrl, sendTestPayment } from '@/cloud/inbox';
-import { isAndroidDevice, requirePro } from '@/cloud/pro';
+import { isAndroidDevice } from '@/utils/device';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
 import { goBack } from '@/utils/nav';
@@ -81,7 +81,6 @@ export default function NotifyPayScreen() {
       notify('Sign in first', 'Auto-logging works through your Plan account.');
       return false;
     }
-    if (!requirePro('notifyPay')) return false;
     if (key) return true;
     setBusy(true);
     try {

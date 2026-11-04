@@ -88,7 +88,6 @@ export default function RootLayout() {
           <Stack.Screen name="notify-pay" options={modal} />
           <Stack.Screen name="screenshot-capture" options={modal} />
           <Stack.Screen name="pet" options={modal} />
-          <Stack.Screen name="pro" options={modal} />
           <Stack.Screen name="notifications" options={modal} />
           <Stack.Screen name="move-money" options={modal} />
           <Stack.Screen name="reconcile/[id]" options={modal} />

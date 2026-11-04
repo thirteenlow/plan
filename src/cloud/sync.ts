@@ -8,7 +8,6 @@ import { isValidBudget } from '@/utils/validation';
 import { friendlyError, useCloud } from './cloudStore';
 import { getIdentity } from './identity';
 import { syncReminders } from '@/notifications/reminders';
-import { refreshPlan, usePlan } from './pro';
 import { deepEqual, mergeBudgets, type SharedBudget, sharedPart, withPersonal } from './merge';
 import { importPayments } from './inbox';
 import { pullPersonal, resetPersonal, schedulePersonalPush } from './personal';
@@ -119,7 +118,6 @@ export function startSync() {
 
 export function stopSync() {
   running = false;
-  usePlan.setState({ plan: 'free', expiresAt: null });
   unsubscribeStore?.();
   unsubscribeStore = null;
   if (channel) void getSupabase()?.removeChannel(channel);
@@ -182,8 +180,6 @@ function applyRemote(fn: () => void) {
 
 export async function pullAll() {
   if (!running) return;
-  // Pro is granted on the server; pick up changes on every sync.
-  void refreshPlan();
   try {
     const { user } = me();
     useCloud.setState({ syncing: true, error: null });

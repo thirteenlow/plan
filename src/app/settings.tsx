@@ -7,15 +7,15 @@ import { signOutEverywhereOnDevice } from '@/cloud';
 import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
 import { Sheet } from '@/components/Sheet';
-import { Button, Card, confirm, Divider, GradientCard, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
+import { Button, Card, confirm, Divider, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
 import { nativeAutoLog } from '@/cloud/nativePayments';
-import { isAndroidDevice, requirePro, usePlan } from '@/cloud/pro';
+import { isAndroidDevice } from '@/utils/device';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
 import { LIMITS } from '@/utils/validation';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { ThemePref } from '@/store/types';
-import { RADIUS, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { shortDate, today } from '@/utils/date';
 import { exportBudget, pickImport } from '@/utils/importExport';
 import { formatMoney } from '@/utils/money';
@@ -23,7 +23,6 @@ import type { IconName } from '@/utils/icons';
 
 export default function SettingsScreen() {
   const data = useActiveBudget();
-  const { colors } = useTheme();
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -57,41 +56,9 @@ export default function SettingsScreen() {
   };
 
   const unapproved = data.transactions.filter((t) => !t.approved).length;
-  const { plan, expiresAt } = usePlan();
-  const pro = plan !== 'free';
-  const planUntil = expiresAt ? shortDate(expiresAt.slice(0, 10), data.settings.dateFormat) : null;
 
   return (
     <Screen back="back" title="Settings">
-      {pro ? (
-        // Pro members get a membership card instead of an upgrade row.
-        <Tap scale accessibilityRole="button" accessibilityLabel="Plan Pro membership" onPress={() => router.push('/pro')} style={{ marginTop: 18 }}>
-          <GradientCard style={{ padding: 18 }}>
-            <Row style={{ gap: 14 }}>
-              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="sparkles" size={22} color={colors.onGradient} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt variant="label" style={{ color: colors.onGradient, opacity: 0.85 }}>
-                  {plan === 'trial' ? 'PRO TRIAL' : 'PRO MEMBER'}
-                </Txt>
-                <Txt variant="h3" style={{ color: colors.onGradient }}>
-                  Plan Pro
-                </Txt>
-                <Txt variant="caption" style={{ color: colors.onGradient, opacity: 0.9 }}>
-                  {plan === 'trial' ? (planUntil ? `Trial ends ${planUntil}` : 'Trial active') : planUntil ? `Active until ${planUntil}` : 'Active · no end date'}
-                </Txt>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.onGradient} />
-            </Row>
-          </GradientCard>
-        </Tap>
-      ) : (
-        <Group title="Plan Pro">
-          <Item icon="sparkles-outline" label="Plan Pro" value="Upgrade" onPress={() => router.push('/pro')} />
-        </Group>
-      )}
-
       <Group title="Budget">
         <Item icon="albums-outline" label="Budgets" value={data.name} onPress={() => router.push('/budgets')} />
         <Item icon="grid-outline" label="Categories & groups" value={`${data.categories.length}`} onPress={() => router.push('/categories')} />
@@ -137,19 +104,19 @@ export default function SettingsScreen() {
       <Group title="Automation">
         {nativeAutoLog() ? (
           // The Android app reads notifications itself: one screen for wallets and SimplyGo.
-          <Item icon="phone-portrait-outline" label="Payment auto-log" value="Wallet · SimplyGo" pro={!pro} onPress={() => router.push('/auto-log')} />
+          <Item icon="phone-portrait-outline" label="Payment auto-log" value="Wallet · SimplyGo" onPress={() => router.push('/auto-log')} />
         ) : isAndroidDevice() ? (
           <>
-            <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
-            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="Android" pro={!pro} onPress={() => requirePro('notifyPay') && router.push('/notify-pay')} />
+            <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" onPress={() => router.push('/wallet-pay')} />
+            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="Android" onPress={() => router.push('/notify-pay')} />
           </>
         ) : (
           <>
-            <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
-            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="iPhone · iOS 27+" pro={!pro} onPress={() => requirePro('notifyPay') && router.push('/notify-pay')} />
+            <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" onPress={() => router.push('/apple-pay')} />
+            <Item icon="bus-outline" label="SimplyGo fare auto-log" value="iPhone · iOS 27+" onPress={() => router.push('/notify-pay')} />
           </>
         )}
-        <Item icon="scan-outline" label="AI receipt scan" value="Any device" pro={!pro} onPress={() => requirePro('screenshot') && router.push('/screenshot-capture')} />
+        <Item icon="scan-outline" label="AI receipt scan" value="Any device" onPress={() => router.push('/screenshot-capture')} />
       </Group>
 
       <Group title="Data">
@@ -219,7 +186,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Item({ icon, label, value, onPress, pro }: { icon: IconName; label: string; value?: string; onPress?: () => void; pro?: boolean }) {
+function Item({ icon, label, value, onPress }: { icon: IconName; label: string; value?: string; onPress?: () => void }) {
   const { colors } = useTheme();
   return (
     <Tap onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 }}>
@@ -229,13 +196,6 @@ function Item({ icon, label, value, onPress, pro }: { icon: IconName; label: str
       <Txt variant="body" style={{ flex: 1 }}>
         {label}
       </Txt>
-      {pro && (
-        <View style={{ backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 7, paddingVertical: 1 }}>
-          <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
-            PRO
-          </Txt>
-        </View>
-      )}
       {!!value && (
         <Txt variant="caption" tone="muted" numberOfLines={1} style={{ maxWidth: '45%' }}>
           {value}

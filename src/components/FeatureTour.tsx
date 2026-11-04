@@ -6,18 +6,18 @@ import { BrandMark } from '@/components/BrandMark';
 import { PixelPet } from '@/components/PixelPet';
 import { Screen } from '@/components/Screen';
 import { Button, haptic, Row, Txt } from '@/components/ui';
-import { isAndroidDevice, isAppleDevice } from '@/cloud/pro';
+import { isAndroidDevice, isAppleDevice } from '@/utils/device';
 import type { PetKind } from '@/store/types';
 import { GRADIENT, RADIUS, useTheme } from '@/theme';
 
 /*
  * The first thing a new account sees: a swipeable tour of what Plan can do, each slide with its own small
- * animation, marking what's free and what needs Pro. Automation shows what works on this device.
+ * animation. Everything is free; automation shows what works on this device.
  */
 
 const native = Platform.OS !== 'web';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
-type Tier = 'free' | 'pro' | 'mixed';
+type Tier = 'free';
 type Chip = { icon: IconName; label: string };
 type Slide = { key: string; icon: IconName; title: string; text: string; tier: Tier; tierLabel?: string; where?: string; chips: Chip[]; scene?: 'brand' | 'pets' | 'tap' | 'notify' | 'wallet' | 'scan' };
 
@@ -31,8 +31,8 @@ function slides(): Slide[] {
           icon: 'phone-portrait-outline',
           title: 'Tap to pay, it’s logged',
           text: 'Pay with Google or Samsung Wallet. It’s in your budget before you put your phone away.',
-          tier: 'pro',
-          tierLabel: 'Pro · Android',
+          tier: 'free',
+          tierLabel: 'Free · Android',
           chips: [],
           where: 'Set up in Settings › Automation › Google Pay auto-log',
           scene: 'wallet',
@@ -42,8 +42,8 @@ function slides(): Slide[] {
           icon: 'notifications-outline',
           title: 'Bus and train fares, logged',
           text: 'Tap through the gantry as usual. When SimplyGo sends your Trip Fare Alert, Plan logs the exact fare.',
-          tier: 'pro',
-          tierLabel: 'Pro · Android',
+          tier: 'free',
+          tierLabel: 'Free · Android',
           chips: [],
           where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
@@ -55,8 +55,8 @@ function slides(): Slide[] {
           icon: 'phone-portrait-outline',
           title: 'Tap to pay, it’s logged',
           text: apple ? 'Pay with Apple Pay. It’s in your budget before you put your phone away.' : 'Every Apple Pay or Google Wallet tap goes straight into your budget.',
-          tier: 'pro',
-          tierLabel: 'Pro · iPhone iOS 17+',
+          tier: 'free',
+          tierLabel: 'Free · iPhone iOS 17+',
           chips: [],
           where: 'Set up in Settings › Automation › Apple Pay auto-log',
           scene: 'tap',
@@ -66,8 +66,8 @@ function slides(): Slide[] {
           icon: 'notifications-outline',
           title: 'Bus and train fares, logged',
           text: 'Tap through the gantry as usual. When SimplyGo sends your Trip Fare Alert, Plan logs the exact fare.',
-          tier: 'pro',
-          tierLabel: 'Pro · iPhone iOS 27+',
+          tier: 'free',
+          tierLabel: 'Free · iPhone iOS 27+',
           chips: [],
           where: 'Set up in Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
@@ -132,8 +132,8 @@ function slides(): Slide[] {
       icon: 'paw',
       title: 'Meet your companion',
       text: 'A little pet that cheers you on. Happiest when your budget’s on track.',
-      tier: 'mixed',
-      tierLabel: '3 free · every companion with Pro',
+      tier: 'free',
+      tierLabel: 'Free · every companion',
       chips: [],
       where: 'Pick one in Settings › Companion',
           scene: 'pets',
@@ -144,8 +144,8 @@ function slides(): Slide[] {
       icon: 'scan-outline',
       title: 'Snap it, AI logs it',
       text: android ? 'Snap a receipt or screenshot a payment. AI fills in the rest.' : 'Snap a receipt, or triple-tap your iPhone on a payment screen. AI fills in the rest.',
-      tier: 'pro',
-      tierLabel: 'Pro · any device',
+      tier: 'free',
+      tierLabel: 'Free · any device',
       chips: [],
       where: android ? 'Tap Scan receipt when adding a transaction' : 'Set up one tap in Settings › Automation › AI receipt scan',
           scene: 'scan',
@@ -156,7 +156,7 @@ function slides(): Slide[] {
       where: 'Set up in Settings › Account & sharing',
       title: 'Budget together',
       text: 'Share with a partner or housemates. Keep separate budgets for anything.',
-      tier: 'pro',
+      tier: 'free',
       chips: [
         { icon: 'person-outline', label: 'You' },
         { icon: 'heart-outline', label: 'Partner' },
@@ -215,21 +215,10 @@ function useStory(active: boolean, ms = 3200) {
 
 function TierBadge({ tier, label }: { tier: Tier; label?: string }) {
   const { colors } = useTheme();
-  if (tier === 'pro') {
-    return (
-      <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 5 }}>
-        <Ionicons name="sparkles" size={12} color={colors.onGradient} />
-        <Txt variant="label" style={{ color: colors.onGradient }}>
-          {label ?? 'Pro'}
-        </Txt>
-      </LinearGradient>
-    );
-  }
-  const mixed = tier === 'mixed';
   return (
-    <Row style={{ gap: 5, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: mixed ? colors.accentSoft : colors.positiveSoft }}>
-      <Ionicons name={mixed ? 'sparkles-outline' : 'checkmark-circle'} size={12} color={mixed ? colors.accent : colors.positive} />
-      <Txt variant="label" style={{ color: mixed ? colors.accent : colors.positive }}>
+    <Row style={{ gap: 5, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: colors.positiveSoft }}>
+      <Ionicons name="checkmark-circle" size={12} color={colors.positive} />
+      <Txt variant="label" style={{ color: colors.positive }}>
         {label ?? 'Free'}
       </Txt>
     </Row>
@@ -280,14 +269,7 @@ function PetsScene({ active }: { active: boolean }) {
     const t = setInterval(() => setFrame((f) => (f ? 0 : 1)), 520);
     return () => clearInterval(t);
   }, [active]);
-  const pets: { kind: PetKind; pro: boolean }[] = [
-    { kind: 'cat', pro: false },
-    { kind: 'dog', pro: false },
-    { kind: 'bunny', pro: false },
-    { kind: 'fox', pro: true },
-    { kind: 'panda', pro: true },
-    { kind: 'penguin', pro: true },
-  ];
+  const pets: { kind: PetKind }[] = [{ kind: 'cat' }, { kind: 'dog' }, { kind: 'bunny' }, { kind: 'fox' }, { kind: 'panda' }, { kind: 'penguin' }];
   const { colors } = useTheme();
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14, maxWidth: 300 }}>
@@ -297,16 +279,9 @@ function PetsScene({ active }: { active: boolean }) {
         const bob = float.interpolate({ inputRange: [0, 1], outputRange: i % 2 ? [0, -8] : [-8, 0] });
         return (
           <Animated.View key={p.kind} style={{ alignItems: 'center', opacity: s, transform: [{ scale: s }, { translateY: bob }] }}>
-            <View style={{ width: 78, height: 78, borderRadius: 24, backgroundColor: p.pro ? colors.accentSoft : colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 78, height: 78, borderRadius: 24, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
               <PixelPet kind={p.kind} mood={i % 3 ? 'happy' : 'thriving'} size={56} frame={frame} />
             </View>
-            {p.pro && (
-              <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
-                <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
-                  PRO
-                </Txt>
-              </View>
-            )}
           </Animated.View>
         );
       })}

@@ -153,7 +153,6 @@ Deno.serve(async (req) => {
   if (error || !uid) {
     const msg = error?.message ?? '';
     if (/invalid key/.test(msg)) return reply(401, { error: 'Key not accepted. Copy the key from Plan again.' });
-    if (/pro required/.test(msg)) return reply(402, { error: 'Screenshot capture needs Plan Pro.' });
     if (/limit|full/.test(msg)) return reply(429, { error: msg.charAt(0).toUpperCase() + msg.slice(1) + '.' });
     console.error('begin_scan', msg);
     return reply(500, { error: 'Server error.' });

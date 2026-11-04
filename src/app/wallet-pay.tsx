@@ -8,7 +8,6 @@ import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, confirm, FieldRow, haptic, notify, Row, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, removeInboxKey, sendTestPayment, walletNotificationBody } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -57,7 +56,6 @@ export default function WalletPayScreen() {
 
   const makeKey = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
-    if (!requirePro('applePay')) return;
     setBusy(true);
     try {
       setKey(await createInboxKey());
@@ -70,7 +68,6 @@ export default function WalletPayScreen() {
 
   const start = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
-    if (!requirePro('applePay')) return;
     if (!key) {
       setBusy(true);
       try {

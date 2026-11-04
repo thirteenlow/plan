@@ -83,7 +83,7 @@ export async function sendTestPayment(token: string) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
-      /pro required/i.test(text) ? 'Auto-logging needs Plan Pro.' : /invalid key/i.test(text) ? 'Key not accepted. Make a new one and update your automation.' : `The server said no (${res.status}).`,
+      /invalid key/i.test(text) ? 'Key not accepted. Make a new one and update your automation.' : `The server said no (${res.status}).`,
     );
   }
 }

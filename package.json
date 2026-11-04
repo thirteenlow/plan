@@ -10,7 +10,6 @@
     "@noble/hashes": "^2.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@scure/base": "^2.4.0",
-    "@stripe/stripe-js": "^10.2.0",
     "@supabase/supabase-js": "^2.118.0",
     "expo": "~58.0.21",
     "expo-apple-authentication": "~58.0.2",

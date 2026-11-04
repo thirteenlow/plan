@@ -9,7 +9,7 @@ import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, FieldRow, haptic, notify, Row, SectionTitle, Tap, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { isAndroidDevice, requirePro } from '@/cloud/pro';
+import { isAndroidDevice } from '@/utils/device';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, scanPaymentUrl, scanScreenshot } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -63,7 +63,6 @@ export default function ScreenshotCaptureScreen() {
       notify('Sign in first', 'Scanning works through your Plan account.');
       return false;
     }
-    if (!requirePro('screenshot')) return false;
     setBusy(true);
     try {
       setKey(await createInboxKey());
@@ -77,7 +76,6 @@ export default function ScreenshotCaptureScreen() {
   };
 
   const start = async () => {
-    if (!requirePro('screenshot')) return;
     if (!key && !(await makeKey())) return;
     haptic();
     setStep(1);
@@ -85,7 +83,6 @@ export default function ScreenshotCaptureScreen() {
 
   /** Pick a screenshot or receipt photo and scan it, exactly like the Shortcut does. Works on any device. */
   const runTest = async () => {
-    if (!requirePro('screenshot')) return;
     let token = key;
     if (!token) {
       if (!(await makeKey())) return;

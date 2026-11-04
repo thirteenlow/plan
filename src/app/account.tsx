@@ -12,7 +12,6 @@ import { completeUnlock, deleteAccount, recoverWithOldPassword, resetEncryption,
 import { nativeAppleAvailable, PASSWORD_RULES, sendResetCode, setAccountPassword, signInWithAppleNative, signInWithEmail, signInWithProvider, signUpWithEmail, strongPassword, verifyResetCode } from '@/cloud/auth';
 import { friendlyError, useCloud } from '@/cloud/cloudStore';
 import { APPLE_SIGN_IN_ENABLED, cloudConfigured } from '@/cloud/config';
-import { usePlan } from '@/cloud/pro';
 import { pullAll, removeLockedBudgets } from '@/cloud/sync';
 import { useStore } from '@/store/store';
 import { GRADIENT_SOFT, RADIUS, useTheme } from '@/theme';
@@ -675,7 +674,6 @@ function DeleteAccount() {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const pro = usePlan((p) => p.plan === 'pro' && p.managed);
   if (!open) return <Button title="Delete account" variant="danger" icon="trash-outline" style={{ marginTop: 10 }} onPress={() => setOpen(true)} />;
   return (
     <Card style={{ marginTop: 10, gap: 10 }}>
@@ -685,11 +683,6 @@ function DeleteAccount() {
       <Txt tone="soft">
         Deletes your account and every budget you own, for everyone you shared them with. This can’t be undone.
       </Txt>
-      {pro && (
-        <Txt tone="soft">
-          Your Pro subscription is cancelled too. You won’t be charged again.
-        </Txt>
-      )}
       <TextField label="Type DELETE to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} maxLength={10} error={err} />
       <Row style={{ gap: 10 }}>
         <Button title="Cancel" variant="outline" style={{ flex: 1 }} onPress={() => setOpen(false)} />

@@ -11,9 +11,6 @@ MacroDroid is needed.
 2. **12 testers for 14 days.** Personal accounts made after 13 Nov 2023 must run a closed test with at least 12 people
    opted in for 14 days in a row before they can publish. Line up 15–20 friends with Android phones and Gmail
    addresses.
-3. **Paying for Pro.** Google Play doesn't allow selling a subscription in the app through Stripe (outside the US and
-   EEA programmes). Before submitting, the Android app should hide Plan Pro's purchase and price, so people buy it
-   on the web and sign in. Ask Claude to make that change.
 
 ## 1. Make the app in Play Console
 

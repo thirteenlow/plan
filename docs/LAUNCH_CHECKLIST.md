@@ -27,7 +27,7 @@ Total cost: **$25 one-time** (Google Play). Everything else is free.
 - [ ] In Vercel, import the GitHub repo. `vercel.json` sets the build (`npx expo export --platform web`, output `dist`),
       page routing and security headers.
 - [ ] Project → Settings → Environment Variables: add every `EXPO_PUBLIC_…` value from `.env` (Supabase URL and
-      **publishable** key, VAPID public key, Stripe **publishable** key). Never a secret key.
+      **publishable** key, VAPID public key). Never a secret key.
 - [ ] Every push to `main` deploys to `https://dearplan.vercel.app`.
 - [ ] Add that URL to Supabase (section 1) and open it on your phone:
   - iPhone (Safari): Share → **Add to Home Screen**

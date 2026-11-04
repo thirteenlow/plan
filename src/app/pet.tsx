@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { View } from 'react-native';
-import { FREE_PETS, requirePro, useIsPro } from '@/cloud/pro';
 import { PetSprite, usePetMood, useTickle } from '@/components/Pet';
 import { EGG, PixelArt, PixelPet } from '@/components/PixelPet';
 import { Screen } from '@/components/Screen';
@@ -21,9 +20,7 @@ export default function PetScreen() {
   const [name, setName] = useState(pet?.name ?? '');
   const tickle = useTickle();
 
-  const pro = useIsPro();
   const choose = (kind: PetKind) => {
-    if (!FREE_PETS.includes(kind) && !requirePro('pets')) return;
     haptic('success');
     // Keep a custom name; otherwise use the animal's default.
     const custom = pet && pet.name !== petInfo(pet.kind).name ? pet.name : null;
@@ -96,7 +93,6 @@ export default function PetScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {PETS.map((p) => {
             const on = pet?.kind === p.kind;
-            const locked = !pro && !FREE_PETS.includes(p.kind);
             return (
               <Tap
                 key={p.kind}
@@ -104,7 +100,7 @@ export default function PetScreen() {
                 onPress={() => choose(p.kind)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={locked ? `${p.label}, Pro` : p.label}
+                accessibilityLabel={p.label}
                 style={{
                   width: '22.5%',
                   flexGrow: 1,
@@ -117,20 +113,10 @@ export default function PetScreen() {
                   backgroundColor: on ? colors.accentSoft : colors.surface,
                 }}
               >
-                <View style={{ opacity: locked ? 0.55 : 1 }}>
-                  <PixelPet kind={p.kind} mood="happy" size={48} />
-                </View>
+                <PixelPet kind={p.kind} mood="happy" size={48} />
                 <Txt variant="caption" tone={on ? 'accent' : 'soft'}>
                   {p.label}
                 </Txt>
-                {locked && (
-                  <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: colors.accent, borderRadius: RADIUS.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <Ionicons name="lock-closed" size={9} color={colors.onGradient} />
-                    <Txt variant="caption" style={{ color: colors.onGradient, fontSize: 10 }}>
-                      PRO
-                    </Txt>
-                  </View>
-                )}
               </Tap>
             );
           })}

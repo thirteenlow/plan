@@ -9,7 +9,7 @@ import { SHORTCUT_MOCKS } from '@/components/ShortcutMocks';
 import { shortcuts27Mocks } from '@/components/Shortcuts27Mocks';
 import { Button, Card, confirm, Divider, FieldRow, haptic, notify, Row, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { iosMajor, requirePro } from '@/cloud/pro';
+import { iosMajor } from '@/utils/device';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, removeInboxKey, sendTestPayment } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
@@ -73,7 +73,6 @@ export default function ApplePayScreen() {
 
   const start = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
-    if (!requirePro('applePay')) return;
     if (!key) {
       setBusy(true);
       try {
@@ -90,7 +89,6 @@ export default function ApplePayScreen() {
 
   const makeKey = async () => {
     if (status !== 'ready') return notify('Sign in first', 'Auto-logging works through your Plan account.');
-    if (!requirePro('applePay')) return;
     setBusy(true);
     try {
       setKey(await createInboxKey());

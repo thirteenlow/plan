@@ -3,10 +3,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Platform, useWindowDimensions, View } from 'react-native';
 import { BADGES, HEART, PixelArt, PixelPet } from '@/components/PixelPet';
 import { haptic, Txt } from '@/components/ui';
-import { FREE_PETS, usePlan } from '@/cloud/pro';
-import { MOODS, petInfo, petMood, type Mood, type PetMood } from '@/engine/pet';
+import { MOODS, petMood, type Mood, type PetMood } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
-import { useBudgetData, useStore } from '@/store/store';
+import { useBudgetData } from '@/store/store';
 import type { PetKind } from '@/store/types';
 import { RADIUS, useTheme } from '@/theme';
 import { currentMonth, today } from '@/utils/date';
@@ -291,16 +290,6 @@ export function RoamingPet({ bottom, right }: { bottom: number; right: number })
     hop(3);
   });
   const m = mood?.mood ?? 'happy';
-
-  // Pro ended (or never started) but a Pro-only animal is chosen: switch to a free one, keeping a custom name.
-  const plan = usePlan((s) => s.plan);
-  const planLoaded = usePlan((s) => s.loaded);
-  const updateSettings = useStore((s) => s.updateSettings);
-  useEffect(() => {
-    if (!planLoaded || plan !== 'free' || !pet || FREE_PETS.includes(pet.kind)) return;
-    const custom = pet.name !== petInfo(pet.kind).name;
-    updateSettings({ pet: { ...pet, kind: FREE_PETS[0], name: custom ? pet.name : petInfo(FREE_PETS[0]).name } });
-  }, [planLoaded, plan, pet, updateSettings]);
 
   // It stops to talk, be held or giggle.
   const busy = held || tickled || !!bubble;

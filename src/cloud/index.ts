@@ -3,7 +3,6 @@ import { useStore } from '@/store/store';
 import { cloudConfigured } from './config';
 import { type CloudUser, friendlyError, keyOnAccount, useCloud } from './cloudStore';
 import { changePassword, forgetIdentityOnDevice, loadIdentity, loadIdentityOffline, setupIdentity, unlockIdentity, unlockPreviousKeys } from './identity';
-import { cancelBeforeDeleting } from './pro';
 import { getSupabase } from './supabase';
 import { flushAll, pullAll, recoverLockedBudgets, rewrapOwnKeys, startSync, stopSync } from './sync';
 
@@ -144,7 +143,6 @@ export async function deleteAccount() {
   const sb = getSupabase();
   if (!sb) return;
   const uid = useCloud.getState().user?.id;
-  await cancelBeforeDeleting();
   const { error } = await sb.rpc('delete_my_account');
   if (error) throw error;
   stopSync();

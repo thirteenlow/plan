@@ -6,7 +6,6 @@ import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, Divider, FieldRow, haptic, Row, TextField, Toggle, Txt } from '@/components/ui';
 import { accountForCard } from '@/cloud/inbox';
 import { appsToWatch, importNativePayments, PaymentNotifications } from '@/cloud/nativePayments';
-import { requirePro } from '@/cloud/pro';
 import { useActiveBudget, useStore } from '@/store/store';
 import { useTheme } from '@/theme';
 
@@ -91,7 +90,6 @@ export default function AutoLogScreen() {
               label="Google and Samsung Wallet"
               value={wallets}
               onChange={(v) => {
-                if (v && !requirePro('applePay')) return;
                 setWallets(v);
                 save({ wallets: v });
               }}
@@ -109,7 +107,6 @@ export default function AutoLogScreen() {
               label="SimplyGo fares"
               value={simplyGo}
               onChange={(v) => {
-                if (v && !requirePro('notifyPay')) return;
                 setSimplyGo(v);
                 save({ simplyGo: v });
               }}
@@ -122,10 +119,7 @@ export default function AutoLogScreen() {
               label="More apps"
               value={more}
               onChangeText={setMore}
-              onBlur={() => {
-                if (more.trim() && !requirePro('notifyPay')) return setMore('');
-                save({});
-              }}
+              onBlur={() => save({})}
               maxLength={120}
               placeholder="e.g. Grab, DBS digibank"
               autoCapitalize="words"

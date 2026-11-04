@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { canCreateBudget } from '@/cloud/pro';
 import { useCover } from '@/components/CoverPicker';
-import { AccountProBadge } from '@/components/ProBadge';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { ProgressRing } from '@/components/charts';
@@ -203,11 +201,11 @@ export default function HomeScreen() {
   );
 
   return (
-    <Screen largeTitle title={data.name} left={<AccountProBadge />} right={
+    <Screen largeTitle title={data.name} right={
         <TabMenu
           actions={[
             { label: 'Switch budget', icon: 'albums-outline', hint: `${Object.keys(useStore.getState().budgets).length} budgets on this device`, onPress: () => router.push('/budgets') },
-            { label: 'New budget', icon: 'add-circle-outline', onPress: () => canCreateBudget() && router.push('/onboarding') },
+            { label: 'New budget', icon: 'add-circle-outline', onPress: () => router.push('/onboarding') },
             { label: 'Edit pinned categories', icon: 'pin-outline', onPress: () => setEditPinned(true) },
             { label: 'Change current goal', icon: 'flag-outline', onPress: () => setPickGoal(true) },
           ]}

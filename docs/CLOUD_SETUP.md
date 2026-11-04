@@ -87,9 +87,9 @@ Lets an iPhone Shortcuts automation log every Apple Pay payment into Plan.
 
 1. In the Supabase SQL editor, run `supabase/003_payment_inbox.sql`, then `supabase/009_log_payment_flexible.sql`
    (accepts the shortcut's fields in any capitalisation; without it, "Amount" instead of "amount" silently fails).
-   If Pro is set up (`005_pro.sql`), also run `supabase/013_transit_taps.sql` afterwards: transit taps (SimplyGo
-   and other tap-in/tap-out fares) arrive with no amount, and without it every tap shows "Automation failed".
-   Taps are skipped; the fare is logged when it's actually charged.
+   Then run `supabase/014_all_free.sql`: transit taps (SimplyGo and other tap-in/tap-out fares) arrive with no
+   amount and are skipped instead of showing "Automation failed"; the fare is logged when it's actually charged.
+   Every feature is free, so there's no Pro check.
 2. In the app: Settings → Automation → Apple Pay auto-log, then follow the steps. It creates a personal key and
    shows the address and fields to paste into the Shortcut, plus a test button.
 
@@ -115,39 +115,6 @@ inbox key from above.
 4. In the app: Settings → Automation → Screenshot capture.
 
 Each user gets 30 scans a day (`SCAN_DAILY_LIMIT` secret to change it). Screenshots aren't stored.
-
-## Plan Pro (optional)
-
-Pro unlocks Apple Pay auto-log, AI receipt scan, inviting people to shared budgets, unlimited budgets (free: 2)
-and every companion (free: cat, dog, bunny). People can start a 14-day free trial themselves (once, no card).
-
-1. Run `supabase/005_pro.sql`, then `supabase/007_stripe_trial.sql` and `supabase/012_pro_returning_account.sql` (lets someone who deleted their account and signed up again manage the same subscription). The server then requires Pro for the
-   automation features and for invites.
-2. Stripe (free to set up; Stripe takes a fee per payment):
-   - Create a product "Plan Pro" with two recurring prices: monthly and yearly. Copy their `price_…` IDs.
-   - Developers → API keys: copy the secret key (`sk_live_…`, or `sk_test_…` to try it first).
-   - Settings → Billing → Customer portal: turn it on (lets people cancel, switch plans and update cards).
-   - Deploy the two functions and set their secrets:
-
-     ```bash
-     supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_PRICE_MONTHLY=price_... STRIPE_PRICE_YEARLY=price_... APP_URL=https://dearplan.vercel.app
-     supabase functions deploy stripe-checkout --no-verify-jwt
-     supabase functions deploy stripe-webhook --no-verify-jwt
-     ```
-
-   - Developers → Webhooks → Add endpoint: `https://YOUR-PROJECT.supabase.co/functions/v1/stripe-webhook`, events
-     `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`,
-     `customer.subscription.deleted`. Copy its signing secret, then
-     `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
-   - For the payment form inside the web app (no redirect), put the publishable key (`pk_…`) in `.env` as
-     `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` and rebuild. Without it, Subscribe opens Stripe's own page. Phones always
-     use Stripe's page in an in-app browser. Cancelling (and resuming) happens inside Plan: it cancels at the end of
-     the paid period through the Stripe API. "Manage billing" opens Stripe for cards and invoices.
-3. Pro turns on as soon as Stripe confirms the payment, stays on until the end of each paid period (plus 3 days'
-   grace if a renewal fails while Stripe retries), and turns off when the subscription ends. Keep the prices
-   shown in `src/cloud/pro.ts` in step with Stripe.
-4. To give someone Pro without paying (friends, testers), use the lines at the bottom of `005_pro.sql`. Change the
-   trial length in `pro_trial_days()` (0 turns trials off).
 
 ## Notifications and reminders (optional, free)
 

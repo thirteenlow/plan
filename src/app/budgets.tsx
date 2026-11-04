@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { canCreateBudget } from '@/cloud/pro';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { Screen } from '@/components/Screen';
@@ -57,7 +56,7 @@ export default function BudgetsScreen() {
         icon="add"
         variant="soft"
         style={{ marginTop: 16 }}
-        onPress={() => canCreateBudget() && router.push('/onboarding')}
+        onPress={() => router.push('/onboarding')}
       />
 
       <DeleteBudgetSheet budget={deleting ? budgets[deleting] ?? null : null} onClose={() => setDeleting(null)} />
