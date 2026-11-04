@@ -20,7 +20,7 @@ const STEPS_27: { title: string; text: string }[] = [
   { title: 'New shortcut', text: 'Open Shortcuts and tap + at the bottom.' },
   { title: 'Tap Edit', text: 'Skip “Describe a shortcut”: tap Edit at the top right.' },
   { title: 'Add the trigger', text: 'In the sheet, tap Automation, then Wallet.' },
-  { title: 'Pick your cards', text: 'Tap Cards and tick yours. Leave Run Immediately on.' },
+  { title: 'Pick your cards', text: 'Tap Cards and tick yours. Turn Automation on.' },
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
   { title: 'Add the fields', text: 'Add a Text field for each row below, in lowercase. For amount, merchant and card, tap the value, tap Shortcut Input in the bar above the keyboard, then tap it again and pick the item.' },
@@ -278,11 +278,11 @@ export default function ApplePayScreen() {
           </Txt>
           <Card style={{ gap: 12 }}>
             {[
-              ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with JSON.'],
+              ['Nothing shows up', 'Check Automation (or Run Immediately) is on, your cards are ticked, and Method is POST with JSON.'],
               ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to.'],
               ['No merchant', 'Some payments don’t have one. They’re logged as “Apple Pay”.'],
               ['Bus and train taps', 'Skipped, since there’s no fare yet. Set up SimplyGo fare auto-log for those.'],
-              ['Hide “Running your automation”', 'In the automation, turn off Notify When Run.'],
+              ['Hide “Running your automation”', 'Turn off Notify (or Notify When Run).'],
               ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it.'],
             ].map(([t, d]) => (
               <View key={t}>

@@ -61,9 +61,14 @@ function TriggerBlock({ kind, app, filter = '$' }: { kind: Kind; app: string; fi
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
         <Ionicons name={kind === 'wallet' ? 'wallet' : 'notifications'} size={10} color={D.soft} />
         <T size={9.5} weight="semibold" color={D.text}>
-          {kind === 'wallet' ? 'When I tap any of' : 'When I receive a notification from'}
+          {kind === 'wallet' ? 'When' : 'When I receive a notification from'}
         </T>
-        <Pill label={kind === 'wallet' ? '2 cards' : app} />
+        <Pill label={kind === 'wallet' ? 'Visa and 1 more' : app} />
+        {kind === 'wallet' && (
+          <T size={9.5} weight="semibold" color={D.text}>
+            is tapped
+          </T>
+        )}
       </View>
       {kind === 'notify' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -253,19 +258,30 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
   // Wallet: tap Cards, tick them, done. Notification: pick the app, Add Filter, Title → Message, type $.
   const phase = usePhase(notify ? 6 : 3, 1800);
   const picked = phase >= 1;
-  const toggles = (
-    <View style={{ marginHorizontal: 10, marginTop: 8, borderRadius: 12, backgroundColor: D.card }}>
-      {[
-        ['Run Immediately', true],
-        ['Notify When Run', false],
-      ].map(([l, on], i) => (
-        <View key={l as string} style={{ height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, borderTopWidth: i ? 1 : 0, borderTopColor: D.line }}>
+  // Wallet only: what the trigger card shows under the cards. Automation must be on; there's no such switch for notifications.
+  const walletRows = (
+    <View style={{ marginTop: 2, borderTopWidth: 1, borderTopColor: D.line }}>
+      {(
+        [
+          ['Categories', 'Any Category'],
+          ['Merchants', 'Any Merchant'],
+          ['Automation', phase >= 2],
+          ['Notify', false],
+        ] as [string, string | boolean][]
+      ).map(([l, v]) => (
+        <View key={l} style={{ height: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <T size={9.5} color={D.text}>
-            {l as string}
+            {l}
           </T>
-          <View style={{ width: 30, height: 18, borderRadius: 9, backgroundColor: on ? D.green : '#48484A', padding: 2, alignItems: on ? 'flex-end' : 'flex-start' }}>
-            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#fff' }} />
-          </View>
+          {typeof v === 'string' ? (
+            <T size={9.5} color={D.blue}>
+              {v}
+            </T>
+          ) : (
+            <View style={{ width: 30, height: 18, borderRadius: 9, backgroundColor: v ? D.green : '#48484A', padding: 2, alignItems: v ? 'flex-end' : 'flex-start' }}>
+              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#fff' }} />
+            </View>
+          )}
         </View>
       ))}
     </View>
@@ -274,10 +290,10 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
   const field = phase >= 5 ? 'Message' : 'Title';
   const captions = notify
     ? [`Tap App`, `Pick ${app}`, 'Tap Add Filter', 'Tap Title', 'Change it to Message', 'Type $ in the box']
-    : ['Tap Cards', 'Tick your cards', 'Leave Run Immediately on'];
+    : ['Tap Cards', 'Tick your cards', 'Turn Automation on'];
   const taps = notify
     ? [{ x: 40, y: 91 }, { x: W / 2, y: 120 + 4 + 2 * 26 + 13 }, { x: 60, y: 112 }, { x: 34, y: 112 }, { x: 70, y: 122 + 4 + 2 * 22 + 11 }, { x: 150, y: 112 }]
-    : [{ x: 150, y: 50 }, { x: W / 2, y: 120 + 4 + 13 }, { x: 120, y: 50 + 34 }];
+    : [{ x: 60, y: 51 }, { x: W / 2, y: 120 + 4 + 13 }, { x: W - 40, y: 36 + 8 + 14 + 9 + 2 * 26 + 13 }];
   return (
     <Phone dark>
       <Header title="New Shortcut" />
@@ -294,10 +310,16 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
           <Ionicons name={notify ? 'notifications' : 'wallet'} size={10} color={D.soft} />
           <T size={9.5} weight="semibold" color={D.text}>
-            {notify ? 'When I receive a notification from' : 'When I tap any of'}
+            {notify ? 'When I receive a notification from' : 'When'}
           </T>
-          <Pill label={notify ? (picked ? app : 'App') : picked ? '2 cards' : 'Cards'} />
+          <Pill label={notify ? (picked ? app : 'App') : picked ? 'Visa and 1 more' : 'Cards'} />
+          {!notify && (
+            <T size={9.5} weight="semibold" color={D.text}>
+              is tapped
+            </T>
+          )}
         </View>
+        {!notify && walletRows}
         {notify && phase === 2 && (
           <View style={{ height: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Ionicons name="add-circle" size={11} color={D.blue} />
@@ -316,7 +338,6 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
           </View>
         )}
       </View>
-      {toggles}
       {phase === 1 && (
         <View style={{ position: 'absolute', left: 20, right: 20, top: 30 + 120, borderRadius: 14, backgroundColor: D.card2, paddingVertical: 4 }}>
           {choices.map((c) => {
