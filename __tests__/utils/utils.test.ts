@@ -205,6 +205,12 @@ describe('Android wallet notifications (MacroDroid)', () => {
     expect(p).toMatchObject({ wallet: 'Samsung Wallet', amount: $(12.3), merchant: 'STARBUCKS', card: 'Mastercard •••• 9876' });
   });
 
+  it('reads another app forwarded by an iOS notification automation, keeping its name', () => {
+    const text = 'A fare of $2.38 for your journeys on 3 Nov has been charged to your Visa card ending 1234.';
+    const p = readWalletPayment({ amount: text, merchant: 'SimplyGo', card: `SimplyGo: ${text}` });
+    expect(p).toMatchObject({ wallet: 'SimplyGo', amount: $(2.38), merchant: 'SimplyGo' });
+  });
+
   it('ignores rows that are not forwarded notifications (Apple Pay, scans)', () => {
     expect(readWalletPayment({ amount: '4.50', merchant: 'Starbucks', card: 'Visa' })).toBeNull();
   });

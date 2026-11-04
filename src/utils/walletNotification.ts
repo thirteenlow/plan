@@ -45,12 +45,17 @@ function merchantInText(text: string): string | null {
   return m?.[1].trim() || null;
 }
 
-/** Reads a payment MacroDroid forwarded from Google or Samsung Wallet; null for anything else (Apple Pay, scans). */
+/**
+ * Reads a payment notification forwarded whole: Google or Samsung Wallet via MacroDroid, or any app's notification via
+ * an iOS 27 notification automation sending the same fields. Null for anything else (Apple Pay taps, scans).
+ */
 export function readWalletPayment(row: { amount: string | null; merchant: string | null; card: string | null }): WalletPayment | null {
   const f = forwarded(row.amount, row.card);
   if (!f) return null;
   const title = row.merchant?.trim() ?? '';
-  const wallet = WALLET_NAME.test(f.wallet) && !/play services/i.test(f.wallet) ? f.wallet : /samsung/i.test(f.wallet) ? 'Samsung Wallet' : 'Google Wallet';
+  // Another app's notification (e.g. SimplyGo, forwarded by an iOS 27 notification automation) keeps its own name.
+  const wallet =
+    WALLET_NAME.test(f.wallet) && !/play services/i.test(f.wallet) ? f.wallet : /samsung/i.test(f.wallet) ? 'Samsung Wallet' : /google|play services/i.test(f.wallet) ? 'Google Wallet' : f.wallet;
   return {
     wallet,
     amount: amountInText(f.text),
