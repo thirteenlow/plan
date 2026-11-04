@@ -8,7 +8,8 @@ import { parseAmountText } from './budgetCsv';
  * some versions put the wallet's own name in the title and the merchant in the text ("… at STARBUCKS").
  */
 
-export type WalletPayment = { wallet: string; amount: number; merchant: string | null; card: string | null };
+/** `note`: for apps other than a wallet, what the notification says besides the amount (e.g. a SimplyGo trip). */
+export type WalletPayment = { wallet: string; amount: number; merchant: string | null; card: string | null; note?: string };
 
 const WALLET_NAME = /^(google wallet|google pay|g pay|wallet|samsung wallet|samsung pay|google play services)$/i;
 
@@ -53,9 +54,21 @@ export function readWalletPayment(row: { amount: string | null; merchant: string
   const f = forwarded(row.amount, row.card);
   if (!f) return null;
   const title = row.merchant?.trim() ?? '';
-  // Another app's notification (e.g. SimplyGo, forwarded by an iOS 27 notification automation) keeps its own name.
-  const wallet =
-    WALLET_NAME.test(f.wallet) && !/play services/i.test(f.wallet) ? f.wallet : /samsung/i.test(f.wallet) ? 'Samsung Wallet' : /google|play services/i.test(f.wallet) ? 'Google Wallet' : f.wallet;
+  const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);
+  if (other) {
+    // Another app (SimplyGo: "Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15"). The automation
+    // sends the app's name as the merchant; the rest of the text, minus "Fare $0.20 - ", goes in the memo.
+    const masked = f.text.match(/([A-Za-z][\w&' -]{0,30}?)\s*[•*·.]{2,}\s*(\d{4})/);
+    return {
+      wallet: f.wallet,
+      amount: amountInText(f.text),
+      // A generic title ("Trip Fare Alert", from a macro that sends the title) isn't a merchant: use the app.
+      merchant: title && !/\b(alert|notification|reminder|update|receipt)s?\b/i.test(title) ? title : f.wallet,
+      card: masked ? cardInText(f.text) : null,
+      note: f.text.replace(/^[^\n]*?\d[.,]\d{2}\s*[-–—·|:]\s*/, '').slice(0, 80) || undefined,
+    };
+  }
+  const wallet = WALLET_NAME.test(f.wallet) && !/play services/i.test(f.wallet) ? f.wallet : /samsung/i.test(f.wallet) ? 'Samsung Wallet' : 'Google Wallet';
   return {
     wallet,
     amount: amountInText(f.text),

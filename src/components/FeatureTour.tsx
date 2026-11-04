@@ -36,6 +36,16 @@ function slides(): Slide[] {
           chips: [],
           scene: 'wallet',
         },
+        {
+          key: 'notify',
+          icon: 'notifications-outline',
+          title: 'Fares log themselves',
+          text: 'When SimplyGo, Grab or your bank app sends a payment notification, Plan logs the exact amount. No more guessing transit fares.',
+          tier: 'pro',
+          tierLabel: 'Pro · Android',
+          chips: [],
+          scene: 'notify',
+        },
       ]
     : [
         {
@@ -307,7 +317,7 @@ function AutoScene({ kind, active }: { kind: 'tap' | 'notify' | 'wallet'; active
   const pulse = t.interpolate({ inputRange: [0, 0.1, 0.3, 1], outputRange: [0.6, 1.25, 0.6, 0.6] });
   const info =
     kind === 'notify'
-      ? { app: 'SimplyGo', icon: 'bus' as IconName, color: '#E5322D', line: 'Fare of $2.38 charged to your Visa', payee: 'SimplyGo', amount: '−$2.38' }
+      ? { app: 'Trip Fare Alert', icon: 'bus' as IconName, color: '#4F6BD8', line: 'Fare $1.28 - Bus 12 Blk 108 - Clementi Int', payee: 'SimplyGo', amount: '−$1.28' }
       : kind === 'wallet'
         ? { app: 'Google Wallet', icon: 'wallet' as IconName, color: '#1A73E8', line: '$5.80 with Visa •••• 1234', payee: 'Kopi Corner', amount: '−$5.80' }
         : { app: 'Apple Pay', icon: 'logo-apple' as IconName, color: '#111111', line: 'Kopi Corner · $5.80', payee: 'Kopi Corner', amount: '−$5.80' };

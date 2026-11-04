@@ -3,20 +3,36 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { CopyRow } from '@/components/CopyRow';
+import { notifyDroidMocks } from '@/components/AndroidMocks';
 import { notifyMocks } from '@/components/NotifyMocks';
 import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { Button, Card, Divider, FieldRow, haptic, notify, Row, TextField, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
-import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, sendTestPayment } from '@/cloud/inbox';
-import { requirePro } from '@/cloud/pro';
+import { accountForCard, appNotificationBody, createInboxKey, getInboxKey, importPayments, logPaymentUrl, sendTestPayment } from '@/cloud/inbox';
+import { isAndroidDevice, requirePro } from '@/cloud/pro';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
 import { goBack } from '@/utils/nav';
 
 const DEFAULT_APP = 'SimplyGo';
 
-const steps = (app: string): { title: string; text: string }[] => [
+/** MacroDroid's text filter: only notifications with an amount like 0.20. */
+const AMOUNT_FILTER = String.raw`\d[.,]\d\d`;
+
+const androidSteps = (app: string): { title: string; text: string }[] => [
+  { title: 'Get MacroDroid', text: 'Install it free from the Play Store and open it.' },
+  { title: 'New macro', text: 'Tap Add Macro, then + in the red Triggers box.' },
+  { title: 'Choose Notification', text: 'Tap Device Events, then Notification. Allow notification access if asked.' },
+  { title: `Pick ${app}`, text: `Choose Notification Received, then Select Applications. Tick ${app}, then OK.` },
+  { title: 'Only payments', text: 'Choose Contains, paste the text below, tick Enable regex, then OK.' },
+  { title: 'Add the action', text: 'Tap + in the blue Actions box, then Web Interactions › HTTP Request.' },
+  { title: 'Paste the link', text: 'Set Request method to POST and paste the link below into URL.' },
+  { title: 'Paste the body', text: 'Open Content Body, set Content type to application/json, paste the text below, then tap ✓.' },
+  { title: 'Save', text: `Name the macro (e.g. “${app} fares”) and tap ✓. Every ${app} payment notification now goes to Plan with its exact amount.` },
+];
+
+const iosSteps = (app: string): { title: string; text: string }[] => [
   { title: 'Open Shortcuts', text: 'It’s already on your iPhone.' },
   { title: 'New automation', text: 'Tap Automation, then +.' },
   { title: 'Choose Notification', text: 'Scroll down and tap Notification.' },
@@ -31,9 +47,9 @@ const steps = (app: string): { title: string; text: string }[] => [
 ];
 
 /**
- * Guided setup for logging payments from another app's notifications (SimplyGo fares, Grab, bank apps) through an
- * iOS 27 Shortcuts "Notification" automation. It posts the notification as it came, in the same shape MacroDroid
- * uses on Android, so the app reads it with readWalletPayment (src/utils/walletNotification.ts).
+ * Guided setup for logging payments from another app's notifications (SimplyGo fares, Grab, bank apps): an iOS 27
+ * Shortcuts "Notification" automation on iPhone, a MacroDroid macro on Android. Both post the notification as it
+ * came, and the app reads it with readWalletPayment (src/utils/walletNotification.ts).
  */
 export default function NotifyPayScreen() {
   const data = useActiveBudget();
@@ -43,9 +59,10 @@ export default function NotifyPayScreen() {
   const params = useLocalSearchParams<{ step?: string }>();
   const [app, setApp] = useState(DEFAULT_APP);
   const appName = app.trim() || DEFAULT_APP;
-  const STEPS = steps(appName);
+  const [android] = useState(isAndroidDevice);
+  const STEPS = android ? androidSteps(appName) : iosSteps(appName);
   const TOTAL = STEPS.length + 2; // intro + steps + test
-  const mocks = useMemo(() => notifyMocks(appName), [appName]);
+  const mocks = useMemo(() => (android ? notifyDroidMocks(appName) : notifyMocks(appName)), [android, appName]);
   const [step, setStep] = useState(() => Math.max(0, Math.min(TOTAL - 1, Number(params.step) || 0)));
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,31 +156,33 @@ export default function NotifyPayScreen() {
               The fare’s charged, and it’s logged
             </Txt>
             <Txt tone="soft" center>
-              When {appName} sends a payment notification, a Shortcuts automation passes it to Plan with the exact amount. Great for transit fares that Apple Pay can’t see at the gantry.
+              When {appName} sends a payment notification, {android ? 'a MacroDroid macro' : 'a Shortcuts automation'} passes it to Plan with the exact amount. Great for transit fares that
+              aren’t known when you tap at the gantry.
             </Txt>
             <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
+              <Ionicons name={android ? 'logo-android' : 'logo-apple'} size={13} color={colors.textSoft} />
               <Txt variant="caption" tone="soft">
-                iPhone · iOS 27 or later
+                {android ? 'Android · MacroDroid (free)' : 'iPhone · iOS 27 or later'}
               </Txt>
             </Row>
           </View>
           <Card style={{ gap: 6 }}>
             <TextField icon="apps-outline" label="App that notifies" value={app} onChangeText={setApp} maxLength={40} placeholder={DEFAULT_APP} autoCapitalize="words" />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              SimplyGo, Grab, your bank’s app: anything that posts a notification with the amount. Set up one automation per app.
+              SimplyGo, Grab, your bank’s app: anything that posts a notification with the amount. Set up one {android ? 'macro' : 'automation'} per app, named exactly as it appears on your phone.
             </Txt>
           </Card>
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Used unless the notification names a card’s last 4 digits that match an account (e.g. “DBS Visa 1234”).
+              Pick the card linked to {appName}. SimplyGo’s alerts don’t say which card paid, so fares go here (same setting as tap-to-pay auto-log). A notification that names a card’s last 4 digits goes to the matching account.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-              Shortcuts can’t encrypt, so the notification’s text waits on the server until Plan picks it up, then it’s deleted. Only {appName}’s notifications are sent. It uses the same key as Apple Pay auto-log.
+              {android ? 'MacroDroid' : 'Shortcuts'} can’t encrypt, so the notification’s text waits on the server until Plan picks it up, then it’s deleted. Only {appName}’s notifications are sent. It uses
+              the same key as {android ? 'Google Pay' : 'Apple Pay'} auto-log.
             </Txt>
           </Row>
         </View>
@@ -180,12 +199,37 @@ export default function NotifyPayScreen() {
             </View>
             <Txt variant="h3">{STEPS[step - 1].title}</Txt>
             <Txt tone="soft">{STEPS[step - 1].text}</Txt>
-            {step === 6 && (
+            {android && step === 5 && (
               <View style={{ marginTop: 4 }}>
-                <CopyRow label="Link for the URL box" value={logPaymentUrl()} />
+                <CopyRow label="Text to match" value={AMOUNT_FILTER} />
               </View>
             )}
-            {step === 7 && (
+            {((android && step === 7) || (!android && step === 6)) && (
+              <View style={{ marginTop: 4 }}>
+                <CopyRow label={android ? 'Link for URL' : 'Link for the URL box'} value={logPaymentUrl()} />
+              </View>
+            )}
+            {android && step === 8 && (
+              <View style={{ marginTop: 4 }}>
+                {key ? (
+                  <CopyRow label="Body (includes your key)" value={appNotificationBody(key, appName)} secret />
+                ) : (
+                  <Row style={{ gap: 10, paddingVertical: 8 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt variant="label">Body</Txt>
+                      <Txt variant="caption" tone="muted">
+                        Needs your key
+                      </Txt>
+                    </View>
+                    <Button title="Create key" small variant="soft" loading={busy} onPress={() => void ensureKey()} />
+                  </Row>
+                )}
+                <Txt variant="caption" tone="muted">
+                  Paste as is. MacroDroid fills in the {'{braces}'}.
+                </Txt>
+              </View>
+            )}
+            {!android && step === 7 && (
               <View style={{ gap: 2, marginTop: 4 }}>
                 {key ? (
                   <CopyRow label="token" value={key} secret />
@@ -235,12 +279,20 @@ export default function NotifyPayScreen() {
             If something’s off
           </Txt>
           <Card style={{ gap: 12 }}>
-            {[
-              ['It never runs', `Check ${appName}’s notifications are on, and the automation is set to Run Immediately. If you added Message Contains, try removing it.`],
-              ['Logged as 0', `The amount wasn’t found in the text. Check card starts with “${appName}: ” followed by Message, exactly like amount.`],
-              ['Logged twice', 'If Apple Pay auto-log also logs this payment, untick that card in the Wallet automation, or delete one in Spending.'],
-              ['Hide “Running your automation”', 'Open the automation in Shortcuts and turn off Notify When Run.'],
-            ].map(([t, d]) => (
+            {(android
+              ? [
+                  ['Nothing shows up', `Check MacroDroid has notification access, the macro is on, and ${appName}’s notifications are on.`],
+                  ['It stops after a while', 'Set MacroDroid’s battery use to Unrestricted in Android Settings › Apps.'],
+                  ['Logged twice', 'If your Google Pay macro also catches this payment, untick the wallet there, or delete one in Spending.'],
+                  ['See what happened', 'MacroDroid’s System Log shows each run and any error.'],
+                ]
+              : [
+                  ['It never runs', `Check ${appName}’s notifications are on, and the automation is set to Run Immediately. If you added Message Contains, try removing it.`],
+                  ['Logged as 0', `The amount wasn’t found in the text. Check card starts with “${appName}: ” followed by Message, exactly like amount.`],
+                  ['Logged twice', 'If Apple Pay auto-log also logs this payment, untick that card in the Wallet automation, or delete one in Spending.'],
+                  ['Hide “Running your automation”', 'Open the automation in Shortcuts and turn off Notify When Run.'],
+                ]
+            ).map(([t, d]) => (
               <View key={t}>
                 <Txt variant="strong">{t}</Txt>
                 <Txt variant="caption" tone="soft">

@@ -105,7 +105,7 @@ const Check = ({ label, on, icon, color }: { label: string; on?: boolean; icon?:
 );
 
 /** The macro editor: Triggers, Actions and Constraints, with what's been added so far. */
-function Editor({ trigger, action, named }: { trigger?: boolean; action?: boolean; named?: boolean }) {
+function Editor({ trigger, action, named, apps = 'Wallet, Samsung Wallet', name = 'Plan payments' }: { trigger?: boolean; action?: boolean; named?: boolean; apps?: string; name?: string }) {
   const section = (label: string, color: string, filled?: React.ReactNode) => (
     <View style={{ marginHorizontal: 10, marginTop: 8, borderRadius: 10, overflow: 'hidden', backgroundColor: A.card }}>
       <Row style={{ height: 26, paddingHorizontal: 10, backgroundColor: color, justifyContent: 'space-between' }}>
@@ -123,8 +123,8 @@ function Editor({ trigger, action, named }: { trigger?: boolean; action?: boolea
   );
   return (
     <>
-      <Bar title={named ? 'Plan payments' : 'Enter macro name'} right={<Ionicons name="checkmark" size={15} color="#fff" />} />
-      {section('Triggers', A.red, trigger && <Item icon="notifications" color={A.red} title="Notification Received" sub="Wallet, Samsung Wallet" last />)}
+      <Bar title={named ? name : 'Enter macro name'} right={<Ionicons name="checkmark" size={15} color="#fff" />} />
+      {section('Triggers', A.red, trigger && <Item icon="notifications" color={A.red} title="Notification Received" sub={apps} last />)}
       {section('Actions', A.blue, action && <Item icon="globe-outline" color={A.blue} title="HTTP Request" sub="POST https://…supabase.co/…" last />)}
       {section('Constraints', A.green)}
     </>
@@ -232,7 +232,7 @@ function TriggerScreen() {
   );
 }
 
-function AppsScreen() {
+function AppsScreen({ app }: { app?: string }) {
   const phase = usePhase(3, 1900);
   return (
     <Droid>
@@ -251,13 +251,24 @@ function AppsScreen() {
       )}
       {phase === 2 && (
         <Dialog title="Select Applications">
-          <Check label="Messages" icon="chatbubble" color="#1A73E8" />
-          <Check label="Samsung Wallet" icon="card" color="#1428A0" on />
-          <Check label="Settings" icon="settings" color="#5F6368" />
-          <Check label="Wallet" icon="wallet" color="#1A73E8" on />
+          {app ? (
+            <>
+              <Check label="Messages" icon="chatbubble" color="#1A73E8" />
+              <Check label="Settings" icon="settings" color="#5F6368" />
+              <Check label={app} icon="bus" color="#4F6BD8" on />
+              <Check label="Wallet" icon="wallet" color="#1A73E8" />
+            </>
+          ) : (
+            <>
+              <Check label="Messages" icon="chatbubble" color="#1A73E8" />
+              <Check label="Samsung Wallet" icon="card" color="#1428A0" on />
+              <Check label="Settings" icon="settings" color="#5F6368" />
+              <Check label="Wallet" icon="wallet" color="#1A73E8" on />
+            </>
+          )}
         </Dialog>
       )}
-      <Taps key={phase} points={[[{ x: W - 40, y: 248 }], [{ x: W - 40, y: 248 }], [{ x: 70, y: 216 }, { x: 70, y: 260 }, { x: W - 40, y: 296 }]][phase]} />
+      <Taps key={phase} points={[[{ x: W - 40, y: 248 }], [{ x: W - 40, y: 248 }], (app ? [{ x: 70, y: 260 }, { x: W - 40, y: 296 }] : [{ x: 70, y: 216 }, { x: 70, y: 260 }, { x: W - 40, y: 296 }])][phase]} />
     </Droid>
   );
 }
@@ -315,7 +326,7 @@ function ActionScreen() {
   );
 }
 
-function RequestScreen({ tab }: { tab: 'settings' | 'body' }) {
+function RequestScreen({ tab, app }: { tab: 'settings' | 'body'; app?: string }) {
   const field = (label: string, value: string, on: boolean) => (
     <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
       <T size={8.5} color={A.soft}>
@@ -359,7 +370,7 @@ function RequestScreen({ tab }: { tab: 'settings' | 'body' }) {
               </T>
               <View style={{ borderWidth: 1.5, borderColor: A.primary, borderRadius: 6, padding: 6, marginTop: 3 }}>
                 <Text style={{ fontSize: 8.5, lineHeight: 12, fontFamily: FONT.medium, color: A.text }}>
-                  {'{"token":"3fa9…","amount":"{notification}","merchant":"{not_title}","card":"{not_app_name}: {notification}"}'}
+                  {`{"token":"3fa9…","amount":"{notification}","merchant":"${app ?? '{not_title}'}","card":"{not_app_name}: {notification}"}`}
                 </Text>
               </View>
             </View>
@@ -371,10 +382,10 @@ function RequestScreen({ tab }: { tab: 'settings' | 'body' }) {
   );
 }
 
-function SaveScreen() {
+function SaveScreen({ app }: { app?: string }) {
   return (
     <Droid>
-      <Editor trigger action named />
+      <Editor trigger action named apps={app} name={app ? `${app} fares` : undefined} />
       <Taps points={[{ x: 90, y: 20 }, { x: W - 22, y: 20 }]} />
     </Droid>
   );
@@ -384,3 +395,8 @@ const LinkScreen = () => <RequestScreen tab="settings" />;
 const BodyScreen = () => <RequestScreen tab="body" />;
 
 export const WALLET_MOCKS = [InstallScreen, AddMacroScreen, TriggerScreen, AppsScreen, TextScreen, ActionScreen, LinkScreen, BodyScreen, SaveScreen];
+
+/** The same macro for one app's payment notifications (e.g. SimplyGo fares), one per guide step. */
+export function notifyDroidMocks(app: string): React.ComponentType[] {
+  return [InstallScreen, AddMacroScreen, TriggerScreen, () => <AppsScreen app={app} />, TextScreen, ActionScreen, LinkScreen, () => <RequestScreen tab="body" app={app} />, () => <SaveScreen app={app} />];
+}

@@ -220,8 +220,8 @@ export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text:
     icon: 'notifications-outline',
     title: 'Payment notification auto-log',
     text: 'When SimplyGo, Grab or your bank app sends a payment notification, it’s logged with the exact amount. Perfect for transit fares.',
-    devices: 'iphone',
-    needs: 'iPhone on iOS 27+',
+    devices: 'phone',
+    needs: 'iPhone on iOS 27+ · Android with MacroDroid',
   },
 ];
 

@@ -32,6 +32,12 @@ const keyName = (uid: string) => `plan.inboxKey.${uid}`;
  */
 export const walletNotificationBody = (token: string) => `{"token":"${token}","amount":"{notification}","merchant":"{not_title}","card":"{not_app_name}: {notification}"}`;
 
+/**
+ * MacroDroid's body for one app's payment notifications (e.g. SimplyGo fares): like walletNotificationBody, but the
+ * merchant is the app's name, since the title is something like "Trip Fare Alert".
+ */
+export const appNotificationBody = (token: string, app: string) => JSON.stringify({ token, amount: '{notification}', merchant: app, card: '{not_app_name}: {notification}' });
+
 /** The address the Shortcut posts to (the publishable key rides along, as for any app request). */
 export const logPaymentUrl = () => `${SUPABASE_URL}/rest/v1/rpc/log_payment?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`;
 
@@ -190,6 +196,8 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       }
       // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
       const wallet = readWalletPayment(row);
+      // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log.
+      if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) continue;
       const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
       const scanned = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
       const cardName = wallet ? wallet.card : row.card === SCREENSHOT_CARD ? null : row.card;
@@ -217,7 +225,7 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
           amount: amount ? -amount : 0,
           payeeName: merchant,
           categoryId: known ?? (scanned ? matchCategory(data, row.category) : null),
-          memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
+          memo: [scanned ? 'From screenshot' : cardName ? `${via} · ${cardName}` : via, wallet?.note ?? '', !amount ? `amount unreadable: “${String((wallet ? row.card?.slice(row.card.indexOf(':') + 2) : row.amount) ?? '').slice(0, 40)}”` : ''].filter(Boolean).join(' · '),
           cleared: 'uncleared',
           approved: false,
         },

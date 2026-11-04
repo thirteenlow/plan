@@ -211,6 +211,19 @@ describe('Android wallet notifications (MacroDroid)', () => {
     expect(p).toMatchObject({ wallet: 'SimplyGo', amount: $(2.38), merchant: 'SimplyGo' });
   });
 
+  it('reads real SimplyGo fare alerts from iPhone (merchant sent as the app) and Android (title sent)', () => {
+    const bus = ' Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15';
+    expect(readWalletPayment({ amount: bus.slice(0, 40), merchant: 'SimplyGo', card: `SimplyGo: ${bus}` })).toEqual({
+      wallet: 'SimplyGo',
+      amount: $(0.2),
+      merchant: 'SimplyGo',
+      card: null,
+      note: 'Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15',
+    });
+    const train = ' Fare $0.54 - Bishan - Raffles Place - 2 Mar 08:45';
+    expect(readWalletPayment({ amount: train, merchant: 'Trip Fare Alert', card: `SimplyGo: ${train}` })).toMatchObject({ amount: $(0.54), merchant: 'SimplyGo', card: null, note: 'Bishan - Raffles Place - 2 Mar 08:45' });
+  });
+
   it('ignores rows that are not forwarded notifications (Apple Pay, scans)', () => {
     expect(readWalletPayment({ amount: '4.50', merchant: 'Starbucks', card: 'Visa' })).toBeNull();
   });

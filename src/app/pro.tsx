@@ -170,7 +170,7 @@ export default function ProScreen() {
                   : plan === 'trial'
                     ? `Everything is unlocked until ${until}. Keep it going with Pro.`
                     : phone
-                      ? `${apple ? 'Apple Pay, payment notifications' : 'Wallet taps'} and screenshots log themselves, budgets are shared, and every companion is yours.`
+                      ? `${apple ? 'Apple Pay' : 'Wallet taps'}, payment notifications and screenshots log themselves, budgets are shared, and every companion is yours.`
                       : 'AI logs receipts for you, budgets are shared, and every companion is yours.'}
               </Txt>
             </View>

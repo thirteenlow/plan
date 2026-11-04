@@ -135,7 +135,10 @@ export default function SettingsScreen() {
 
       <Group title="Automation">
         {isAndroidDevice() ? (
-          <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
+          <>
+            <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
+            <Item icon="notifications-outline" label="Notification auto-log" value="Android · SimplyGo, Grab…" pro={!pro} onPress={() => requirePro('notifyPay') && router.push('/notify-pay')} />
+          </>
         ) : (
           <>
             <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />

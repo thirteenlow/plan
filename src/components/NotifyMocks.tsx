@@ -57,7 +57,7 @@ function NotifyAppScreen({ app }: { app: string }) {
         WHEN A NOTIFICATION COMES FROM
       </T>
       <Group>
-        <ListRow icon="bus" color="#E5322D" title={app} right={<Ionicons name="checkmark" size={13} color={C.blue} />} last />
+        <ListRow icon="bus" color="#4F6BD8" title={app} right={<Ionicons name="checkmark" size={13} color={C.blue} />} last />
       </Group>
       <T size={9} color={C.soft} style={{ paddingHorizontal: 18, marginTop: 12, marginBottom: 4 }}>
         MESSAGE CONTAINS (OPTIONAL)
