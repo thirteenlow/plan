@@ -36,7 +36,9 @@ export default function ProScreen() {
   const apple = isAppleDevice();
   const android = isAndroidDevice();
   const phone = apple || android;
-  const features = phone ? [...PRO_FEATURES].sort((a, b) => (a.devices === 'phone' ? -1 : b.devices === 'phone' ? 1 : 0)) : PRO_FEATURES;
+  // What this device can't use (an iPhone-only feature on Android, a phone feature on a computer) goes last.
+  const works = (d: (typeof PRO_FEATURES)[number]['devices']) => (d === 'all' ? 1 : d === 'iphone' ? (apple ? 2 : 0) : phone ? 2 : 0);
+  const features = [...PRO_FEATURES].sort((a, b) => (phone ? works(b.devices) - works(a.devices) : (works(a.devices) ? 0 : 1) - (works(b.devices) ? 0 : 1)));
 
   useEffect(() => {
     if (!activating) return;
@@ -168,7 +170,7 @@ export default function ProScreen() {
                   : plan === 'trial'
                     ? `Everything is unlocked until ${until}. Keep it going with Pro.`
                     : phone
-                      ? `${apple ? 'Apple Pay' : 'Wallet taps'} and screenshots log themselves, budgets are shared, and every companion is yours.`
+                      ? `${apple ? 'Apple Pay, payment notifications' : 'Wallet taps'} and screenshots log themselves, budgets are shared, and every companion is yours.`
                       : 'AI logs receipts for you, budgets are shared, and every companion is yours.'}
               </Txt>
             </View>
@@ -183,7 +185,7 @@ export default function ProScreen() {
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="information-circle-outline" size={18} color={colors.accent} style={{ marginTop: 1 }} />
             <Txt variant="caption" tone="soft" style={{ flex: 1 }}>
-              Tap-to-pay auto-log runs on your iPhone or Android phone, but everything else in Pro works on computers too, including AI receipt scanning.
+              Tap-to-pay and notification auto-log run on your phone, but everything else in Pro works on computers too, including AI receipt scanning.
             </Txt>
           </Row>
         )}
@@ -244,8 +246,12 @@ export default function ProScreen() {
                     {f.text}
                   </Txt>
                   <Row style={{ gap: 4, marginTop: 3 }}>
-                    <Ionicons name={f.devices === 'phone' && apple ? 'logo-apple' : f.devices === 'phone' && android ? 'logo-android' : 'phone-portrait-outline'} size={11} color={f.devices === 'phone' && !phone ? colors.danger : colors.muted} />
-                    <Txt variant="caption" tone="muted" style={{ fontSize: 11, color: f.devices === 'phone' && !phone ? colors.danger : undefined }}>
+                    <Ionicons
+                      name={f.devices === 'iphone' || (f.devices === 'phone' && apple) ? 'logo-apple' : f.devices === 'phone' && android ? 'logo-android' : 'phone-portrait-outline'}
+                      size={11}
+                      color={works(f.devices) ? colors.muted : colors.danger}
+                    />
+                    <Txt variant="caption" tone="muted" style={{ fontSize: 11, color: works(f.devices) ? undefined : colors.danger }}>
                       {f.needs}
                     </Txt>
                   </Row>
@@ -315,7 +321,7 @@ export default function ProScreen() {
       <Sheet visible={cancelling} onClose={() => setCancelling(false)} title="Cancel Plan Pro?">
         <View style={{ gap: 14 }}>
           <Txt tone="soft">
-            Pro stays on until {endsOn ?? 'the end of what you’ve paid for'}, and you won’t be charged again. After that, Apple Pay auto-log, receipt scanning and inviting people stop, and Pro
+            Pro stays on until {endsOn ?? 'the end of what you’ve paid for'}, and you won’t be charged again. After that, auto-logging (Apple Pay, Wallet and notifications), receipt scanning and inviting people stop, and Pro
             companions switch to a free one. Your budgets and data stay just as they are.
           </Txt>
           <Txt variant="label" tone="muted">

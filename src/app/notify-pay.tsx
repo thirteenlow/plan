@@ -1,0 +1,282 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { CopyRow } from '@/components/CopyRow';
+import { notifyMocks } from '@/components/NotifyMocks';
+import { Screen } from '@/components/Screen';
+import { PickerSheet } from '@/components/Sheet';
+import { Button, Card, Divider, FieldRow, haptic, notify, Row, TextField, Txt } from '@/components/ui';
+import { useCloud } from '@/cloud/cloudStore';
+import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, sendTestPayment } from '@/cloud/inbox';
+import { requirePro } from '@/cloud/pro';
+import { useActiveBudget, useStore } from '@/store/store';
+import { RADIUS, useTheme } from '@/theme';
+import { goBack } from '@/utils/nav';
+
+const DEFAULT_APP = 'SimplyGo';
+
+const steps = (app: string): { title: string; text: string }[] => [
+  { title: 'Open Shortcuts', text: 'It’s already on your iPhone.' },
+  { title: 'New automation', text: 'Tap Automation, then +.' },
+  { title: 'Choose Notification', text: 'Scroll down and tap Notification.' },
+  { title: `Pick ${app}`, text: `Choose ${app} as the app. Optionally set Message Contains to $ so only payment notifications count. Choose Run Immediately, then Next.` },
+  { title: 'Add the action', text: 'Tap Create New Shortcut, search “Get Contents of URL” and tap it.' },
+  { title: 'Paste the link', text: 'Tap the blue URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
+  {
+    title: 'Add the fields',
+    text: 'Add a Text field for each row, named in lowercase. For amount, tap the value, pick Shortcut Input, tap it again and choose Message (it may be called Body). card is the app name, a colon and a space, then Message.',
+  },
+  { title: 'Save', text: `Tap ✓. Every ${app} payment notification now goes to Plan with its exact amount.` },
+];
+
+/**
+ * Guided setup for logging payments from another app's notifications (SimplyGo fares, Grab, bank apps) through an
+ * iOS 27 Shortcuts "Notification" automation. It posts the notification as it came, in the same shape MacroDroid
+ * uses on Android, so the app reads it with readWalletPayment (src/utils/walletNotification.ts).
+ */
+export default function NotifyPayScreen() {
+  const data = useActiveBudget();
+  const status = useCloud((s) => s.status);
+  const updateSettings = useStore((s) => s.updateSettings);
+  const { colors } = useTheme();
+  const params = useLocalSearchParams<{ step?: string }>();
+  const [app, setApp] = useState(DEFAULT_APP);
+  const appName = app.trim() || DEFAULT_APP;
+  const STEPS = steps(appName);
+  const TOTAL = STEPS.length + 2; // intro + steps + test
+  const mocks = useMemo(() => notifyMocks(appName), [appName]);
+  const [step, setStep] = useState(() => Math.max(0, Math.min(TOTAL - 1, Number(params.step) || 0)));
+  const [key, setKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [test, setTest] = useState<'idle' | 'sending' | 'ok' | 'failed'>('idle');
+  const [testError, setTestError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    void getInboxKey().then(setKey);
+  }, [status]);
+
+  const accounts = data.accounts.filter((a) => a.onBudget && !a.closed);
+  const fallback = accountForCard(data, null);
+  const fallbackName = accounts.find((a) => a.id === fallback)?.name;
+
+  const ensureKey = async () => {
+    if (status !== 'ready') {
+      notify('Sign in first', 'Auto-logging works through your Plan account.');
+      return false;
+    }
+    if (!requirePro('notifyPay')) return false;
+    if (key) return true;
+    setBusy(true);
+    try {
+      setKey(await createInboxKey());
+      return true;
+    } catch (e) {
+      notify('Couldn’t set it up', e instanceof Error ? e.message : undefined);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const start = async () => {
+    if (!(await ensureKey())) return;
+    haptic();
+    setStep(1);
+  };
+
+  const runTest = async () => {
+    if (!key) return;
+    setTest('sending');
+    setTestError(null);
+    try {
+      await sendTestPayment(key);
+      const { tests } = await importPayments();
+      setTest(tests > 0 ? 'ok' : 'failed');
+      if (!tests) setTestError('The test reached the server but didn’t come back. Pull down to refresh, then try again.');
+      haptic(tests > 0 ? 'success' : 'warning');
+    } catch (e) {
+      setTest('failed');
+      setTestError(e instanceof Error ? e.message : 'Something went wrong.');
+    }
+  };
+
+  const Mock = step >= 1 && step <= STEPS.length ? mocks[step - 1] : null;
+  const isTest = step === TOTAL - 1;
+
+  return (
+    <Screen
+      back="close"
+      modal
+      title="Notification auto-log"
+      maxWidth={560}
+      footer={
+        step > 0 ? (
+          <Row style={{ gap: 10 }}>
+            <Button title="Back" variant="soft" icon="chevron-back" style={{ flex: 1 }} onPress={() => setStep(step - 1)} />
+            <Button title={isTest ? 'Done' : 'Next'} style={{ flex: 1.4 }} onPress={() => (isTest ? goBack() : setStep(step + 1))} />
+          </Row>
+        ) : (
+          <Button title={key ? 'Show me the steps' : 'Set it up'} loading={busy} onPress={() => void start()} />
+        )
+      }
+    >
+      <Row style={{ gap: 5, marginBottom: 18 }}>
+        {Array.from({ length: TOTAL }, (_, i) => (
+          <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? colors.accent : colors.sunken }} />
+        ))}
+      </Row>
+
+      {step === 0 && (
+        <View style={{ gap: 16 }}>
+          <View style={{ alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="notifications-outline" size={30} color={colors.accent} />
+            </View>
+            <Txt variant="h2" center>
+              The fare’s charged, and it’s logged
+            </Txt>
+            <Txt tone="soft" center>
+              When {appName} sends a payment notification, a Shortcuts automation passes it to Plan with the exact amount. Great for transit fares that Apple Pay can’t see at the gantry.
+            </Txt>
+            <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
+              <Txt variant="caption" tone="soft">
+                iPhone · iOS 27 or later
+              </Txt>
+            </Row>
+          </View>
+          <Card style={{ gap: 6 }}>
+            <TextField icon="apps-outline" label="App that notifies" value={app} onChangeText={setApp} maxLength={40} placeholder={DEFAULT_APP} autoCapitalize="words" />
+            <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
+              SimplyGo, Grab, your bank’s app: anything that posts a notification with the amount. Set up one automation per app.
+            </Txt>
+          </Card>
+          <Card style={{ gap: 4 }}>
+            <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
+            <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
+              Used unless the notification names a card’s last 4 digits that match an account (e.g. “DBS Visa 1234”).
+            </Txt>
+          </Card>
+          <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
+            <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
+              Shortcuts can’t encrypt, so the notification’s text waits on the server until Plan picks it up, then it’s deleted. Only {appName}’s notifications are sent. It uses the same key as Apple Pay auto-log.
+            </Txt>
+          </Row>
+        </View>
+      )}
+
+      {Mock && (
+        <View style={{ gap: 16 }}>
+          <Mock key={step} />
+          <Card style={{ gap: 8 }}>
+            <View style={{ alignSelf: 'flex-start', backgroundColor: colors.accentSoft, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 3 }}>
+              <Txt variant="label" tone="accent">
+                Step {step}
+              </Txt>
+            </View>
+            <Txt variant="h3">{STEPS[step - 1].title}</Txt>
+            <Txt tone="soft">{STEPS[step - 1].text}</Txt>
+            {step === 6 && (
+              <View style={{ marginTop: 4 }}>
+                <CopyRow label="Link for the URL box" value={logPaymentUrl()} />
+              </View>
+            )}
+            {step === 7 && (
+              <View style={{ gap: 2, marginTop: 4 }}>
+                {key ? (
+                  <CopyRow label="token" value={key} secret />
+                ) : (
+                  <Row style={{ gap: 10, paddingVertical: 8 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt variant="label">token</Txt>
+                      <Txt variant="caption" tone="muted">
+                        Paste your key
+                      </Txt>
+                    </View>
+                    <Button title="Create key" small variant="soft" loading={busy} onPress={() => void ensureKey()} />
+                  </Row>
+                )}
+                <Divider />
+                <MapRow field="amount" from="Shortcut Input › Message" />
+                <Divider />
+                <CopyRow label="merchant" value={appName} />
+                <Divider />
+                <CopyRow label="card (then add Message after it)" value={`${appName}: `} />
+                <Txt variant="caption" tone="muted">
+                  card must be the app name, a colon and a space, then Shortcut Input › Message: that’s how Plan knows to read the amount out of the text.
+                </Txt>
+              </View>
+            )}
+          </Card>
+        </View>
+      )}
+
+      {isTest && (
+        <View style={{ gap: 16 }}>
+          <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 22 }}>
+            {test === 'sending' ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <Ionicons name={test === 'ok' ? 'checkmark-circle' : test === 'failed' ? 'alert-circle' : 'paper-plane-outline'} size={36} color={test === 'ok' ? colors.positive : test === 'failed' ? colors.danger : colors.accent} />
+            )}
+            <Txt variant="h3" center>
+              {test === 'ok' ? 'It works' : test === 'failed' ? 'That didn’t work' : 'Check the connection'}
+            </Txt>
+            <Txt tone="soft" center>
+              {test === 'ok' ? `Plan got the test. The next ${appName} payment notification will show up in Spending.` : test === 'failed' ? testError : 'Sends a test payment to Plan. Nothing is added to your budget.'}
+            </Txt>
+            <Button title={test === 'ok' ? 'Test again' : 'Send a test'} variant="soft" icon="paper-plane-outline" onPress={() => void runTest()} />
+          </Card>
+          <Txt variant="label" tone="muted" style={{ marginLeft: 4 }}>
+            If something’s off
+          </Txt>
+          <Card style={{ gap: 12 }}>
+            {[
+              ['It never runs', `Check ${appName}’s notifications are on, and the automation is set to Run Immediately. If you added Message Contains, try removing it.`],
+              ['Logged as 0', `The amount wasn’t found in the text. Check card starts with “${appName}: ” followed by Message, exactly like amount.`],
+              ['Logged twice', 'If Apple Pay auto-log also logs this payment, untick that card in the Wallet automation, or delete one in Spending.'],
+              ['Hide “Running your automation”', 'Open the automation in Shortcuts and turn off Notify When Run.'],
+            ].map(([t, d]) => (
+              <View key={t}>
+                <Txt variant="strong">{t}</Txt>
+                <Txt variant="caption" tone="soft">
+                  {d}
+                </Txt>
+              </View>
+            ))}
+          </Card>
+        </View>
+      )}
+
+      <PickerSheet
+        visible={picking}
+        onClose={() => setPicking(false)}
+        title="Log payments to"
+        searchable={false}
+        selectedKey={fallback}
+        items={accounts.map((a) => ({ key: a.id, title: a.name }))}
+        onSelect={(k) => {
+          updateSettings({ payAccountId: k });
+          setPicking(false);
+        }}
+      />
+    </Screen>
+  );
+}
+
+function MapRow({ field, from }: { field: string; from: string }) {
+  return (
+    <Row style={{ gap: 10, paddingVertical: 8 }}>
+      <Txt variant="label" style={{ width: 70 }}>
+        {field}
+      </Txt>
+      <Txt variant="caption" tone="accent" style={{ flex: 1, textAlign: 'right' }}>
+        {from}
+      </Txt>
+    </Row>
+  );
+}

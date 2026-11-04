@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { BrandMark } from '@/components/BrandMark';
+import { FeatureTour } from '@/components/FeatureTour';
 import { FormatEditor, type FormatValue, guessFormat } from '@/components/FormatEditor';
 import { Screen } from '@/components/Screen';
 import { Button, notify, TextField, Txt } from '@/components/ui';
@@ -24,6 +25,8 @@ export default function Onboarding() {
   const [format, setFormat] = useState<FormatValue>(guessFormat);
   const [busy, setBusy] = useState(false);
   const gate = useAccountGate();
+  // A brand-new account starts with the feature tour (not when adding another budget later).
+  const [touring, setTouring] = useState(!hasBudgets);
 
   const next = (t: Template) => {
     if (t === 'default') {
@@ -61,6 +64,7 @@ export default function Onboarding() {
   };
 
   if (gate) return gate;
+  if (touring) return <FeatureTour onDone={() => setTouring(false)} />;
 
   if (step === 2) {
     return (

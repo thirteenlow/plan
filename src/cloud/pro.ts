@@ -189,13 +189,13 @@ export async function resumeSubscription() {
   return state;
 }
 
-export type ProFeature = 'applePay' | 'screenshot' | 'sharing' | 'budgets' | 'pets';
+export type ProFeature = 'applePay' | 'notifyPay' | 'screenshot' | 'sharing' | 'budgets' | 'pets';
 
 /**
- * `phone` features need an iPhone or an Android phone (not a computer); `needs` spells out the requirement
- * (checked against Apple's docs and MacroDroid's).
+ * `phone` features need an iPhone or an Android phone (not a computer), `iphone` ones an iPhone; `needs` spells out
+ * the requirement (checked against Apple's docs and MacroDroid's).
  */
-export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text: string; devices: 'phone' | 'all'; needs: string }[] = [
+export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text: string; devices: 'phone' | 'iphone' | 'all'; needs: string }[] = [
   {
     key: 'screenshot',
     icon: 'sparkles-outline',
@@ -214,6 +214,14 @@ export const PRO_FEATURES: { key: ProFeature; icon: string; title: string; text:
     text: 'Tap to pay and it’s already in your budget.',
     devices: 'phone',
     needs: 'Apple Pay on iOS 17+ · Google or Samsung Wallet on Android',
+  },
+  {
+    key: 'notifyPay',
+    icon: 'notifications-outline',
+    title: 'Payment notification auto-log',
+    text: 'When SimplyGo, Grab or your bank app sends a payment notification, it’s logged with the exact amount. Perfect for transit fares.',
+    devices: 'iphone',
+    needs: 'iPhone on iOS 27+',
   },
 ];
 

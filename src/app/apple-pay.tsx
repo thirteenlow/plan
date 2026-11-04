@@ -255,6 +255,8 @@ export default function ApplePayScreen() {
               ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with Request Body JSON.'],
               ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to on the first screen.'],
               ['No merchant', 'Some payments don’t include one. They’re logged as “Apple Pay”.'],
+              ['Transit fares (SimplyGo)', 'Gantry taps have no amount yet, so they’re skipped. Set up Notification auto-log to log the fare when it’s charged.'],
+              ['Hide “Running your automation”', 'Open the automation in Shortcuts and turn off Notify When Run.'],
               ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it; anything else says why not.'],
             ].map(([t, d]) => (
               <View key={t}>

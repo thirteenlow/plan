@@ -73,6 +73,7 @@ export default function RootLayout() {
           <Stack.Screen name="target/[id]" options={modal} />
           <Stack.Screen name="apple-pay" options={modal} />
           <Stack.Screen name="wallet-pay" options={modal} />
+          <Stack.Screen name="notify-pay" options={modal} />
           <Stack.Screen name="screenshot-capture" options={modal} />
           <Stack.Screen name="pet" options={modal} />
           <Stack.Screen name="pro" options={modal} />

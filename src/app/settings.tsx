@@ -137,7 +137,10 @@ export default function SettingsScreen() {
         {isAndroidDevice() ? (
           <Item icon="phone-portrait-outline" label="Google Pay auto-log" value="Android" pro={!pro} onPress={() => requirePro('applePay') && router.push('/wallet-pay')} />
         ) : (
-          <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
+          <>
+            <Item icon="phone-portrait-outline" label="Apple Pay auto-log" value="iPhone · iOS 17+" pro={!pro} onPress={() => requirePro('applePay') && router.push('/apple-pay')} />
+            <Item icon="notifications-outline" label="Notification auto-log" value="iPhone · iOS 27+" pro={!pro} onPress={() => requirePro('notifyPay') && router.push('/notify-pay')} />
+          </>
         )}
         <Item icon="scan-outline" label="AI receipt scan" value="Any device" pro={!pro} onPress={() => requirePro('screenshot') && router.push('/screenshot-capture')} />
       </Group>

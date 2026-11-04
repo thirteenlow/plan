@@ -138,7 +138,7 @@ export function HomeScreen() {
   );
 }
 
-function AutomationTabScreen() {
+export function AutomationTabScreen() {
   return (
     <Phone>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 14 }}>
@@ -249,7 +249,7 @@ function CardsScreen() {
 }
 
 /** Step 5: tap Create New Shortcut on the "When I tap…" screen, then search for the action. */
-function ActionSearchScreen() {
+export function ActionSearchScreen({ title = 'When I tap any of 7…' }: { title?: string }) {
   // -1: the "Get Started" screen with the tap on Create New Shortcut; 0…: typing the search.
   const [typed, setTyped] = useState(-1);
   const q = 'Get Contents of URL';
@@ -263,7 +263,7 @@ function ActionSearchScreen() {
       <Phone dark>
         <View style={{ paddingHorizontal: 14 }}>
           <T size={15} weight="bold" color="#fff" style={{ marginTop: 6 }}>
-            When I tap any of 7…
+            {title}
           </T>
           <T size={10} weight="semibold" color="#fff" style={{ marginTop: 10, marginBottom: 6 }}>
             Get Started ›
@@ -485,5 +485,6 @@ function SaveScreen() {
 }
 
 const JsonLinkScreen = () => <LinkScreen />;
+const WalletActionSearchScreen = () => <ActionSearchScreen />;
 
-export const SHORTCUT_MOCKS = [HomeScreen, AutomationTabScreen, TriggerScreen, CardsScreen, ActionSearchScreen, JsonLinkScreen, FieldsScreen, SaveScreen];
+export const SHORTCUT_MOCKS = [HomeScreen, AutomationTabScreen, TriggerScreen, CardsScreen, WalletActionSearchScreen, JsonLinkScreen, FieldsScreen, SaveScreen];
