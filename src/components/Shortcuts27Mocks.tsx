@@ -5,7 +5,7 @@ import { Phone, T, Taps, usePhase, W } from './ShortcutMocks';
 
 /*
  * Drawn iPhone screens for the iOS 27 Shortcuts app, where an automation is a shortcut whose first block is a
- * trigger: + › skip the "Describe a shortcut" prompt › Automation › pick the trigger › add actions.
+ * trigger: + › Edit (skips the "Describe a shortcut" prompt) › Automation › pick the trigger › add actions.
  * `kind` picks the trigger: Wallet (Apple Pay auto-log) or Notification (SimplyGo fares).
  * Tap points are in screen coordinates below the status bar (W × 400).
  */
@@ -24,7 +24,7 @@ const Pill = ({ label, color = D.blue, icon }: { label: string; color?: string; 
 );
 
 /** Back button, title and right button, as in the editor's header. */
-function Header({ title, right = 'settings-outline' }: { title: string; right?: Icon | null }) {
+function Header({ title, right = 'flower-outline', rightText }: { title: string; right?: Icon | null; rightText?: string }) {
   return (
     <View style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 }}>
       <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: D.card, alignItems: 'center', justifyContent: 'center' }}>
@@ -39,15 +39,23 @@ function Header({ title, right = 'settings-outline' }: { title: string; right?: 
         </T>
         <Ionicons name="chevron-down-circle" size={10} color={D.soft} />
       </View>
-      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: right ? D.card : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-        {right && <Ionicons name={right} size={13} color={D.text} />}
-      </View>
+      {rightText ? (
+        <View style={{ height: 26, borderRadius: 13, backgroundColor: D.card, paddingHorizontal: 10, justifyContent: 'center' }}>
+          <T size={9.5} color={D.text}>
+            {rightText}
+          </T>
+        </View>
+      ) : (
+        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: right ? D.card : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+          {right && <Ionicons name={right} size={14} color={D.text} />}
+        </View>
+      )}
     </View>
   );
 }
 
 /** The trigger block at the top of the shortcut, filled in. */
-function TriggerBlock({ kind, app, filter = 'Fare' }: { kind: Kind; app: string; filter?: string }) {
+function TriggerBlock({ kind, app, filter = '$' }: { kind: Kind; app: string; filter?: string }) {
   return (
     <View style={{ marginHorizontal: 10, marginTop: 4, borderRadius: 12, backgroundColor: D.card, padding: 8, gap: 6 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
@@ -113,11 +121,11 @@ function LibraryScreen({ kind }: { kind: Kind }) {
   );
 }
 
-/** 2: the "Describe a shortcut" prompt, tap ✕ to build it yourself. */
+/** 2: the "Describe a shortcut" prompt, tap Edit to build it yourself. */
 function PromptScreen() {
   return (
     <Phone dark>
-      <Header title="New Shortcut" right={null} />
+      <Header title="New Shortcut" rightText="Edit" />
       <View style={{ marginHorizontal: 18, marginTop: 24, height: 120, borderRadius: 26, borderWidth: 1, borderColor: '#1F3A40', backgroundColor: '#07181C', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }}>
         <T size={11.5} weight="semibold" color={D.text} style={{ textAlign: 'center' }}>
           What do you want
@@ -144,7 +152,7 @@ function PromptScreen() {
           <View key={k} style={{ width: 18, height: 24, borderRadius: 4, backgroundColor: '#3A3A3C' }} />
         ))}
       </View>
-      <Taps points={[{ x: W - 25, y: 243 }]} />
+      <Taps points={[{ x: W - 30, y: 18 }]} />
     </Phone>
   );
 }
@@ -241,8 +249,10 @@ function AutomationScreen({ kind }: { kind: Kind }) {
 
 /** 4: set up the trigger (cards, or the app plus "Message contains"). */
 function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
-  const phase = usePhase(3, 1900);
-  const filled = phase >= 2;
+  const notify = kind === 'notify';
+  // Wallet: tap Cards, tick them, done. Notification: pick the app, Add Filter, Title → Message, type $.
+  const phase = usePhase(notify ? 6 : 3, 1800);
+  const picked = phase >= 1;
   const toggles = (
     <View style={{ marginHorizontal: 10, marginTop: 8, borderRadius: 12, backgroundColor: D.card }}>
       {[
@@ -260,40 +270,57 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
       ))}
     </View>
   );
-  const choices = kind === 'wallet' ? ['Visa •••• 4821', 'Mastercard •••• 1093', 'EZ-Link'] : ['Grab', 'Instagram', app, 'WhatsApp'];
+  const choices = notify ? ['Grab', 'Instagram', app, 'WhatsApp'] : ['Visa •••• 4821', 'Mastercard •••• 1093', 'EZ-Link'];
+  const field = phase >= 5 ? 'Message' : 'Title';
+  const captions = notify
+    ? [`Tap App`, `Pick ${app}`, 'Tap Add Filter', 'Tap Title', 'Change it to Message', 'Type $ in the box']
+    : ['Tap Cards', 'Tick your cards', 'Leave Run Immediately on'];
+  const taps = notify
+    ? [{ x: 40, y: 91 }, { x: W / 2, y: 120 + 4 + 2 * 26 + 13 }, { x: 60, y: 112 }, { x: 34, y: 112 }, { x: 70, y: 122 + 4 + 2 * 22 + 11 }, { x: 150, y: 112 }]
+    : [{ x: 150, y: 50 }, { x: W / 2, y: 120 + 4 + 13 }, { x: 120, y: 50 + 34 }];
   return (
     <Phone dark>
       <Header title="New Shortcut" />
-      {!filled && kind === 'notify' && (
-        <View style={{ marginHorizontal: 10, marginBottom: 4, borderRadius: 10, backgroundColor: D.card2, paddingHorizontal: 8, paddingVertical: 5 }}>
-          <T size={8.5} color={D.text}>
-            Configure “Message” to enable this.
-          </T>
+      {notify && (
+        <View style={{ height: 22, marginHorizontal: 10, marginBottom: 4, borderRadius: 10, backgroundColor: phase === 3 || phase === 4 ? D.card2 : 'transparent', paddingHorizontal: 8, justifyContent: 'center' }}>
+          {(phase === 3 || phase === 4) && (
+            <T size={8.5} color={D.text}>
+              Configure “Title” to enable this.
+            </T>
+          )}
         </View>
       )}
       <View style={{ marginHorizontal: 10, borderRadius: 12, backgroundColor: D.card, padding: 8, gap: 6 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
-          <Ionicons name={kind === 'wallet' ? 'wallet' : 'notifications'} size={10} color={D.soft} />
+          <Ionicons name={notify ? 'notifications' : 'wallet'} size={10} color={D.soft} />
           <T size={9.5} weight="semibold" color={D.text}>
-            {kind === 'wallet' ? 'When I tap any of' : 'When I receive a notification from'}
+            {notify ? 'When I receive a notification from' : 'When I tap any of'}
           </T>
-          <Pill label={kind === 'wallet' ? (phase ? '2 cards' : 'Cards') : phase ? app : 'App'} />
+          <Pill label={notify ? (picked ? app : 'App') : picked ? '2 cards' : 'Cards'} />
         </View>
-        {kind === 'notify' && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Pill label="Message" />
+        {notify && phase === 2 && (
+          <View style={{ height: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="add-circle" size={11} color={D.blue} />
+            <T size={9} color={D.blue}>
+              Add Filter
+            </T>
+          </View>
+        )}
+        {notify && phase >= 3 && (
+          <View style={{ height: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Pill label={field} />
             <T size={9} color={D.text}>
               contains
             </T>
-            <Pill label={filled ? 'Fare' : 'Body'} color={filled ? D.text : D.soft} />
+            <Pill label={phase >= 5 ? '$' : ' '} color={D.text} />
           </View>
         )}
       </View>
       {toggles}
       {phase === 1 && (
-        <View style={{ position: 'absolute', left: 20, right: 20, top: 30 + 110, borderRadius: 14, backgroundColor: D.card2, paddingVertical: 4 }}>
+        <View style={{ position: 'absolute', left: 20, right: 20, top: 30 + 120, borderRadius: 14, backgroundColor: D.card2, paddingVertical: 4 }}>
           {choices.map((c) => {
-            const on = kind === 'wallet' ? c !== 'EZ-Link' : c === app;
+            const on = notify ? c === app : c !== 'EZ-Link';
             return (
               <View key={c} style={{ height: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }}>
                 <T size={9.5} color={D.text}>
@@ -305,10 +332,22 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
           })}
         </View>
       )}
+      {notify && phase === 4 && (
+        <View style={{ position: 'absolute', left: 14, width: 120, top: 30 + 122, borderRadius: 14, backgroundColor: D.card2, paddingVertical: 4 }}>
+          {['Title', 'Subtitle', 'Message'].map((o) => (
+            <View key={o} style={{ height: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 }}>
+              <View style={{ width: 10 }}>{o === 'Title' && <Ionicons name="checkmark" size={10} color={D.text} />}</View>
+              <T size={9.5} color={D.text}>
+                {o}
+              </T>
+            </View>
+          ))}
+        </View>
+      )}
       <T size={9} color={D.soft} style={{ position: 'absolute', left: 0, right: 0, bottom: 18, textAlign: 'center' }}>
-        {kind === 'wallet' ? ['Tap Cards', 'Tick your cards', 'Leave Run Immediately on'][phase] : [`Tap App, pick ${app}`, `Pick ${app}`, 'Tap Body, type Fare'][phase]}
+        {captions[phase]}
       </T>
-      <Taps key={phase} points={[phase === 0 ? { x: kind === 'wallet' ? 150 : 60, y: kind === 'wallet' ? 50 : 76 } : phase === 1 ? { x: W / 2, y: 110 + 4 + (kind === 'wallet' ? 13 : 2 * 26 + 13) } : { x: 120, y: kind === 'wallet' ? 50 + 34 : 98 }]} />
+      <Taps key={phase} points={[taps[phase]]} />
     </Phone>
   );
 }
@@ -496,7 +535,7 @@ function FieldsScreen({ kind, app }: { kind: Kind; app: string }) {
   );
 }
 
-/** 8: rename it, then go back to save. */
+/** 8: rename it, then tap the top-right button to save. */
 function SaveScreen({ kind, app }: { kind: Kind; app: string }) {
   const phase = usePhase(3, 1800);
   const name = kind === 'wallet' ? 'Apple Pay Auto-log' : `${app} Fares`;
@@ -515,9 +554,9 @@ function SaveScreen({ kind, app }: { kind: Kind; app: string }) {
         </View>
       )}
       <T size={9} color={D.soft} style={{ textAlign: 'center', marginTop: 14 }}>
-        {['Tap the name', `Rename it “${name}”`, 'Tap back to save'][phase]}
+        {['Tap the name', `Rename it “${name}”`, 'Tap the top-right button to save'][phase]}
       </T>
-      <Taps key={phase} points={[[{ x: W / 2, y: 18 }, { x: W / 2, y: 34 + 4 + 10 }, { x: 23, y: 18 }][phase]]} />
+      <Taps key={phase} points={[[{ x: W / 2, y: 18 }, { x: W / 2, y: 34 + 4 + 10 }, { x: W - 23, y: 18 }][phase]]} />
     </Phone>
   );
 }
