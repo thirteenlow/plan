@@ -6,16 +6,13 @@ import { CopyRow } from '@/components/CopyRow';
 import { Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { SHORTCUT_MOCKS } from '@/components/ShortcutMocks';
-import { Button, Card, confirm, Divider, FieldRow, haptic, notify, Row, TextField, Txt } from '@/components/ui';
+import { Button, Card, confirm, Divider, FieldRow, haptic, notify, Row, Txt } from '@/components/ui';
 import { useCloud } from '@/cloud/cloudStore';
 import { requirePro } from '@/cloud/pro';
 import { accountForCard, createInboxKey, getInboxKey, importPayments, logPaymentUrl, removeInboxKey, sendTestPayment } from '@/cloud/inbox';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
-import { milliToInput, parseMoney } from '@/utils/money';
 import { goBack } from '@/utils/nav';
-import { DEFAULT_TRANSIT_FARE } from '@/utils/transit';
-import { filterAmountTyping } from '@/utils/validation';
 
 const STEPS: { title: string; text: string }[] = [
   { title: 'Open Shortcuts', text: 'It’s already on your iPhone.' },
@@ -44,14 +41,6 @@ export default function ApplePayScreen() {
   const [picking, setPicking] = useState(false);
   const [test, setTest] = useState<'idle' | 'sending' | 'ok' | 'failed'>('idle');
   const [testError, setTestError] = useState<string | null>(null);
-  const currency = data.settings.currency;
-  const [fare, setFare] = useState(() => milliToInput(data.settings.transitFare ?? DEFAULT_TRANSIT_FARE, currency));
-  const saveFare = () => {
-    const m = parseMoney(fare, currency);
-    if (m === null || m < 0) return setFare(milliToInput(data.settings.transitFare ?? DEFAULT_TRANSIT_FARE, currency));
-    updateSettings({ transitFare: m });
-    setFare(milliToInput(m, currency));
-  };
 
   useEffect(() => {
     if (status !== 'ready') return;
@@ -180,22 +169,6 @@ export default function ApplePayScreen() {
               For cards that don’t match an account name.
             </Txt>
           </Card>
-          <Card style={{ gap: 6 }}>
-            <TextField
-              icon="bus-outline"
-              label="Transit fare per trip"
-              value={fare}
-              onChangeText={setFare}
-              filter={(t) => filterAmountTyping(t, currency)}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              onBlur={saveFare}
-              onSubmitEditing={saveFare}
-            />
-            <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Taps on buses and trains (like SimplyGo) have no amount yet. Plan adds up each day’s taps as an estimate to fix once the fare is charged.
-            </Txt>
-          </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 2 }} />
             <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
@@ -282,8 +255,6 @@ export default function ApplePayScreen() {
               ['Nothing shows up', 'Check Run Immediately is on, your cards are ticked, and Method is POST with Request Body JSON.'],
               ['Wrong account', 'Name the account like the card (e.g. “DBS Visa”), or change Log to on the first screen.'],
               ['No merchant', 'Some payments don’t include one. They’re logged as “Apple Pay”.'],
-              ['Transit says “Automation failed”', 'Taps with no amount (SimplyGo, bus and train gates) are logged as a daily estimate. If it still fails, the server needs updating.'],
-              ['Hide “Running your automation”', 'In Shortcuts, open the automation and turn off Notify When Run.'],
               ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it; anything else says why not.'],
             ].map(([t, d]) => (
               <View key={t}>

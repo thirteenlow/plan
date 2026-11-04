@@ -89,6 +89,7 @@ Lets an iPhone Shortcuts automation log every Apple Pay payment into Plan.
    (accepts the shortcut's fields in any capitalisation; without it, "Amount" instead of "amount" silently fails).
    If Pro is set up (`005_pro.sql`), also run `supabase/013_transit_taps.sql` afterwards: transit taps (SimplyGo
    and other tap-in/tap-out fares) arrive with no amount, and without it every tap shows "Automation failed".
+   Taps are skipped; the fare is logged when it's actually charged.
 2. In the app: Settings → Automation → Apple Pay auto-log, then follow the steps. It creates a personal key and
    shows the address and fields to paste into the Shortcut, plus a test button.
 

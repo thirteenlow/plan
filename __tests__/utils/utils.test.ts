@@ -4,7 +4,6 @@ import { exportCsv, importCsv, isPlanCsv, isRegisterCsv, parseAmountText, parseC
 import { addDays, addMonths, addMonthsToDate, daysBetween, daysInMonth, formatDate, monthDiff, monthLabel, monthPickerOrder, monthRange } from '@/utils/date';
 import { CURRENCIES, DEFAULT_CURRENCY, formatMoney, milliToInput, parseMoney, signedInput } from '@/utils/money';
 import { matchAccount, matchCategory, merchantKey, payeeCategory } from '@/utils/scanMatch';
-import { isTransitTap, tapsInMemo, transitEstimate, transitMemo, tripsForTaps } from '@/utils/transit';
 import { filterAmountTyping, isValidBudget, sanitizeText, validateAmount, validateName } from '@/utils/validation';
 import { amountInText, readWalletPayment } from '@/utils/walletNotification';
 import { $, assign, income, makeBudget, NOW, spend, THIS_MONTH, tx } from '../helpers/budget';
@@ -240,24 +239,5 @@ describe('signedInput', () => {
     expect(parseMoney(signedInput(-30_000, c), c)).toBe(-30_000);
     expect(signedInput(12_500, c)).toBe(milliToInput(12_500, c));
     expect(signedInput(0, c)).toBe('');
-  });
-});
-
-describe('transit taps', () => {
-  it('treats an empty or zero amount as a tap, anything else as a payment', () => {
-    for (const a of ['', '  ', null, undefined, '0', '$0.00', 'S$0,00']) expect(isTransitTap(a)).toBe(true);
-    for (const a of ['1.50', '$0.05', 'S$10', '0.10']) expect(isTransitTap(a)).toBe(false);
-  });
-
-  it('counts two taps as one trip, rounding a lone tap up', () => {
-    expect([0, 1, 2, 3, 4].map(tripsForTaps)).toEqual([0, 1, 1, 2, 2]);
-    expect(transitEstimate(4, 1_500)).toBe(3_000);
-  });
-
-  it('keeps the tap count in the memo so later taps add to the same estimate', () => {
-    expect(tapsInMemo(transitMemo(5, '$1.50'))).toBe(5);
-    expect(transitMemo(2, '$1.50')).toContain('about 1 trip at $1.50');
-    expect(tapsInMemo('Apple Pay · Visa')).toBe(0);
-    expect(tapsInMemo(undefined)).toBe(0);
   });
 });

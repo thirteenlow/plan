@@ -14,8 +14,6 @@ import { addDays } from '@/utils/date';
 import { readWalletPayment } from '@/utils/walletNotification';
 import { matchAccount, matchCategory, payeeCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
-import { formatMoney } from '@/utils/money';
-import { DEFAULT_TRANSIT_FARE, isTransitTap, openTransitEstimate, tapsInMemo, TRANSIT_PAYEE, transitEstimate, transitMemo } from '@/utils/transit';
 import { useCloud } from './cloudStore';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
 import { getSupabase } from './supabase';
@@ -184,8 +182,6 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
     // Rows are already off the server once claimed, so never drop one silently.
     let unreadable = 0;
     let noAccount = 0;
-    // Transit taps (no amount yet), counted per account, day and operator, then logged as one estimate each.
-    const taps = new Map<string, { accountId: string; date: string; payee: string; count: number }>();
     type Row = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null };
     for (const row of (rows ?? []) as Row[]) {
       if (row.merchant === TEST_MERCHANT) {
@@ -203,18 +199,10 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
         noAccount++;
         continue;
       }
-      const when = new Date(row.created_at);
-      const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
-      if (!wallet && !scanned && isTransitTap(row.amount)) {
-        const payee = row.merchant?.trim() || TRANSIT_PAYEE;
-        const k = `${accountId}|${created}|${payee.toLowerCase()}`;
-        const g = taps.get(k) ?? { accountId, date: created, payee, count: 0 };
-        g.count++;
-        taps.set(k, g);
-        continue;
-      }
       // An amount we can't read is still logged (at 0, with what came through) so it can be fixed in Spending.
       if (!amount) unreadable++;
+      const when = new Date(row.created_at);
+      const created = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
       // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
       const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
       const via = wallet?.wallet ?? 'Apple Pay';
@@ -237,32 +225,8 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       );
       imported++;
     }
-    const fare = data.settings.transitFare ?? DEFAULT_TRANSIT_FARE;
-    let tapCount = 0;
-    for (const g of taps.values()) {
-      const budget = useStore.getState().budgets[data.id] ?? data;
-      const open = openTransitEstimate(budget, g.accountId, g.date, g.payee);
-      const total = g.count + (open ? tapsInMemo(open.memo) : 0);
-      useStore.getState().saveTransaction(
-        {
-          id: open?.id,
-          accountId: g.accountId,
-          date: g.date,
-          amount: -transitEstimate(total, fare),
-          payeeName: g.payee,
-          categoryId: open ? open.categoryId : payeeCategory(budget, g.payee),
-          memo: transitMemo(total, formatMoney(fare, { c: budget.settings.currency })),
-          cleared: 'uncleared',
-          approved: false,
-          flag: open?.flag,
-        },
-        data.id,
-      );
-      tapCount += g.count;
-    }
     const notes = [
       imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically${data.id !== useStore.getState().activeBudgetId ? ` in “${data.name}”` : ''}. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
-      tapCount ? `Logged ${tapCount} transit ${tapCount === 1 ? 'tap' : 'taps'} as an estimate. Fix the amount once the fare is charged.` : '',
       unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
       noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
     ].filter(Boolean);
