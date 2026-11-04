@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, type NativeScrollEvent, type NativeSyntheticEvent, Platform, ScrollView, type ScrollViewInstance, View } from 'react-native';
+import { Animated, Easing, type NativeScrollEvent, type NativeSyntheticEvent, Platform, ScrollView, type ScrollViewInstance, useWindowDimensions, View } from 'react-native';
 import { BrandMark } from '@/components/BrandMark';
 import { PixelPet } from '@/components/PixelPet';
 import { Screen } from '@/components/Screen';
@@ -19,7 +19,7 @@ const native = Platform.OS !== 'web';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 type Tier = 'free' | 'pro' | 'mixed';
 type Chip = { icon: IconName; label: string };
-type Slide = { key: string; icon: IconName; title: string; text: string; tier: Tier; tierLabel?: string; chips: Chip[]; scene?: 'brand' | 'pets' | 'tap' | 'notify' | 'wallet' | 'scan' };
+type Slide = { key: string; icon: IconName; title: string; text: string; tier: Tier; tierLabel?: string; where?: string; chips: Chip[]; scene?: 'brand' | 'pets' | 'tap' | 'notify' | 'wallet' | 'scan' };
 
 function slides(): Slide[] {
   const apple = isAppleDevice();
@@ -34,6 +34,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · Android',
           chips: [],
+          where: 'Settings › Automation › Google Pay auto-log',
           scene: 'wallet',
         },
         {
@@ -44,6 +45,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · Android',
           chips: [],
+          where: 'Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
         },
       ]
@@ -56,6 +58,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · iPhone iOS 17+',
           chips: [],
+          where: 'Settings › Automation › Apple Pay auto-log',
           scene: 'tap',
         },
         {
@@ -66,6 +69,7 @@ function slides(): Slide[] {
           tier: 'pro',
           tierLabel: 'Pro · iPhone iOS 27+',
           chips: [],
+          where: 'Settings › Automation › SimplyGo fare auto-log',
           scene: 'notify',
         },
       ];
@@ -131,7 +135,8 @@ function slides(): Slide[] {
       tier: 'mixed',
       tierLabel: '3 free · every companion with Pro',
       chips: [],
-      scene: 'pets',
+      where: 'Settings › Companion',
+          scene: 'pets',
     },
     ...automation,
     {
@@ -142,11 +147,13 @@ function slides(): Slide[] {
       tier: 'pro',
       tierLabel: 'Pro · any device',
       chips: [],
-      scene: 'scan',
+      where: 'Settings › Automation › AI receipt scan',
+          scene: 'scan',
     },
     {
       key: 'share',
       icon: 'people-outline',
+      where: 'Settings › Account & sharing',
       title: 'Budget together',
       text: 'Share with a partner or housemates. Keep separate budgets for anything.',
       tier: 'pro',
@@ -409,7 +416,10 @@ function ScanScene({ active }: { active: boolean }) {
   );
 }
 
-function SlideView({ slide, active, width }: { slide: Slide; active: boolean; width: number }) {
+function SlideView({ slide, active, width, height }: { slide: Slide; active: boolean; width: number; height: number }) {
+  // Short screens (e.g. iPhone SE): shrink the animation so the words still fit above the buttons.
+  // `height` is the screen's; the header, dots and buttons take about 230 of it, the words about 230.
+  const scale = Math.max(0.5, Math.min(1, (height - 460) / 260));
   const [text] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!active) return text.setValue(0);
@@ -426,8 +436,10 @@ function SlideView({ slide, active, width }: { slide: Slide; active: boolean; wi
       <IconScene slide={slide} active={active} />
     );
   return (
-    <View style={{ width, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: 26 }}>
-      <View style={{ minHeight: 260, alignItems: 'center', justifyContent: 'center' }}>{scene}</View>
+    <View style={{ width, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: scale < 1 ? 12 : 26 }}>
+      <View style={{ height: 260 * scale, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ transform: [{ scale }] }}>{scene}</View>
+      </View>
       <Animated.View style={{ alignItems: 'center', gap: 10, opacity: text, transform: [{ translateY: text.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>
         <TierBadge tier={slide.tier} label={slide.tierLabel} />
         <Txt variant="title" center>
@@ -436,8 +448,22 @@ function SlideView({ slide, active, width }: { slide: Slide; active: boolean; wi
         <Txt tone="soft" center style={{ maxWidth: 360 }}>
           {slide.text}
         </Txt>
+        {!!slide.where && <Where path={slide.where} />}
       </Animated.View>
     </View>
+  );
+}
+
+/** Where to set the feature up later, e.g. "Settings › Companion". */
+function Where({ path }: { path: string }) {
+  const { colors } = useTheme();
+  return (
+    <Row style={{ gap: 6, backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 6, maxWidth: 360 }}>
+      <Ionicons name="settings-outline" size={13} color={colors.textSoft} />
+      <Txt variant="caption" tone="soft" style={{ flexShrink: 1 }}>
+        Set up in {path}
+      </Txt>
+    </Row>
   );
 }
 
@@ -455,6 +481,7 @@ export function FeatureTour({ onDone }: { onDone: () => void }) {
   const [list] = useState(slides);
   const [index, setIndex] = useState(0);
   const [width, setWidth] = useState(0);
+  const { height } = useWindowDimensions();
   const scroller = useRef<ScrollViewInstance>(null);
   const last = index === list.length - 1;
 
@@ -501,7 +528,7 @@ export function FeatureTour({ onDone }: { onDone: () => void }) {
             accessibilityLabel="What Plan can do"
           >
             {list.map((s, i) => (
-              <SlideView key={s.key} slide={s} active={i === index} width={width} />
+              <SlideView key={s.key} slide={s} active={i === index} width={width} height={height} />
             ))}
           </ScrollView>
         )}
