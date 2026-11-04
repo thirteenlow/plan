@@ -468,9 +468,10 @@ function FieldsScreen({ kind, app }: { kind: Kind; app: string }) {
     ['token', <T key="t" size={8.5} color={D.soft}>Xk29…</T>],
     ['amount', phase === 1 ? <Pill key="a" label={source} color={D.purple} /> : v(kind === 'wallet' ? 'Amount' : 'Body')],
     ['merchant', kind === 'wallet' ? v('Merchant') : <T key="m" size={8.5} color={D.text}>{app}</T>],
-    ['card', v(kind === 'wallet' ? 'Name' : 'Body')],
+    // SimplyGo's alerts don't name a card, so that shortcut has no card field.
+    ...(kind === 'wallet' ? [['card', v('Name')] as [string, React.ReactNode]] : []),
   ];
-  const shown = fields.slice(0, phase <= 2 ? 2 : Math.min(4, phase));
+  const shown = fields.slice(0, phase <= 2 ? 2 : Math.min(fields.length, phase));
   return (
     <Phone dark>
       <Header title="New Shortcut" />
@@ -547,11 +548,11 @@ function FieldsScreen({ kind, app }: { kind: Kind; app: string }) {
           kind === 'notify' ? 'amount: tap it, scroll the bar, tap Notification' : 'amount: tap it, then Shortcut Input',
           `Tap it again, pick ${kind === 'wallet' ? 'Amount' : 'Body'}`,
           kind === 'wallet' ? 'merchant: Shortcut Input › Merchant' : `merchant: type ${app}`,
-          kind === 'wallet' ? 'card: Shortcut Input › Name' : 'card: Notification › Body again',
+          kind === 'wallet' ? 'card: Shortcut Input › Name' : 'That’s it: three fields',
           'All four, in lowercase',
         ][phase]}
       </T>
-      {phase < 5 && <Taps key={phase} points={[[{ x: 150, y: 36 + 8 + 34 + 28 + 14 }, { x: kind === 'notify' ? 165 : 110, y: 400 - 100 - 34 + 14 }, { x: W / 2, y: 150 + 4 + 2 * 21 + 10 }, { x: 150, y: 36 + 8 + 34 + 3 * 28 + 14 }, { x: 150, y: 36 + 8 + 34 + 4 * 28 + 14 }][phase]]} />}
+      {phase < 5 && !(kind === 'notify' && phase === 4) && <Taps key={phase} points={[[{ x: 150, y: 36 + 8 + 34 + 28 + 14 }, { x: kind === 'notify' ? 165 : 110, y: 400 - 100 - 34 + 14 }, { x: W / 2, y: 150 + 4 + 2 * 21 + 10 }, { x: 150, y: 36 + 8 + 34 + 3 * 28 + 14 }, { x: 150, y: 36 + 8 + 34 + 4 * 28 + 14 }][phase]]} />}
     </Phone>
   );
 }

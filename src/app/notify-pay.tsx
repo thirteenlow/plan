@@ -39,7 +39,7 @@ const iosSteps = (app: string): { title: string; text: string }[] => [
   { title: `Pick ${app}`, text: `Tap App and pick ${app}. Tap Add Filter, change Title to Message, and type $ in the box.` },
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
-  { title: 'Add the fields', text: 'Add a Text field for each row below, keys in lowercase. For amount and card, tap the value, scroll the bar above the keyboard, tap Notification, then tap it again and pick Body.' },
+  { title: 'Add the fields', text: 'Add a Text field for each row below, keys in lowercase. For amount, tap the value, scroll the bar above the keyboard, tap Notification, then tap it again and pick Body. No card field needed.' },
   { title: 'Name and save', text: `Tap the name › Rename to “${app} Fares”. Tap the button at the top right to save.` },
 ];
 
@@ -171,7 +171,7 @@ export default function NotifyPayScreen() {
           <Card style={{ gap: 4 }}>
             <FieldRow icon="card-outline" label="Log to" value={fallbackName ?? 'Choose an account'} onPress={() => setPicking(true)} />
             <Txt variant="caption" tone="muted" style={{ marginHorizontal: 4 }}>
-              Pick the card linked to {appName}. Fare alerts don’t say which card paid.
+              Fares go here. Pick the card linked to {appName}.
             </Txt>
           </Card>
           <Row style={{ gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
@@ -243,8 +243,6 @@ export default function NotifyPayScreen() {
                 <MapRow field="amount" from="Notification › Body" />
                 <Divider />
                 <CopyRow label="merchant" value={appName} />
-                <Divider />
-                <MapRow field="card" from="Notification › Body" />
               </View>
             )}
           </Card>
@@ -280,7 +278,7 @@ export default function NotifyPayScreen() {
                 ]
               : [
                   ['It never runs', `Check ${appName}’s notifications are on and the filter is Message contains $.`],
-                  ['Logged as 0', 'Check amount and card are both Notification › Body.'],
+                  ['Logged as 0', 'Check amount is Notification › Body.'],
                 ]
             ).map(([t, d]) => (
               <View key={t}>

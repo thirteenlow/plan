@@ -15,11 +15,13 @@ const WALLET_NAME = /^(google wallet|google pay|g pay|wallet|samsung wallet|sams
 
 /**
  * Splits "<app name>: <text>" when the text is the same notification that came in as the amount. The iOS 27
- * automation can also send the notification's text as both amount and card, with the app as the merchant.
+ * automation sends the notification's text as the amount (and sometimes card too), with the app as the merchant.
  */
 function forwarded(amount: string | null, card: string | null, merchant: string | null) {
   const head = amount?.trim().slice(0, 20);
-  if (!head || !card) return null;
+  if (!head) return null;
+  // iOS 27 SimplyGo: just the notification as the amount and the app as the merchant (no card).
+  if (!card?.trim()) return merchant?.trim() && (amount ?? '').trim().length >= 12 && /[a-z]{3}/i.test(head) && /\d[.,]\d/.test(amount ?? '') ? { wallet: merchant.trim(), text: amount!.trim() } : null;
   const m = card.match(/^([^:]{2,40}): ([\s\S]+)$/);
   if (m && m[2].trim().startsWith(head)) return { wallet: m[1].trim(), text: m[2].trim() };
   // Same text in both, with words in it (not just "4.50"): a whole notification.

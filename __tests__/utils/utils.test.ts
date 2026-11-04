@@ -231,6 +231,16 @@ describe('Android wallet notifications (MacroDroid)', () => {
     expect(readWalletPayment({ amount: 'S$4.50', merchant: 'Kopi', card: 'S$4.50 card' })).toBeNull();
   });
 
+  it('reads a SimplyGo alert sent as the amount only (no card field)', () => {
+    const train = 'Fare $0.54 - Bishan - Raffles Place - 2 Mar 08:45';
+    // Short enough to arrive whole in amount
+    expect(readWalletPayment({ amount: train.slice(0, 40), merchant: 'SimplyGo', card: null })).toMatchObject({ wallet: 'SimplyGo', amount: $(0.54), merchant: 'SimplyGo' });
+    // Longer: the server keeps the full text in card
+    expect(readWalletPayment({ amount: train.slice(0, 40), merchant: 'SimplyGo', card: train })).toMatchObject({ amount: $(0.54), note: 'Bishan - Raffles Place - 2 Mar 08:45' });
+    // A plain Apple Pay payment without a card name stays an ordinary payment
+    expect(readWalletPayment({ amount: 'SGD 4.50', merchant: 'Kopi', card: null })).toBeNull();
+  });
+
   it('ignores rows that are not forwarded notifications (Apple Pay, scans)', () => {
     expect(readWalletPayment({ amount: '4.50', merchant: 'Starbucks', card: 'Visa' })).toBeNull();
   });
