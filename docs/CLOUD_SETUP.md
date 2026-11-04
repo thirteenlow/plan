@@ -14,7 +14,7 @@ Budget contents are encrypted before upload; the keys are kept with each account
 
 **Authentication → URL Configuration → Redirect URLs**, add:
 
-- `planbudget://**` (Android / iOS app builds)
+- `dearplan://**` (Android / iOS app builds)
 - `exp://**` (Expo Go during development)
 - `http://localhost:8081/**` (web during development) and your deployed web URL, if any
 
@@ -29,8 +29,8 @@ Budget contents are encrypted before upload; the keys are kept with each account
 Hidden in the app by default. To turn it on later, complete this section and set
 `APPLE_SIGN_IN_ENABLED = true` in `src/cloud/config.ts`.
 
-- **iOS app (native):** Apple Developer → Identifiers → your App ID (`com.planbudget.app`) → enable *Sign in with Apple*.
-  Supabase → Authentication → Providers → Apple: enable and add `com.planbudget.app` to **Client IDs**
+- **iOS app (native):** Apple Developer → Identifiers → your App ID (`com.dearplan.app`) → enable *Sign in with Apple*.
+  Supabase → Authentication → Providers → Apple: enable and add `com.dearplan.app` to **Client IDs**
   (add `host.exp.Exponent` too if you test in Expo Go).
 - **Web / Android (OAuth):** also create a Services ID + key in Apple Developer and enter them in the same
   Supabase provider page (see Supabase's "Login with Apple" guide). Apple requires the secret to be renewed every 6 months.

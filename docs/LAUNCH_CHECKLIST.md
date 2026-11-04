@@ -19,7 +19,7 @@ Total cost: **$25 one-time** (Google Play). Everything else is free.
       **Authentication → Emails → SMTP Settings**: host `smtp-relay.brevo.com`, port `587`, your Brevo login + SMTP key.
 - [ ] **Authentication → URL Configuration**:
   - Site URL: your Vercel URL (`https://dearplan.vercel.app`)
-  - Redirect URLs: `https://dearplan.vercel.app/**`, `http://localhost:8081/**`, `planbudget://**`, `exp://**`
+  - Redirect URLs: `https://dearplan.vercel.app/**`, `http://localhost:8081/**`, `dearplan://**`, `exp://**`
 - [ ] Free projects pause after ~1 week without activity: unpause from the dashboard if sign-in stops working.
 
 ## 2. Web app on Vercel (free)
@@ -51,5 +51,5 @@ Total cost: **$25 one-time** (Google Play). Everything else is free.
 
 ## Package name
 
-The Android package is `com.planbudget.app`. It's permanent once uploaded to Play, so change it in `app.json`
+The Android package is `com.dearplan.app`. It's permanent once uploaded to Play, so change it in `app.json`
 now if you want something else.

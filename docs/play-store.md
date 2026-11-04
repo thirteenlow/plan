@@ -15,7 +15,7 @@ MacroDroid is needed.
 ## 1. Make the app in Play Console
 
 1. Play Console › **Create app**. Name: Plan. Default language: English. App, Free.
-2. Package name is set by the first upload: `com.planbudget.app` (from `app.json`).
+2. Package name is set by the first upload: `com.dearplan.app` (from `app.json`).
 
 ## 2. Build
 
