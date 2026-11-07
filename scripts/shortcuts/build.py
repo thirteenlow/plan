@@ -232,6 +232,14 @@ SHORTCUTS = {
         color=4292093695,
         glyph=59448,
     ),
+    # SimplyGo fare alerts ("Fare $1.28 - Bus 12 …"). The trigger (Notification › SimplyGo › Message contains Fare) is
+    # added on the iPhone before sharing, since a signed file's trigger doesn't survive importing.
+    'Plan SimplyGo': shortcut(
+        None,
+        [('amount', var(trigger_output(NOTIFY, 'Body'))), ('merchant', text('SimplyGo'))],
+        color=4282601983,
+        glyph=59448,
+    ),
     'Plan Scan Payment': scan_shortcut(),
     'Plan App alerts': app_alerts_shortcut(),
     'Plan Bank emails': bank_emails_shortcut(),
