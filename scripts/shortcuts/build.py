@@ -125,6 +125,22 @@ def app_alerts_shortcut() -> dict:
     return wf
 
 
+def bank_emails_shortcut() -> dict:
+    """Any bank's alert emails: asks for the key and the source's name (sent as merchant). The user sets the sender in
+    the trigger after adding it."""
+    wf = shortcut(None, [], color=4282601983, glyph=59819)
+    key_uuid, name_uuid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    wf['WFWorkflowActions'] = [
+        key_action(key_uuid),
+        {'WFWorkflowActionIdentifier': 'is.workflow.actions.gettext', 'WFWorkflowActionParameters': {'UUID': name_uuid, 'WFTextActionText': ''}},
+        post_action(key_uuid, [('amount', var(trigger_output(EMAIL, 'Content'))), ('merchant', var({'Type': 'ActionOutput', 'OutputUUID': name_uuid, 'OutputName': 'Text'}))]),
+    ]
+    wf['WFWorkflowImportQuestions'].append(
+        {'ActionIndex': 1, 'Category': 'Parameter', 'ParameterKey': 'WFTextActionText', 'DefaultValue': '', 'Text': 'What is this source called in Plan? (e.g. OCBC emails)'}
+    )
+    return wf
+
+
 def notification_trigger(bundle: str, name: str, team: str, contains: str) -> dict:
     return {
         'WFTriggerIdentifier': 'WFNotificationTrigger',
@@ -218,6 +234,7 @@ SHORTCUTS = {
     ),
     'Plan Scan Payment': scan_shortcut(),
     'Plan App alerts': app_alerts_shortcut(),
+    'Plan Bank emails': bank_emails_shortcut(),
     # DBS PayLah! Transaction Alerts emails: the whole email; Plan reads the amount and who was paid.
     'Plan PayLah emails': shortcut(
         email_trigger('paylah.alert@dbs.com', 'Transaction Alerts'),
