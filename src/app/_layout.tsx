@@ -84,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="transaction" options={modal} />
           <Stack.Screen name="account-edit" options={modal} />
           <Stack.Screen name="category/[id]" options={modal} />
+          <Stack.Screen name="history" options={modal} />
           <Stack.Screen name="target/[id]" options={modal} />
           <Stack.Screen name="apple-pay" options={modal} />
           <Stack.Screen name="auto-log" options={modal} />

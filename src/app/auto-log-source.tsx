@@ -11,9 +11,16 @@ import { sortedGroups } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { AutoLogSource } from '@/store/types';
 import { useTheme } from '@/theme';
-import { KIND_LABEL, type Platform } from '@/utils/autoLogSources';
+import { filterOf, KIND_LABEL, lastCaught, shortcutFor, type Platform } from '@/utils/autoLogSources';
+import { GetShortcut } from '@/components/GetShortcut';
 import { goBack } from '@/utils/nav';
 import { SourceIcon, sourceStatus } from '@/components/AutoLogSource';
+
+/** Real alerts and the words that pick out their payments, as examples for writing a filter. */
+const FILTER_EXAMPLES: [string, string, string][] = [
+  ['Grab', 'Your GrabPay Wallet has been charged SGD 14.60 for booking A-7XK2…', 'has been charged'],
+  ['SimplyGo', 'Fare $1.28 - Bus 12 Blk 108 - Clementi Int', 'Fare'],
+];
 
 /** How to set a source up on this device: a guide to open, or a line saying what's needed. */
 function setupFor(s: AutoLogSource, platform: Platform): { route?: { pathname: string; params?: Record<string, string> }; note: string } {
@@ -25,7 +32,7 @@ function setupFor(s: AutoLogSource, platform: Platform): { route?: { pathname: s
       ? { note: reads }
       : platform === 'desktop'
         ? { note: 'Set this up on your phone.' }
-        : { route: { pathname: '/notify-pay', params: { app: s.name } }, note: platform === 'ios' ? `An iPhone automation sends each ${s.name} alert to Plan (iOS 27+).` : `MacroDroid sends each ${s.name} alert to Plan.` };
+        : { route: { pathname: '/notify-pay', params: { app: s.name, filter: filterOf(s) } }, note: platform === 'ios' ? `An iPhone automation sends each ${s.name} alert to Plan (iOS 27+).` : `MacroDroid sends each ${s.name} alert to Plan.` };
   return platform === 'ios' ? { route: { pathname: '/email-pay', params: { id: s.id } }, note: 'An iPhone automation sends each alert email to Plan.' } : { note: 'Email alerts need an iPhone for now. On Android, add the bank’s app as a source instead.' };
 }
 
@@ -46,7 +53,10 @@ export default function AutoLogSourceScreen() {
     );
 
   const update = (patch: Partial<AutoLogSource>) => updateSettings({ autoLogSources: sources.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
-  const setup = setupFor(source, autoLogPlatform());
+  const platform = autoLogPlatform();
+  const setup = setupFor(source, platform);
+  // iPhone: a ready-made shortcut sets the whole thing up.
+  const oneTap = platform === 'ios' ? shortcutFor(source) : undefined;
   const currency = data.settings.currency.code;
   const accounts = data.accounts.filter((a) => a.onBudget && !a.closed);
   const fallbackName = accounts.find((a) => a.id === accountForCard(data, null))?.name;
@@ -91,13 +101,58 @@ export default function AutoLogSourceScreen() {
           )}
         </Card>
 
-        <Card style={{ gap: 10 }}>
-          <Txt variant="strong">Set up</Txt>
-          <Txt variant="caption" tone="muted">
-            {setup.note}
-          </Txt>
-          {setup.route && <Button title="Show me the steps" icon="list-outline" onPress={() => router.push(setup.route as never)} />}
-        </Card>
+        {source.kind !== 'tap' && (
+          <Card style={{ gap: 10 }}>
+            <Txt variant="strong">{source.kind === 'app' ? 'Which alerts to log' : 'Which emails'}</Txt>
+            <TextField
+              icon="funnel-outline"
+              label={source.kind === 'app' ? 'Only alerts containing' : 'Subject contains (optional)'}
+              value={filterOf(source)}
+              onChangeText={(t) => update({ filter: t })}
+              placeholder={source.kind === 'app' ? 'Any alert with an amount' : 'Any email from the sender'}
+              maxLength={60}
+              autoCapitalize="none"
+            />
+            <Txt variant="caption" tone="muted">
+              {source.kind === 'app'
+                ? 'Copy a few words that every payment alert has and other alerts don’t. Use the same words in the automation’s filter. Leave it empty to log any alert with an amount (offers and rewards are skipped).'
+                : 'Words the subject of every alert email has. Use the same in the automation.'}
+            </Txt>
+            {source.kind === 'app' && (
+              <View style={{ gap: 6 }}>
+                {FILTER_EXAMPLES.map(([app, alert, words]) => (
+                  <View key={app} style={{ backgroundColor: colors.sunken, borderRadius: 10, padding: 10, gap: 2 }}>
+                    <Txt variant="caption" tone="soft">
+                      {app}: “{alert}”
+                    </Txt>
+                    <Txt variant="caption">
+                      Words: <Txt variant="caption" tone="accent">{words}</Txt>
+                    </Txt>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Card>
+        )}
+
+        {oneTap ? (
+          <GetShortcut
+            name={source.name}
+            link={oneTap}
+            what={source.kind === 'tap' ? 'tap' : 'payment'}
+            logged={!!lastCaught(data, source)}
+            status={sourceStatus(data, source)}
+            onManual={setup.route ? () => router.push(setup.route as never) : undefined}
+          />
+        ) : (
+          <Card style={{ gap: 10 }}>
+            <Txt variant="strong">Set up</Txt>
+            <Txt variant="caption" tone="muted">
+              {setup.note}
+            </Txt>
+            {setup.route && <Button title="Show me the steps" icon="list-outline" onPress={() => router.push(setup.route as never)} />}
+          </Card>
+        )}
 
         <Card style={{ gap: 4 }}>
           <FieldRow icon="card-outline" label="Log to" value={account?.name ?? `Default${fallbackName ? ` (${fallbackName})` : ''}`} onPress={() => setPicker('account')} />
@@ -130,7 +185,7 @@ export default function AutoLogSourceScreen() {
           <Card style={{ gap: 12 }}>
             {[
               ['cash-outline', 'Amount', `The amount paid, in ${currency} when it shows more than one currency.`],
-              ['person-outline', 'Payee', source.kind === 'tap' ? 'The shop the wallet names.' : 'A “Merchant” or “To” line, or who it says you paid. Otherwise the app’s name.'],
+              ['person-outline', 'Payee', source.kind === 'tap' ? 'The shop the wallet names. If it names none, the payee from your bank’s alert for the same payment.' : 'A “Merchant” or “To” line, or who it says you paid. Otherwise the app’s name.'],
               ['card-outline', 'Account', source.accountId ? 'Always the one in Log to above.' : 'The card or account it names, if one matches. Otherwise your default account.'],
               ['swap-vertical-outline', 'Money in', 'Transfers to you, refunds and cashback are logged as income. Top-ups and declined payments are skipped.'],
             ].map(([icon, t, d]) => (

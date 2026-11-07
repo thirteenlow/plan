@@ -54,8 +54,12 @@ function Header({ title, right = 'flower-outline', rightText }: { title: string;
   );
 }
 
+/** What the notification filter's "Message contains" box gets: the source's filter words, or a full stop. */
+const FilterWords = React.createContext('.');
+
 /** The trigger block at the top of the shortcut, filled in. */
-function TriggerBlock({ kind, app, filter = '$' }: { kind: Kind; app: string; filter?: string }) {
+function TriggerBlock({ kind, app }: { kind: Kind; app: string }) {
+  const filter = React.useContext(FilterWords);
   return (
     <View style={{ marginHorizontal: 10, marginTop: 4, borderRadius: 12, backgroundColor: D.card, padding: 8, gap: 6 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
@@ -254,8 +258,9 @@ function AutomationScreen({ kind }: { kind: Kind }) {
 
 /** 4: set up the trigger (cards, or the app plus "Message contains"). */
 function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
+  const filter = React.useContext(FilterWords);
   const notify = kind === 'notify';
-  // Wallet: tap Cards, tick them, done. Notification: pick the app, Add Filter, Title → Message, type $.
+  // Wallet: tap Cards, tick them, done. Notification: pick the app, Add Filter, Title → Message, type $ (or .).
   const phase = usePhase(notify ? 6 : 3, 1800);
   const picked = phase >= 1;
   // Wallet only: what the trigger card shows under the cards. Automation must be on; there's no such switch for notifications.
@@ -289,7 +294,7 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
   const choices = notify ? ['Grab', 'Instagram', app, 'WhatsApp'] : ['Visa •••• 4821', 'Mastercard •••• 1093', 'EZ-Link'];
   const field = phase >= 5 ? 'Message' : 'Title';
   const captions = notify
-    ? [`Tap App`, `Pick ${app}`, 'Tap Add Filter', 'Tap Title', 'Change it to Message', 'Type $ in the box']
+    ? [`Tap App`, `Pick ${app}`, 'Tap Add Filter', 'Tap Title', 'Change it to Message', `Type ${filter} in the box`]
     : ['Tap Cards', 'Tick your cards', 'Turn Automation on'];
   const taps = notify
     ? [{ x: 40, y: 91 }, { x: W / 2, y: 120 + 4 + 2 * 26 + 13 }, { x: 60, y: 112 }, { x: 34, y: 112 }, { x: 70, y: 122 + 4 + 2 * 22 + 11 }, { x: 150, y: 112 }]
@@ -334,7 +339,7 @@ function TriggerScreen({ kind, app }: { kind: Kind; app: string }) {
             <T size={9} color={D.text}>
               contains
             </T>
-            <Pill label={phase >= 5 ? '$' : ' '} color={D.text} />
+            <Pill label={phase >= 5 ? filter : ' '} color={D.text} />
           </View>
         )}
       </View>
@@ -584,8 +589,8 @@ function SaveScreen({ kind, app }: { kind: Kind; app: string }) {
 }
 
 /** One per guide step, in order (8 steps). */
-export function shortcuts27Mocks(kind: Kind, app = 'SimplyGo'): React.ComponentType[] {
-  return [
+export function shortcuts27Mocks(kind: Kind, app = 'SimplyGo', filter = '.'): React.ComponentType[] {
+  const screens: React.ComponentType[] = [
     () => <LibraryScreen kind={kind} />,
     PromptScreen,
     () => <AutomationScreen kind={kind} />,
@@ -595,4 +600,12 @@ export function shortcuts27Mocks(kind: Kind, app = 'SimplyGo'): React.ComponentT
     () => <FieldsScreen kind={kind} app={app} />,
     () => <SaveScreen kind={kind} app={app} />,
   ];
+  return screens.map((Screen) => {
+    const WithFilter = () => (
+      <FilterWords.Provider value={filter || '.'}>
+        <Screen />
+      </FilterWords.Provider>
+    );
+    return WithFilter;
+  });
 }

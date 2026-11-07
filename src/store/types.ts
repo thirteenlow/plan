@@ -188,6 +188,11 @@ export interface AutoLogSource {
   moneyIn?: 'log' | 'ignore';
   /** When Plan can't read a payment itself, let the AI read its text (default on) */
   ai?: boolean;
+  /**
+   * Apps: words every payment alert has and other alerts don't ("has been charged"); others are left out. Emails: words
+   * the subject has, for the iPhone automation. Undefined: the preset's (src/utils/autoLogSources.ts), if any.
+   */
+  filter?: string;
   /** Email sources: the sender to filter on in the iPhone automation */
   sender?: string;
 }

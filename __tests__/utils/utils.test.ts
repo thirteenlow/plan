@@ -289,7 +289,7 @@ describe('readAlertEmail (bank alert emails via an iPhone email automation)', ()
     'Date & Time:',
     '15 Mar 13:20 (SGT)',
     'Amount:',
-    'SGD3.5',
+    'SGD4.2',
     'From:',
     'PayLah! Wallet (Mobile ending 0000)',
     'To:',
@@ -298,21 +298,21 @@ describe('readAlertEmail (bank alert emails via an iPhone email automation)', ()
   ].join('\n');
 
   it('reads the amount and the shop', () => {
-    expect(readAlertEmail(paylah, 'DBS Everyday')).toEqual({ wallet: 'PayLah!', amount: $(3.5), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
+    expect(readAlertEmail(paylah, 'DBS Everyday')).toEqual({ wallet: 'PayLah!', amount: $(4.2), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
   });
 
   it('works when the labels and values run together on one line', () => {
     const flat = paylah.replace(/\n/g, ' ');
-    expect(readAlertEmail(flat, null)).toMatchObject({ amount: $(3.5), merchant: 'KOPI CORNER' });
+    expect(readAlertEmail(flat, null)).toMatchObject({ amount: $(4.2), merchant: 'KOPI CORNER' });
   });
 
   it('money sent to your own wallet is money in, from the sender', () => {
     const incoming = paylah.replace('Bill Payment Transfer', 'Transfer').replace('PayLah! Wallet (Mobile ending 0000)\nTo:\nKOPI CORNER', 'ALEX TAN\nTo:\nPayLah! Wallet (Mobile ending 0000)');
-    expect(readAlertEmail(incoming, null)).toMatchObject({ amount: $(3.5), merchant: 'ALEX TAN', kind: 'in' });
+    expect(readAlertEmail(incoming, null)).toMatchObject({ amount: $(4.2), merchant: 'ALEX TAN', kind: 'in' });
   });
 
   it('goes through readWalletPayment when the server kept the full text', () => {
-    expect(readWalletPayment({ amount: paylah.slice(0, 40), merchant: paylah.slice(0, 120), card: 'DBS Everyday', details: paylah })).toMatchObject({ amount: $(3.5), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
+    expect(readWalletPayment({ amount: paylah.slice(0, 40), merchant: paylah.slice(0, 120), card: 'DBS Everyday', details: paylah })).toMatchObject({ amount: $(4.2), merchant: 'KOPI CORNER', card: 'DBS Everyday' });
   });
 
   it('is null for text without an Amount line', () => {
@@ -326,13 +326,13 @@ describe('readPaymentText: how amount, payee and card are decided', () => {
     'Your amaze transaction is a success',
     'ALEX TAN, thanks for using amaze. Here\'s a breakdown of your transaction:',
     'Transaction amount',
-    '25 USD',
+    '14 USD',
     'Amount paid',
-    '32.7 SGD',
+    '18.9 SGD',
     'Merchant',
-    'Google Play',
+    'Spotify',
     'Date, time',
-    '1st Nov, 2026 12:25 AM SGT',
+    '9th Mar, 2026 10:05 PM SGT',
     'Payment source',
     'card *9012',
     'Don\'t recognise this transaction?',
@@ -345,7 +345,7 @@ describe('readPaymentText: how amount, payee and card are decided', () => {
     'Date & Time:',
     '21 Jun 16:10 (SGT)',
     'Amount:',
-    'SGD6.50',
+    'SGD9.80',
     'From:',
     'POSB Savings A/C ending 4321',
     'To:',
@@ -354,19 +354,19 @@ describe('readPaymentText: how amount, payee and card are decided', () => {
   ].join('\n');
 
   it('Instarem: the amount paid in the budget’s currency, the merchant, and the card', () => {
-    expect(readPaymentText(instarem, 'SGD')).toMatchObject({ amount: $(32.7), currency: 'SGD', merchant: 'Google Play', card: 'card *9012' });
+    expect(readPaymentText(instarem, 'SGD')).toMatchObject({ amount: $(18.9), currency: 'SGD', merchant: 'Spotify', card: 'card *9012' });
     // A USD budget would log the USD amount instead.
-    expect(readPaymentText(instarem, 'USD')).toMatchObject({ amount: $(25), currency: 'USD' });
+    expect(readPaymentText(instarem, 'USD')).toMatchObject({ amount: $(14), currency: 'USD' });
   });
 
   it('PayNow to a person: spending, without the masked mobile number, from the account it names', () => {
     const r = readPaymentText(paynow, 'SGD');
-    expect(r).toMatchObject({ amount: $(6.5), merchant: 'JOXXX LIXXX', card: 'POSB Savings A/C ending 4321' });
+    expect(r).toMatchObject({ amount: $(9.8), merchant: 'JOXXX LIXXX', card: 'POSB Savings A/C ending 4321' });
     expect(r.kind).toBeUndefined();
   });
 
   it('the time zone isn’t mistaken for a currency', () => {
-    expect(readPaymentText('Date & Time: 21 Jun 16:10 (SGT)\nAmount: SGD6.50', 'SGD').amount).toBe($(6.5));
+    expect(readPaymentText('Date & Time: 21 Jun 16:10 (SGT)\nAmount: SGD9.80', 'SGD').amount).toBe($(9.8));
   });
 
   it('sentence-style alerts: amount, who was paid and the card', () => {

@@ -12,7 +12,7 @@ import type { BudgetData } from '@/store/types';
 import { parseAmountText } from '@/utils/budgetCsv';
 import { addDays } from '@/utils/date';
 import { readWalletPayment, type WalletPayment } from '@/utils/walletNotification';
-import { sourceFor } from '@/utils/autoLogSources';
+import { passesFilter, sourceFor } from '@/utils/autoLogSources';
 import { matchAccount, matchCategory, payeeCategory } from '@/utils/scanMatch';
 import { isCreditType } from '@/utils/icons';
 import { useCloud } from './cloudStore';
@@ -223,6 +223,33 @@ export function inboxBudget(): BudgetData | undefined {
 /** A logged payment: from the server inbox, or a notification the Android app kept on the phone. */
 export type InboxRow = { amount: string; merchant: string | null; card: string | null; created_at: string; category?: string | null; paid_on?: string | null; source?: string | null; details?: string | null; /** Already read (by the AI) before saving */ read?: WalletPayment | null };
 
+/** Tap-to-pay wallets: their payments sometimes come with no merchant. */
+const TAPS = /^(?:apple pay|google wallet|samsung wallet)$/i;
+/** Names that aren't a merchant: what a wallet sends when it doesn't have one. */
+const NOT_A_PAYEE = /^(?:apple ?pay|apple wallet|wallet|apple card|google ?pay|google wallet|samsung ?pay|samsung wallet|payment|purchase|transaction|unknown|merchant|n\/?a|-+)$/i;
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+const sameName = (a: string, b: string) => {
+  const [x, y] = [squash(a), squash(b)];
+  return x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x));
+};
+
+/**
+ * The same payment logged earlier from another source, e.g. an Apple Pay tap (often with no merchant) and the bank's
+ * alert for it: same day, same amount, waiting for review, and either the same payee or one side with none.
+ */
+function loggedTwin(data: BudgetData, date: string, amount: number, via: string, merchant: string | null) {
+  if (!amount) return undefined;
+  for (const t of data.transactions) {
+    if (t.approved || t.date !== date || t.amount !== amount || !t.memo) continue;
+    const tVia = t.memo.split(' · ')[0];
+    if (tVia === via || tVia === 'From screenshot') continue;
+    const name = data.payees.find((p) => p.id === t.payeeId)?.name ?? '';
+    const tMerchant = name && name !== tVia ? name : null;
+    if ((merchant && tMerchant && sameName(merchant, tMerchant)) || (!tMerchant && TAPS.test(tVia)) || (!merchant && TAPS.test(via))) return { t, tMerchant };
+  }
+  return undefined;
+}
+
 /**
  * Saves payments as unapproved spending (category from the merchant's last use) in the auto-log budget. Returns how
  * many were saved, how many were connection tests, and what to tell the user.
@@ -233,13 +260,16 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
   // Rows are already off the server once claimed, so never drop one silently.
   let unreadable = 0;
   let noAccount = 0;
-  for (const row of rows) {
+  let merged = 0;
+  for (const raw of rows) {
+    // A card field left as the guide's placeholder is no card.
+    const row = /^\(?optional\)?$/i.test(raw.card?.trim() ?? '') ? { ...raw, card: null } : raw;
     if (row.merchant === TEST_MERCHANT) {
       tests++;
       continue;
     }
     // Android: a wallet notification forwarded whole, to pick the amount, merchant and card out of.
-    // Read with the budget's currency, so "Amount paid 32.7 SGD" wins over "Transaction amount 25 USD".
+    // Read with the budget's currency, so "Amount paid 18.9 SGD" wins over "Transaction amount 14 USD".
     const wallet = row.read ?? readWalletPayment(row, data.settings.currency.code);
     // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log. Same for a top-up or
     // a declined payment.
@@ -249,6 +279,8 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
     // The Auto-log source it came from, with its own options. Turned off: leave it out.
     const source = scannedRow ? undefined : sourceFor(data.settings.autoLogSources, wallet?.wallet ?? 'Apple Pay');
     if (source && !source.enabled) continue;
+    // Not one of the alerts the user wants from this app (its filter words, e.g. Grab's "has been charged").
+    if (source && !passesFilter(source, [row.merchant, row.amount, row.card].filter(Boolean).join(' '))) continue;
     if (source?.moneyIn === 'ignore' && wallet?.kind === 'in') continue;
     // Money in (a friend's transfer, a refund) is logged as an inflow, not spending.
     const sign = wallet?.kind === 'in' ? 1 : -1;
@@ -269,10 +301,27 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
     // The date on the receipt, if it's believable (not in the future, not more than 60 days back).
     const date = row.paid_on && row.paid_on <= created && row.paid_on >= addDays(created, -60) ? row.paid_on : created;
     const via = wallet?.wallet ?? 'Apple Pay';
-    const merchant = (wallet ? wallet.merchant : row.merchant?.trim()) || (scanned ? 'Payment' : via);
+    const named = ((wallet ? wallet.merchant : row.merchant)?.trim() || null) as string | null;
+    // Apple Pay sometimes sends no merchant, or just "Apple Wallet" or the card's name.
+    const real = named && !NOT_A_PAYEE.test(named) && named !== cardName?.trim() ? named : null;
+    const merchant = real ?? (scanned ? 'Payment' : via);
+    const now = useStore.getState().budgets[data.id] ?? data;
     // Category: what this merchant (or one with a close name) was last filed under; otherwise the scan's
     // suggestion matched to your categories.
-    const known = payeeCategory(useStore.getState().budgets[data.id] ?? data, merchant);
+    const known = payeeCategory(now, merchant);
+    // Already logged from another source (the tap and the bank's alert for it): one transaction, with the real payee.
+    const twin = scanned ? undefined : loggedTwin(now, date, amount ? sign * amount : 0, via, real);
+    if (twin) {
+      merged++;
+      if (real && !twin.tMerchant) {
+        const t = twin.t;
+        useStore.getState().saveTransaction(
+          { id: t.id, accountId: t.accountId, date: t.date, amount: t.amount, payeeName: real, categoryId: t.categoryId ?? known ?? null, memo: `${t.memo} · ${via}`, cleared: t.cleared, approved: false, flag: t.flag },
+          data.id,
+        );
+      }
+      continue;
+    }
     useStore.getState().saveTransaction(
       {
         accountId,
@@ -291,6 +340,7 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
   const notes = [
     imported ? `Logged ${imported} ${imported === 1 ? 'payment' : 'payments'} automatically${data.id !== useStore.getState().activeBudgetId ? ` in “${data.name}”` : ''}. Review ${imported === 1 ? 'it' : 'them'} in Spending.` : '',
     unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
+    merged ? `${merged === 1 ? 'One payment was' : `${merged} payments were`} already logged from another source, so ${merged === 1 ? 'it was' : 'they were'} combined.` : '',
     noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
   ].filter(Boolean);
   return { imported, tests, notes };

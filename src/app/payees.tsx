@@ -1,8 +1,9 @@
+import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { ActionSheet, PickerSheet, Sheet } from '@/components/Sheet';
-import { Button, Card, confirm, Divider, EmptyState, IconBadge, Tap, TextField, Txt } from '@/components/ui';
+import { Button, Card, confirm, Divider, EmptyState, IconBadge, IconButton, Tap, TextField, Txt } from '@/components/ui';
 import { useLookups } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import { RTA } from '@/store/types';
@@ -38,7 +39,7 @@ export default function PayeesScreen() {
             return (
               <View key={p.id}>
                 {i > 0 && <Divider inset={48} />}
-                <Tap onPress={() => setMenu(p.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 }}>
+                <Tap onPress={() => router.push({ pathname: '/history', params: { payee: p.id } })} onLongPress={() => setMenu(p.id)} accessibilityRole="button" accessibilityLabel={`${p.name} transactions`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 }}>
                   <IconBadge name={p.name} icon="person" size={36} />
                   <View style={{ flex: 1 }}>
                     <Txt variant="strong" numberOfLines={1}>
@@ -48,6 +49,7 @@ export default function PayeesScreen() {
                       {counts.get(p.id) ?? 0} transactions{cat ? ` · auto-categorizes to ${cat}` : ''}
                     </Txt>
                   </View>
+                  <IconButton icon="ellipsis-horizontal" label={`${p.name} options`} tone="plain" size={32} onPress={() => setMenu(p.id)} />
                 </Tap>
               </View>
             );

@@ -20,23 +20,28 @@ const DEFAULT_APP = 'SimplyGo';
 /** MacroDroid's text filter: only notifications with an amount like 0.20. */
 const AMOUNT_FILTER = String.raw`\d[.,]\d\d`;
 
-const androidSteps = (app: string): { title: string; text: string }[] => [
+const androidSteps = (app: string, words: string): { title: string; text: string }[] => [
   { title: 'Get MacroDroid', text: 'Install it free from the Play Store and open it.' },
   { title: 'New macro', text: 'Tap Add Macro, then + in the red Triggers box.' },
   { title: 'Choose Notification', text: 'Tap Device Events › Notification. Allow access if asked.' },
   { title: `Pick ${app}`, text: `Choose Notification Received › Select Applications. Tick ${app}, then OK.` },
-  { title: 'Only payments', text: 'Choose Contains, paste the text below, tick Enable regex, then OK.' },
+  { title: 'Only payments', text: words ? `Choose Contains, paste the words below (Enable regex off), then OK. Only ${app} alerts with them run it.` : 'Choose Contains, paste the text below, tick Enable regex, then OK. It matches any amount like 14.60.' },
   { title: 'Add the action', text: 'Tap + in the blue Actions box › Web Interactions › HTTP Request.' },
   { title: 'Paste the link', text: 'Set Request method to POST. Paste the link below into URL.' },
   { title: 'Paste the body', text: 'Open Content Body, set Content type to application/json and paste the text below. Tap ✓.' },
   { title: 'Save', text: `Name it “${app} Auto-log” and tap ✓. Done!` },
 ];
 
-const iosSteps = (app: string): { title: string; text: string }[] => [
+const iosSteps = (app: string, words: string): { title: string; text: string }[] => [
   { title: 'New shortcut', text: 'Open Shortcuts and tap + at the bottom.' },
   { title: 'Tap Edit', text: 'Skip “Describe a shortcut”: tap Edit at the top right.' },
   { title: 'Add the trigger', text: 'In the sheet, tap Automation, then Notification.' },
-  { title: `Pick ${app}`, text: `Tap App and pick ${app}. Tap Add Filter, change Title to Message, and type $ in the box.` },
+  {
+    title: `Pick ${app}`,
+    text: words
+      ? `Tap App and pick ${app}. Tap Add Filter, change Title to Message, and type “${words}” in the box. Only ${app} alerts with these words run it.`
+      : `Tap App and pick ${app}. Tap Add Filter, change Title to Message, and type a full stop (.) in the box. It catches amounts in any currency, like SGD 14.60.`,
+  },
   { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it.' },
   { title: 'Paste the link', text: 'Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.' },
   { title: 'Add the fields', text: 'Add a Text field for each row below, keys in lowercase. For amount, tap the value, scroll the bar above the keyboard, tap Notification, then tap it again and pick Body. No card field needed.' },
@@ -54,15 +59,17 @@ export default function NotifyPayScreen() {
   const updateSettings = useStore((s) => s.updateSettings);
   const { colors } = useTheme();
   // `?app=` comes from an Auto-log source (e.g. Grab); SimplyGo otherwise.
-  const params = useLocalSearchParams<{ step?: string; app?: string }>();
+  const params = useLocalSearchParams<{ step?: string; app?: string; filter?: string }>();
   const [app, setApp] = useState(params.app || DEFAULT_APP);
   const appName = app.trim() || DEFAULT_APP;
   // SimplyGo talks about fares; any other app about payments.
   const fares = appName.toLowerCase() === DEFAULT_APP.toLowerCase();
   const [android] = useState(isAndroidDevice);
-  const STEPS = android ? androidSteps(appName) : iosSteps(appName);
+  // The source's filter words (Grab: "has been charged"); SimplyGo's are "Fare". None: any amount.
+  const words = (params.filter ?? (fares ? 'Fare' : '')).trim();
+  const STEPS = android ? androidSteps(appName, words) : iosSteps(appName, words);
   const TOTAL = STEPS.length + 2; // intro + steps + test
-  const mocks = useMemo(() => (android ? notifyDroidMocks(appName) : shortcuts27Mocks('notify', appName)), [android, appName]);
+  const mocks = useMemo(() => (android ? notifyDroidMocks(appName) : shortcuts27Mocks('notify', appName, words || '.')), [android, appName, words]);
   const [step, setStep] = useState(() => Math.max(0, Math.min(TOTAL - 1, Number(params.step) || 0)));
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -198,7 +205,7 @@ export default function NotifyPayScreen() {
             <Txt tone="soft">{STEPS[step - 1].text}</Txt>
             {android && step === 5 && (
               <View style={{ marginTop: 4 }}>
-                <CopyRow label="Text to match" value={AMOUNT_FILTER} />
+                <CopyRow label="Text to match" value={words || AMOUNT_FILTER} />
               </View>
             )}
             {((android && step === 7) || (!android && step === 6)) && (
@@ -279,7 +286,7 @@ export default function NotifyPayScreen() {
                   ['See what happened', 'MacroDroid’s System Log shows each run.'],
                 ]
               : [
-                  ['It never runs', `Check ${appName}’s notifications are on and the filter is Message contains $.`],
+                  ['It never runs', `Check ${appName}’s notifications are on and the filter is Message contains ${words || '.'}, and your alert has those words.`],
                   ['Logged as 0', 'Check amount is Notification › Body.'],
                 ]
             ).map(([t, d]) => (

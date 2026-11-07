@@ -278,7 +278,7 @@ export default function ApplePayScreen() {
             {[
               ['Nothing shows up', 'Check Automation (or Run Immediately) is on, your cards are ticked, and Method is POST with JSON.'],
               ['Wrong account', 'Change Log to on the first screen.'],
-              ['No merchant', 'Some payments don’t have one. They’re logged as “Apple Pay”.'],
+              ['No merchant', 'Apple Pay doesn’t always send one. If your bank’s app or emails are also a source, Plan takes the payee from their alert and logs the payment once. Otherwise it shows as “Apple Pay” for you to rename.'],
               ['Bus and train taps', 'Skipped, since there’s no fare yet. Set up SimplyGo fare auto-log for those.'],
               ['Hide “Running your automation”', 'Turn off Notify (or Notify When Run).'],
               ['See what happened', 'Add Show Notification after Get Contents of URL. “ok” means Plan got it.'],

@@ -149,7 +149,7 @@ async function readText(text: string, accounts: string[], home: string): Promise
         content: `Below is the text of a payment alert (a bank or wallet email, or an app notification). Return:
 - is_payment: false if it isn't about a payment or transfer that went through
 - direction: "out" for money spent or sent, "in" for money received, refunded or credited, "none" for top-ups between the user's own accounts, declined or failed payments
-- amount: the amount as a plain number with a dot for decimals (e.g. "32.70"). If it shows several currencies, use the amount in ${home || 'the local currency'} if there is one
+- amount: the amount as a plain number with a dot for decimals (e.g. "18.90"). If it shows several currencies, use the amount in ${home || 'the local currency'} if there is one
 - currency: its ISO code, or ""
 - merchant: who was paid (out) or who sent it (in), as a short clean name without masked numbers like "(MOBILE ending 1234)", or ""
 - account: ${account}

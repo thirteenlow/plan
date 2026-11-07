@@ -87,6 +87,20 @@ export default function AutoLogScreen() {
           </Txt>
         </View>
 
+        {platform === 'desktop' && (
+          <Card style={{ gap: 6, backgroundColor: colors.accentSoft }}>
+            <Row style={{ gap: 10 }}>
+              <Ionicons name="phone-portrait-outline" size={20} color={colors.accent} />
+              <Txt variant="strong" style={{ flex: 1 }}>
+                Set this up on your phone
+              </Txt>
+            </Row>
+            <Txt variant="caption" tone="soft">
+              Auto-log runs on your iPhone or Android phone, so sources are added and set up there. Open Plan on your phone and go to Settings › Auto-log. Here you can see your sources and change where their payments go.
+            </Txt>
+          </Card>
+        )}
+
         {native && (
           <Card style={{ gap: 10 }}>
             <Row style={{ gap: 10 }}>
@@ -144,7 +158,15 @@ export default function AutoLogScreen() {
               ))}
             </Card>
           )}
-          <Button title="Add a source" variant="soft" icon="add" onPress={() => setAdding(true)} />
+          {platform !== 'desktop' ? (
+            <Button title="Add a source" variant="soft" icon="add" onPress={() => setAdding(true)} />
+          ) : (
+            !list.length && (
+              <Txt variant="caption" tone="muted" style={{ marginLeft: 4 }}>
+                No sources yet. Add them on your phone.
+              </Txt>
+            )
+          )}
         </View>
 
         <Card style={{ gap: 4 }}>

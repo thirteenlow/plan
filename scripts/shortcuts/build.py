@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""
+Builds the shareable Plan Auto-log shortcuts (iOS 27: a shortcut carries its own trigger) and signs them on a Mac.
+
+    python3 scripts/shortcuts/build.py <out-dir>
+
+Each shortcut asks one question when it's added ("Paste your Plan key"; Plan copies it first) and posts what the
+trigger gives it to log_payment, in the same shape the guides set up by hand. Reads the server address and the
+publishable key from .env (both are public: they ship in the app). Signing ("anyone") needs macOS and an Apple ID
+signed in; the certificate is anonymous.
+"""
+import os
+import plistlib
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def env(name: str) -> str:
+    for line in (ROOT / '.env').read_text().splitlines():
+        if line.startswith(name + '='):
+            return line.split('=', 1)[1].strip().strip('"')
+    raise SystemExit(f'{name} missing from .env')
+
+
+URL = f"{env('EXPO_PUBLIC_SUPABASE_URL')}/rest/v1/rpc/log_payment?apikey={env('EXPO_PUBLIC_SUPABASE_ANON_KEY')}"
+assert 'sb_secret_' not in URL, 'never ship a secret key'
+
+OBJ = '￼'  # where a variable sits in a text field
+
+
+def text(s: str) -> dict:
+    return {'Value': {'string': s}, 'WFSerializationType': 'WFTextTokenString'}
+
+
+def var(attachment: dict, before: str = '', after: str = '') -> dict:
+    """A text field holding one variable, with optional text around it."""
+    return {
+        'Value': {'string': f'{before}{OBJ}{after}', 'attachmentsByRange': {f'{{{len(before)}, 1}}': attachment}},
+        'WFSerializationType': 'WFTextTokenString',
+    }
+
+
+def trigger_output(trigger: str, prop: str) -> dict:
+    return {'Type': 'TriggerOutput', 'TriggerIdentifier': trigger, 'Aggrandizements': [{'Type': 'WFPropertyVariableAggrandizement', 'PropertyName': prop}]}
+
+
+def wallet_input(prop: str, user_info: str | None = None) -> dict:
+    agg = {'Type': 'WFPropertyVariableAggrandizement', 'PropertyName': prop}
+    if user_info:
+        agg['PropertyUserInfo'] = user_info
+    return {'Type': 'ExtensionInput', 'Aggrandizements': [agg]}
+
+
+def key_action(key_uuid: str) -> dict:
+    """A Text action holding the Plan key: the import question fills it in."""
+    return {'WFWorkflowActionIdentifier': 'is.workflow.actions.gettext', 'WFWorkflowActionParameters': {'UUID': key_uuid, 'WFTextActionText': ''}}
+
+
+def post_action(key_uuid: str, fields: list[tuple[str, dict]]) -> dict:
+    token = var({'Type': 'ActionOutput', 'OutputUUID': key_uuid, 'OutputName': 'Text'})
+    items = [{'WFItemType': 0, 'WFKey': text(k), 'WFValue': v} for k, v in [('token', token), *fields]]
+    return {
+        'WFWorkflowActionIdentifier': 'is.workflow.actions.downloadurl',
+        'WFWorkflowActionParameters': {
+            'UUID': str(uuid.uuid4()).upper(),
+            'WFURL': URL,
+            'WFHTTPMethod': 'POST',
+            'WFHTTPBodyType': 'JSON',
+            'ShowHeaders': True,
+            'WFJSONValues': {'Value': {'WFDictionaryFieldValueItems': items}, 'WFSerializationType': 'WFDictionaryFieldValue'},
+        },
+    }
+
+
+def notification_trigger(bundle: str, name: str, team: str, contains: str) -> dict:
+    return {
+        'WFTriggerIdentifier': 'WFNotificationTrigger',
+        'WFTriggerUUID': str(uuid.uuid4()).upper(),
+        'WFTriggerSerializedParameters': {
+            'SelectedApps': {'BundleIdentifier': bundle, 'Name': name, 'TeamIdentifier': team},
+            'Conditions': {
+                'Value': {
+                    'WFActionParameterFilterPrefix': 1,
+                    'WFActionParameterFilterTemplates': [{'Removable': True, 'Operator': 0, 'Property': 'Body', 'Values': {'Body': contains}}],
+                    'WFContentPredicateBoundedDate': False,
+                },
+                'WFSerializationType': 'WFContentPredicateTableTemplate',
+            },
+        },
+    }
+
+
+def email_trigger(sender: str, subject: str) -> dict:
+    return {
+        'WFTriggerIdentifier': 'WFEmailTrigger',
+        'WFTriggerUUID': str(uuid.uuid4()).upper(),
+        'WFTriggerSerializedParameters': {
+            'WFEmailConditions': {
+                'Value': {
+                    'WFActionParameterFilterPrefix': 1,
+                    'WFContentPredicateBoundedDate': False,
+                    'WFActionParameterFilterTemplates': [
+                        {
+                            'Operator': 0,
+                            'Property': 'Sender',
+                            'Removable': False,
+                            'Values': {'Email': {'Value': {'WFContactFieldValues': [{'EntryType': 2, 'SerializedEntry': {'link.contentkit.emailaddress': sender}}]}, 'WFSerializationType': 'WFContactFieldValue'}},
+                        },
+                        {'Operator': 1, 'Property': 'Subject', 'Removable': True, 'Values': {'Text': subject}},
+                    ],
+                },
+                'WFSerializationType': 'WFContentPredicateTableTemplate',
+            }
+        },
+    }
+
+
+INPUT_CLASSES = ['WFAppContentItem', 'WFArticleContentItem', 'WFContactContentItem', 'WFDateContentItem', 'WFEmailAddressContentItem', 'WFGenericFileContentItem', 'WFImageContentItem', 'WFLocationContentItem', 'WFPhoneNumberContentItem', 'WFRichTextContentItem', 'WFStringContentItem', 'WFURLContentItem']
+
+
+def shortcut(trigger: dict, fields: list[tuple[str, dict]], color: int, glyph: int) -> dict:
+    key_uuid = str(uuid.uuid4()).upper()
+    return {
+        'WFWorkflowClientVersion': '5114.0.8.3',
+        'WFWorkflowMinimumClientVersion': 900,
+        'WFWorkflowMinimumClientVersionString': '900',
+        'WFWorkflowIcon': {'WFWorkflowIconStartColor': color, 'WFWorkflowIconGlyphNumber': glyph},
+        'WFWorkflowTypes': ['WFWorkflowTypeShowInSearch'],
+        'WFWorkflowInputContentItemClasses': INPUT_CLASSES,
+        'WFWorkflowOutputContentItemClasses': [],
+        'WFWorkflowHasOutputFallback': False,
+        'WFWorkflowHasShortcutInputVariables': True,
+        'WFQuickActionSurfaces': [],
+        'WFWorkflowTriggers': [trigger],
+        'WFWorkflowImportQuestions': [
+            {'ActionIndex': 0, 'Category': 'Parameter', 'ParameterKey': 'WFTextActionText', 'DefaultValue': '', 'Text': 'Paste your Plan key. Plan copied it for you: tap here, then Paste.'}
+        ],
+        'WFWorkflowActions': [key_action(key_uuid), post_action(key_uuid, fields)],
+    }
+
+
+NOTIFY, EMAIL = 'WFNotificationTrigger', 'WFEmailTrigger'
+SHORTCUTS = {
+    # Tap to pay: the transaction itself (merchant is sometimes missing; Plan fills it from a bank alert).
+    'Plan Apple Pay': shortcut(
+        {'WFTriggerIdentifier': 'WFWalletTransactionTrigger', 'WFTriggerSerializedParameters': {}, 'WFTriggerUUID': str(uuid.uuid4()).upper()},
+        [('amount', var(wallet_input('Amount'))), ('merchant', var(wallet_input('Merchant'))), ('card', var(wallet_input('Name', 'WFItemName')))],
+        color=-2873601,
+        glyph=59740,
+    ),
+    # Wallet's payment notification: title = the shop, message = amount and card. Sent like MacroDroid does
+    # (merchant = title, card = "<app>: <message>"), so Plan reads it as a wallet notification.
+    'Plan Wallet alerts': shortcut(
+        notification_trigger('com.apple.Passbook', 'Wallet', '0000000000', '.'),
+        [('amount', var(trigger_output(NOTIFY, 'Body'))), ('merchant', var(trigger_output(NOTIFY, 'Title'))), ('card', var(trigger_output(NOTIFY, 'Body'), before='Wallet: '))],
+        color=-23508481,
+        glyph=61974,
+    ),
+    # Grab: only "has been charged" alerts (GrabPay charges); the notification's text, with the app as merchant.
+    'Plan Grab': shortcut(
+        notification_trigger('com.grabtaxi.iphone', 'Grab', 'C9YMA892DM', 'has been charged'),
+        [('amount', var(trigger_output(NOTIFY, 'Body'))), ('merchant', text('Grab'))],
+        color=4292093695,
+        glyph=59448,
+    ),
+    # DBS PayLah! Transaction Alerts emails: the whole email; Plan reads the amount and who was paid.
+    'Plan PayLah emails': shortcut(
+        email_trigger('paylah.alert@dbs.com', 'Transaction Alerts'),
+        [('amount', var(trigger_output(EMAIL, 'Content'))), ('merchant', text('DBS PayLah! emails'))],
+        color=4282601983,
+        glyph=59819,
+    ),
+}
+
+
+def main() -> None:
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else 'shortcuts-out')
+    out.mkdir(parents=True, exist_ok=True)
+    for name, wf in SHORTCUTS.items():
+        raw = out / f'{name}.unsigned.shortcut'
+        signed = out / f'{name}.shortcut'
+        with open(raw, 'wb') as f:
+            plistlib.dump(wf, f, fmt=plistlib.FMT_BINARY)
+        subprocess.run(['shortcuts', 'sign', '--mode', 'anyone', '--input', str(raw), '--output', str(signed)], check=True, capture_output=True)
+        os.remove(raw)
+        print('signed', signed)
+
+
+if __name__ == '__main__':
+    main()

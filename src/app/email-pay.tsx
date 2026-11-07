@@ -8,6 +8,7 @@ import { Button, Card, Divider, haptic, notify, Row, Txt } from '@/components/ui
 import { useCloud } from '@/cloud/cloudStore';
 import { createInboxKey, getInboxKey, importPayments, logPaymentUrl, sendTestPayment } from '@/cloud/inbox';
 import { useActiveBudget } from '@/store/store';
+import { filterOf } from '@/utils/autoLogSources';
 import { RADIUS, useTheme } from '@/theme';
 
 /** iPhone guide for a bank's alert emails: a Shortcuts "Email" automation sends each one to Plan. */
@@ -18,6 +19,7 @@ export default function EmailPayScreen() {
   const { colors } = useTheme();
   const source = data.settings.autoLogSources?.find((s) => s.id === id);
   const name = source?.name ?? 'Bank emails';
+  const subject = source ? filterOf(source) : '';
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [test, setTest] = useState<'idle' | 'sending' | 'ok' | 'failed'>('idle');
@@ -59,9 +61,7 @@ export default function EmailPayScreen() {
     { title: 'New automation', text: 'Open Shortcuts › Automation › +, then tap Email.' },
     {
       title: 'Pick the emails',
-      text: source?.sender
-        ? `Tap Sender and add ${source.sender}. Optional: Subject contains “Transaction Alerts”. Turn Automation on.`
-        : 'Tap Sender and add your bank’s alert address. Optional: a word the subject always has. Turn Automation on.',
+      text: `Tap Sender and add ${source?.sender ?? 'your bank’s alert address'}. ${subject ? `Tap Subject and type “${subject}”.` : 'Optional: Subject contains a word every alert email has.'} Turn Automation on.`,
       extra: source?.sender ? <CopyRow label="Sender" value={source.sender} /> : undefined,
     },
     { title: 'Add the action', text: 'Search “Get Contents of URL” and tap it. Tap URL and paste the link below. Tap the arrow, set Method to POST and Request Body to JSON.', extra: <CopyRow label="Link for the URL box" value={logPaymentUrl()} /> },

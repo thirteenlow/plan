@@ -14,7 +14,7 @@ import { Button, confirm, FieldRow, haptic, IconBadge, notify, Row, Tap, TextFie
 import { categoryMonth, computeBudget, getMonth } from '@/engine/budget';
 import { MoneyFlow, type MoneyFlowInfo, MoneyMove, type MoneyMoveInfo, signed } from '@/components/MoneyMove';
 import { FREQUENCIES, frequencyLabel, nextOccurrence } from '@/engine/scheduled';
-import { sortedGroups, useBudgetResult } from '@/hooks/useBudget';
+import { sortedGroups, useBalances, useBudgetResult } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import { type BudgetData, RTA, type ClearedStatus, type FlagColor, type Frequency, type SubTransaction } from '@/store/types';
 import { FLAG_COLORS, FONT, RADIUS, useTheme } from '@/theme';
@@ -120,8 +120,14 @@ export default function TransactionScreen() {
     : direction === 'in'
       ? 'inflow'
       : 'spending';
-  const setFrom = (id: string) => (direction === 'out' ? setAccountId(id) : setTransferId(id));
-  const setTo = (id: string) => (direction === 'out' ? setTransferId(id) : setAccountId(id));
+  /** Swaps From and To (the transfer is stored on one side, so flipping the direction does it). */
+  const swap = () => {
+    haptic();
+    setDirection(direction === 'out' ? 'in' : 'out');
+  };
+  // Picking the account that's on the other side swaps the two instead of leaving both the same.
+  const setFrom = (id: string) => (id === toId ? swap() : direction === 'out' ? setAccountId(id) : setTransferId(id));
+  const setTo = (id: string) => (id === fromId ? swap() : direction === 'out' ? setTransferId(id) : setAccountId(id));
   const cashAccounts = openAccounts.filter((a) => a.onBudget && !isCreditType(a.type));
   const creditAccounts = openAccounts.filter((a) => isCreditType(a.type));
 
@@ -146,14 +152,30 @@ export default function TransactionScreen() {
     if (categoryId === RTA) setCategoryId(null);
     const from = (k === 'ccPayment' ? cashAccounts : openAccounts).find((a) => a.id === (fromId ?? accountId)) ?? (k === 'ccPayment' ? cashAccounts[0] : openAccounts[0]);
     const toChoices = (k === 'ccPayment' ? creditAccounts : openAccounts).filter((a) => a.id !== from?.id);
-    // A plain transfer starts with another cash account as "To" when there is one.
-    const to = toChoices.find((a) => a.id === toId) ?? (k === 'transfer' ? toChoices.find((a) => !isCreditType(a.type)) : undefined) ?? toChoices[0];
+    // A card payment started from a card (or with a card picked) pays that card. A plain transfer starts with
+    // another cash account as "To" when there is one.
+    const to =
+      toChoices.find((a) => a.id === toId) ??
+      (k === 'ccPayment' ? toChoices.find((a) => a.id === accountId || a.id === params.accountId) : undefined) ??
+      (k === 'transfer' ? toChoices.find((a) => !isCreditType(a.type)) : undefined) ??
+      toChoices[0];
     setTransferMode(k);
     setDirection('out');
     setAccountId(from?.id);
     setTransferId(to?.id);
     if (k === 'ccPayment' && !creditAccounts.length) notify('No credit cards yet', 'Add a credit card account first, then record payments to it here.');
   };
+
+  // Card payments: what's owed on the card, and what's set aside for it in its payment category, to fill in.
+  const balances = useBalances();
+  const card = kind === 'ccPayment' ? toAccount : undefined;
+  const owed = card ? Math.max(-(balances[card.id]?.working ?? 0), 0) : 0;
+  const cardCategory = card ? data.categories.find((x) => x.linkedAccountId === card.id) : undefined;
+  const setAside = cardCategory ? Math.max(categoryMonth(getMonth(result, monthOf(date)), cardCategory.id).available, 0) : 0;
+  const fills = [
+    owed ? { label: 'Full balance', amount: owed } : null,
+    setAside && setAside !== owed ? { label: 'Set aside', amount: setAside } : null,
+  ].filter((x): x is { label: string; amount: number } => !!x);
 
   const sign = direction === 'in' ? 1 : -1;
   const total = Math.abs(parseMoney(amount) ?? 0) * sign;
@@ -450,7 +472,8 @@ export default function TransactionScreen() {
       )}
       <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: RADIUS.pill, paddingHorizontal: 30, marginVertical: 22, minWidth: 220, justifyContent: 'center' }}>
         <Txt variant="h2" tone="muted">
-          {direction === 'out' ? '−' : '+'}
+          {/* A transfer is money moving, not in or out, whichever side it's stored on. */}
+          {transferAccount ? '' : direction === 'out' ? '−' : '+'}
           {c.symbol}
         </Txt>
         <TextInput
@@ -465,7 +488,7 @@ export default function TransactionScreen() {
           keyboardType="number-pad"
           autoFocus={!src}
           accessibilityLabel="Amount"
-          style={[{ fontFamily: FONT.bold, fontSize: 44, color: direction === 'in' ? colors.positive : colors.accent, paddingVertical: 14, width: amountWidth(amount), textAlign: 'center' }, noWebOutline]}
+          style={[{ fontFamily: FONT.bold, fontSize: 44, color: direction === 'in' && !transferAccount ? colors.positive : colors.accent, paddingVertical: 14, width: amountWidth(amount), textAlign: 'center' }, noWebOutline]}
         />
       </View>
       {calc.bar && <View style={{ marginTop: -12, marginBottom: 18 }}>{calc.bar}</View>}
@@ -484,8 +507,42 @@ export default function TransactionScreen() {
       <View style={{ gap: 10 }}>
         {transferAccount ? (
           <>
-            <FieldRow icon="arrow-up-circle-outline" label="From" value={fromAccount?.name} placeholder="From account" onPress={() => setPicker({ kind: 'from' })} />
-            <FieldRow icon="arrow-down-circle-outline" label={kind === 'ccPayment' ? 'Credit card' : 'To'} value={toAccount?.name} placeholder={kind === 'ccPayment' ? 'Which card' : 'To account'} onPress={() => setPicker({ kind: 'to' })} />
+            <View>
+              <FieldRow icon="arrow-up-circle-outline" label="From" value={fromAccount?.name} placeholder="From account" onPress={() => setPicker({ kind: 'from' })} />
+              <View style={{ height: 10 }} />
+              <FieldRow icon="arrow-down-circle-outline" label={kind === 'ccPayment' ? 'Credit card' : 'To'} value={toAccount?.name} placeholder={kind === 'ccPayment' ? 'Which card' : 'To account'} onPress={() => setPicker({ kind: 'to' })} />
+              {kind === 'transfer' && (
+                <Tap
+                  onPress={swap}
+                  accessibilityRole="button"
+                  accessibilityLabel="Swap from and to"
+                  hitSlop={6}
+                  style={{ position: 'absolute', right: 44, top: 56 + 5 - 16, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accentSoft, borderWidth: 2, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Ionicons name="swap-vertical" size={16} color={colors.accent} />
+                </Tap>
+              )}
+            </View>
+            {fills.length > 0 && (
+              <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+                {fills.map((f) => (
+                  <Tap
+                    key={f.label}
+                    onPress={() => {
+                      haptic();
+                      setAmount(milliToInput(f.amount));
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pay ${f.label.toLowerCase()}, ${formatMoney(f.amount)}`}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: parseMoney(amount) === f.amount ? colors.accent : colors.accentSoft }}
+                  >
+                    <Txt variant="label" style={{ color: parseMoney(amount) === f.amount ? colors.onGradient : colors.accent }}>
+                      {f.label} · {formatMoney(f.amount)}
+                    </Txt>
+                  </Tap>
+                ))}
+              </Row>
+            )}
           </>
         ) : (
           <FieldRow icon="person-outline" label="Payee" value={payeeLabel} placeholder="Payee" onPress={() => setPicker({ kind: 'payee' })} />
@@ -521,26 +578,16 @@ export default function TransactionScreen() {
               </Tap>
             </Row>
             {splits.map((l, i) => (
-              <Row key={l.id} style={{ gap: 8 }}>
-                <Tap onPress={() => setPicker({ kind: 'category', split: l.id })} style={{ flex: 1.4, backgroundColor: colors.surfaceAlt, borderRadius: RADIUS.sm, padding: 10 }}>
-                  <Txt variant="body" numberOfLines={1} tone={l.categoryId ? 'default' : 'muted'}>
-                    {categoryLabel(l.categoryId) ?? 'Category'}
-                  </Txt>
-                </Tap>
-                <TextInput
-                  value={l.amount}
-                  onChangeText={(v) => setSplits(splits.map((x) => (x.id === l.id ? { ...x, amount: filterAmountTyping(v, c) } : x)))}
-                  maxLength={LIMITS.amountChars}
-                  placeholder={formatNumber(0)}
-                  placeholderTextColor={colors.muted}
-                  keyboardType="number-pad"
-                  accessibilityLabel={`Split ${i + 1} amount`}
-                  style={{ flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: RADIUS.sm, padding: 10, fontFamily: FONT.semibold, color: colors.text, textAlign: 'right' }}
-                />
-                <Tap onPress={() => setSplits(splits.length > 2 ? splits.filter((x) => x.id !== l.id) : splits)} hitSlop={6} accessibilityLabel="Remove split line">
-                  <Ionicons name="remove-circle-outline" size={20} color={splits.length > 2 ? colors.danger : colors.border} />
-                </Tap>
-              </Row>
+              <SplitRow
+                key={l.id}
+                index={i}
+                label={categoryLabel(l.categoryId)}
+                amount={l.amount}
+                canRemove={splits.length > 2}
+                onPickCategory={() => setPicker({ kind: 'category', split: l.id })}
+                onAmount={(v) => setSplits((cur) => cur?.map((x) => (x.id === l.id ? { ...x, amount: v } : x)) ?? null)}
+                onRemove={() => setSplits((cur) => (cur && cur.length > 2 ? cur.filter((x) => x.id !== l.id) : cur))}
+              />
             ))}
             <Row style={{ justifyContent: 'space-between' }}>
               <Tap onPress={() => setSplits([...splits, { id: uid('s'), categoryId: null, amount: splitLeft > 0 ? milliToInput(splitLeft) : '', memo: '' }])} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -734,3 +781,40 @@ export default function TransactionScreen() {
     </Screen>
   );
 }
+
+/** One line of a split: its category and amount, with the calculator keys under it while the amount is focused. */
+function SplitRow({ index, label, amount, canRemove, onPickCategory, onAmount, onRemove }: { index: number; label?: string; amount: string; canRemove: boolean; onPickCategory: () => void; onAmount: (v: string) => void; onRemove: () => void }) {
+  const { colors } = useTheme();
+  const c = getActiveCurrency();
+  const ref = useInputRef();
+  const calc = useCalculator({ value: amount, onChange: onAmount, inputRef: ref });
+  return (
+    <View>
+      <Row style={{ gap: 8 }}>
+        <Tap onPress={onPickCategory} style={{ flex: 1.4, backgroundColor: colors.surfaceAlt, borderRadius: RADIUS.sm, padding: 10 }}>
+          <Txt variant="body" numberOfLines={1} tone={label ? 'default' : 'muted'}>
+            {label ?? 'Category'}
+          </Txt>
+        </Tap>
+        <TextInput
+          ref={ref}
+          value={amount}
+          onFocus={calc.onFocus}
+          onBlur={calc.onBlur}
+          onChangeText={(v) => onAmount(filterAmountTyping(v, c))}
+          maxLength={LIMITS.amountChars}
+          placeholder={formatNumber(0)}
+          placeholderTextColor={colors.muted}
+          keyboardType="number-pad"
+          accessibilityLabel={`Split ${index + 1} amount`}
+          style={[{ flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: RADIUS.sm, padding: 10, fontFamily: FONT.semibold, color: colors.text, textAlign: 'right' }, noWebOutline]}
+        />
+        <Tap onPress={onRemove} hitSlop={6} accessibilityLabel="Remove split line">
+          <Ionicons name="remove-circle-outline" size={20} color={canRemove ? colors.danger : colors.border} />
+        </Tap>
+      </Row>
+      {calc.bar}
+    </View>
+  );
+}
+

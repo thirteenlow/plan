@@ -13,7 +13,7 @@ import { filterAmountTyping, LIMITS, validateAmount, validateName } from '@/util
 import { Screen } from './Screen';
 import { ActionSheet, PickerSheet, Sheet } from './Sheet';
 import { TransactionRow } from './TransactionRow';
-import { Button, Card, Chip, confirm, Divider, haptic, IconBadge, IconButton, notify, ProgressBar, Row, TextField, Txt, useToneColors } from './ui';
+import { Button, Card, Chip, confirm, Divider, haptic, IconBadge, IconButton, notify, ProgressBar, Row, Tap, TextField, Txt, useToneColors } from './ui';
 
 export function CategoryPanel({ id, month, modal, onClose }: { id: string; month: string; modal?: boolean; onClose?: () => void }) {
   const data = useActiveBudget();
@@ -304,9 +304,14 @@ export function CategoryPanel({ id, month, modal, onClose }: { id: string; month
       />
 
       {/* Activity */}
-      <Txt variant="h3" style={{ marginTop: 26, marginBottom: 10 }}>
-        Activity this month
-      </Txt>
+      <Row style={{ justifyContent: 'space-between', marginTop: 26, marginBottom: 10 }}>
+        <Txt variant="h3">Activity this month</Txt>
+        <Tap onPress={() => router.push({ pathname: '/history', params: { category: id, month } })} accessibilityRole="button" accessibilityLabel={`See all ${category.name} transactions`} hitSlop={8}>
+          <Txt variant="label" tone="accent">
+            See all
+          </Txt>
+        </Tap>
+      </Row>
       {txs.length === 0 ? (
         <Txt tone="muted">No transactions in {monthLabel(month)}.</Txt>
       ) : (

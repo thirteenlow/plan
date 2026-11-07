@@ -42,7 +42,8 @@ function forwarded(amount: string | null, card: string | null, merchant: string 
   const head = amount?.trim().slice(0, 20);
   if (!head) return null;
   // iOS 27 SimplyGo: just the notification as the amount and the app as the merchant (no card).
-  if (!card?.trim()) return merchant?.trim() && (amount ?? '').trim().length >= 12 && /[a-z]{3}/i.test(head) && /\d[.,]\d/.test(amount ?? '') ? { wallet: merchant.trim(), text: amount!.trim() } : null;
+  // Words in lowercase mean a sentence, not an Apple Pay amount like "SGD 4.50".
+  if (!card?.trim()) return merchant?.trim() && (amount ?? '').trim().length >= 10 && /[a-z]{3}/.test(amount ?? '') && /\s/.test(amount!.trim()) ? { wallet: merchant.trim(), text: amount!.trim() } : null;
   const m = card.match(/^([^:]{2,40}): ([\s\S]+)$/);
   if (m && m[2].trim().startsWith(head)) return { wallet: m[1].trim(), text: m[2].trim() };
   // Same text in both, with words in it (not just "4.50"): a whole notification.
@@ -79,7 +80,7 @@ function merchantInText(text: string): string | null {
 //
 // How each part is decided, in order:
 //   Amount: a labelled amount ("Amount paid", "Total amount", "Amount", "Total", "Transaction amount"…), preferring
-//           the budget's own currency (Instarem: "Amount paid 32.7 SGD" over "Transaction amount 25 USD"); otherwise
+//           the budget's own currency (Instarem: "Amount paid 18.9 SGD" over "Transaction amount 14 USD"); otherwise
 //           the first amount in the budget's currency; otherwise the first amount with a currency.
 //   Payee:  a labelled payee ("Merchant", "To", "Payee", "Recipient"…), without "(MOBILE ending 1234)"; otherwise
 //           who a sentence says was paid ("at X", "to X", "paid X"); money in: who it came from.
@@ -134,7 +135,7 @@ export function labelledFields(text: string): Record<string, string> {
       });
       continue;
     }
-    // "Merchant Google Play" (a table without colons): only labels that aren't everyday words.
+    // "Merchant Spotify" (a table without colons): only labels that aren't everyday words.
     const sp = line.match(spaced);
     if (sp && !COMMON.has(labelKey(sp[1]))) set(sp[1], sp[2]);
   }
@@ -148,7 +149,7 @@ const MARK_CODE: Record<string, string> = { 'S$': 'SGD', 'US$': 'USD', 'A$': 'AU
 
 export type Money = { amount: number; currency: string | null };
 
-/** Every amount with a currency in the text, in order ("SGD3.5", "32.7 SGD", "S$4.50"). `$` alone has no code. */
+/** Every amount with a currency in the text, in order ("SGD3.5", "18.9 SGD", "S$4.50"). `$` alone has no code. */
 export function amountsInText(text: string): Money[] {
   const re = new RegExp(`(?:(${CUR})\\s?(${NUM}))|(?:(${NUM})\\s?(${CUR}))`, 'g');
   const out: Money[] = [];
@@ -244,19 +245,36 @@ export function readWalletPayment(row: { amount: string | null; merchant: string
   const f = forwarded(row.amount, row.card, row.merchant);
   if (!f) return null;
   const p = readForwarded(f, row.merchant?.trim() ?? '', home);
+  if (p.kind === 'skip') return p;
   const kind = kindOf(`${row.merchant ?? ''} ${f.text}`);
   if (!kind) return p;
   // Money in: the sender (if named) rather than the wallet, and no SimplyGo-style memo trimming.
   return { ...p, kind, merchant: kind === 'in' ? (senderInText(f.text) ?? p.merchant) : p.merchant };
 }
 
+/** Words that only a real payment (or money in) uses. */
+const MONEY_MOVED = /\b(?:charged|paid|pay(?:ment|ing)|debited|deducted|spent|spend|purchase[ds]?|transaction|fare|sent|transferred|received|refund(?:ed)?|withdrawn|billed)\b/i;
+/** Offers and rewards: amounts that weren't spent. */
+const PROMO = /\b(?:\d+\s?%\s?off|off your|promo(?:tion)?s?|vouchers?|use code|discount|deals?|save up|up to|earn(?:ed)?|coins?|points|rewards?|\/hr|per hour|starting from|from just)\b/i;
+/** Plain words for a payment, to tell an offer that mentions one ("Use code X on your next payment") from a payment. */
+const STRONG = /\b(?:charged|debited|credited|cash ?back|refund(?:ed)?|deducted|you(?:'ve| have)? (?:paid|spent|sent|received)|sent you|paid you|fare|payment (?:of|to|made|successful|completed))\b/i;
+
+/** Another app's notification that isn't a payment: no amount and no payment words, or an offer. */
+export function notAPayment(text: string, amount: number): boolean {
+  if (!amount) return !MONEY_MOVED.test(text);
+  return PROMO.test(text) && !STRONG.test(text);
+}
+
 function readForwarded(f: { wallet: string; text: string }, title: string, home?: string): WalletPayment {
   const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);
   if (other) {
     // Another app (SimplyGo: "Fare $0.20 - Bus 851 Dhoby Ghaut Stn Exit A - Opp Blk 3 - 2 Mar 09:15"; PayLah!: "You
-    // have paid SGD 3.50 to KOPI CORNER"). Payee: a labelled or named one in the text, else the title unless it's
+    // have paid SGD 4.20 to KOPI CORNER"). Payee: a labelled or named one in the text, else the title unless it's
     // generic ("Trip Fare Alert") or the app's own name, else the app. The rest of the text goes in the memo.
     const r = readPaymentText(f.text, home);
+    // Apps send all sorts ("Your order was delivered", "You earned 120 GrabCoins", "20% off, up to $5"): only
+    // alerts that say money moved are payments.
+    if (notAPayment(f.text, r.amount || amountInText(f.text))) return { wallet: f.wallet, amount: 0, merchant: null, card: null, kind: 'skip' };
     const generic = !title || /\b(alert|notification|reminder|update|receipt)s?\b/i.test(title) || title.toLowerCase() === f.wallet.toLowerCase();
     return {
       wallet: f.wallet,

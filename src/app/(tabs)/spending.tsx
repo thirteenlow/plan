@@ -116,6 +116,7 @@ export default function SpendingScreen() {
           title="Spending"
           actions={[
             { label: 'Filter', icon: 'filter-outline', hint: FILTER_LABELS[filter], onPress: () => setSheet('filter') },
+            { label: 'By category or payee', icon: 'albums-outline', hint: 'Every transaction for one', onPress: () => router.push('/history') },
             { label: 'Scheduled transactions', icon: 'repeat-outline', onPress: () => router.push('/scheduled') },
             { label: 'Payees', icon: 'people-outline', onPress: () => router.push('/payees') },
           ]}
