@@ -39,4 +39,10 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
     expect(ui.getByText(/type ShopBack/)).toBeTruthy();
     expect(ui.getByText(/tap YouTrip at the top and pick ShopBack/)).toBeTruthy();
   });
+
+  it('the general email shortcut asks for the name and says to change the sender', async () => {
+    const ui = await render(<GetShortcut name="OCBC emails" link="x" what="payment" logged={false} status="" email={{ name: 'OCBC emails', presetSender: 'sender@bank.com' }} />);
+    expect(ui.getByText(/type OCBC emails/)).toBeTruthy();
+    expect(ui.getByText(/tap sender@bank.com at the top/)).toBeTruthy();
+  });
 });

@@ -22,6 +22,7 @@ export function GetShortcut({
   onManual,
   run,
   appName,
+  email,
   flow = ['You pay', 'iPhone tells Plan', 'It’s in Spending'],
 }: {
   name: string;
@@ -34,6 +35,8 @@ export function GetShortcut({
   run?: { title: string; text: string };
   /** The general App alerts shortcut: it also asks for the app's name, and comes set to another app unless it's this one. */
   appName?: { name: string; presetApp: string };
+  /** The general Bank emails shortcut: it also asks for the source's name, and the sender is changed after adding. */
+  email?: { name: string; sender?: string; presetSender: string };
   flow?: [string, string, string];
 }) {
   const { colors } = useTheme();
@@ -62,8 +65,12 @@ export function GetShortcut({
     { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: opened || logged },
     {
       icon: 'clipboard-outline',
-      title: appName ? 'Paste your key, then the app' : 'Paste your key',
-      text: appName ? `When it asks for your key, tap the box and Paste. When it asks which app, type ${appName.name}.` : 'When it asks, tap the box and Paste.',
+      title: appName ? 'Paste your key, then the app' : email ? 'Paste your key, then the name' : 'Paste your key',
+      text: appName
+        ? `When it asks for your key, tap the box and Paste. When it asks which app, type ${appName.name}.`
+        : email
+          ? `When it asks for your key, tap the box and Paste. When it asks what it’s called, type ${email.name}.`
+          : 'When it asks, tap the box and Paste.',
       done: logged,
     },
     run
@@ -71,8 +78,9 @@ export function GetShortcut({
       : {
       icon: 'toggle-outline',
       title: 'Turn it on',
-      text:
-        appName && appName.name.toLowerCase() !== appName.presetApp.toLowerCase()
+      text: email
+        ? `iPhone adds it switched off. Open it in Shortcuts, tap ${email.presetSender} at the top and change it to ${email.sender ?? 'your bank’s alert address (the “From” of an alert email)'}. Then turn Automation on and Confirm Before Run off.`
+        : appName && appName.name.toLowerCase() !== appName.presetApp.toLowerCase()
           ? `iPhone adds it switched off and set to ${appName.presetApp}. Open it in Shortcuts, tap ${appName.presetApp} at the top and pick ${appName.name} instead, then turn Automation on. Leave Notify off.`
           : 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
       done: logged,

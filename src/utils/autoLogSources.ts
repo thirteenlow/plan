@@ -44,6 +44,10 @@ export const SHORTCUT_LINKS: Record<string, string> = {
 export const APP_ALERTS_LINK = 'https://www.icloud.com/shortcuts/dbc90ab9c0d1466eb1d374ef058ab2f5';
 export const APP_ALERTS_PRESET_APP = 'YouTrip';
 
+/** Any other bank's alert emails: asks for the key and the source's name; the user sets the sender after adding it. */
+export const BANK_EMAILS_LINK = 'https://www.icloud.com/shortcuts/11671290970c49999dca0b5452a90a0f';
+export const BANK_EMAILS_PRESET_SENDER = 'sender@bank.com';
+
 /** Ready-made Scan Payment shortcut (no trigger: Back Tap or the Action Button runs it). */
 export const SCAN_SHORTCUT_LINK = 'https://www.icloud.com/shortcuts/41dba39f41b6456fa88d2f59a0e38460';
 
