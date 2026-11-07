@@ -37,8 +37,8 @@ export const SHORTCUT_LINKS: Record<string, string> = {
   Grab: 'https://www.icloud.com/shortcuts/ee98ff7c44f5467e9f9b2ed7860b14ab',
 };
 
-/** Ready-made Scan Payment shortcut (no trigger: Back Tap or the Action Button runs it). Empty until shared. */
-export const SCAN_SHORTCUT_LINK = '';
+/** Ready-made Scan Payment shortcut (no trigger: Back Tap or the Action Button runs it). */
+export const SCAN_SHORTCUT_LINK = 'https://www.icloud.com/shortcuts/41dba39f41b6456fa88d2f59a0e38460';
 
 /** The ready-made shortcut for a source, if there is one (matched by what its payments say they came from). */
 export const shortcutFor = (source: Pick<AutoLogSource, 'match'>) => Object.entries(SHORTCUT_LINKS).find(([name]) => name.toLowerCase() === source.match.trim().toLowerCase())?.[1];

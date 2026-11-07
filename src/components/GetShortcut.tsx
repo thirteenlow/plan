@@ -54,9 +54,10 @@ export function GetShortcut({
     }
   };
 
+  // Ticks: once a payment has come through, every step is done; before that, only "Get the shortcut" once tapped.
   const steps: { icon: Icon; title: string; text: string; done: boolean; action?: React.ReactNode }[] = [
-    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: opened },
-    { icon: 'clipboard-outline', title: 'Paste your key', text: 'When it asks, tap the box and Paste.', done: opened && logged },
+    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: opened || logged },
+    { icon: 'clipboard-outline', title: 'Paste your key', text: 'When it asks, tap the box and Paste.', done: logged },
     run
       ? { icon: 'hand-left-outline', title: run.title, text: run.text, done: logged }
       : {
