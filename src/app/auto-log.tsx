@@ -57,11 +57,14 @@ export default function AutoLogScreen() {
     ...presetsFor(platform)
       .filter((p) => !taken.has(p.name.toLowerCase()))
       .map((p) => ({ key: `preset:${p.name}`, title: p.name, subtitle: p.hint, section: KIND_LABEL[p.kind], left: <SourceIcon kind={p.kind} /> })),
+    { key: 'app', title: 'Another app', subtitle: 'Or type its name in the search box', section: KIND_LABEL.app, left: <SourceIcon kind="app" /> },
     ...(platform === 'ios' || platform === 'desktop'
       ? [{ key: 'email', title: 'Another bank’s emails', subtitle: 'Any alert email with an amount', section: KIND_LABEL.email, left: <SourceIcon kind="email" /> }]
       : []),
   ];
   const pick = (key: string) => {
+    // Named on its own screen ("App name, as on your phone").
+    if (key === 'app') return add(newSource({ kind: 'app', name: 'Other app', match: 'Other app' }));
     if (key === 'email') return add(newSource({ kind: 'email', name: 'Bank emails', match: 'Bank emails' }));
     const preset = presetsFor(platform).find((p) => `preset:${p.name}` === key);
     if (preset) add(newSource(preset));

@@ -30,7 +30,7 @@ describe('Auto-log sources', () => {
   });
 
   it('phones start with what they can do', () => {
-    expect(defaultSources('ios').map((s) => s.name)).toEqual(['Apple Pay', 'SimplyGo']);
+    expect(defaultSources('ios').map((s) => s.name)).toEqual(['Apple Pay']);
     expect(defaultSources('android-app').map((s) => s.name)).toEqual(['Google Wallet', 'Samsung Wallet', 'SimplyGo']);
   });
 

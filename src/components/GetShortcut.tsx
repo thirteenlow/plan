@@ -60,6 +60,8 @@ export function GetShortcut({
     }
   };
 
+  // The general shortcuts all arrive with the same name, so each gets its own.
+  const rename = (source: string) => ` Then tap its name at the top › Rename, and call it “Plan ${source}”, so you can tell it apart.`;
   // Plan can only see the end result, so the steps tick together once a payment has come through.
   const steps: { icon: Icon; title: string; text: string; done: boolean; action?: React.ReactNode }[] = [
     { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: logged },
@@ -79,10 +81,12 @@ export function GetShortcut({
       icon: 'toggle-outline',
       title: 'Turn it on',
       text: email
-        ? `iPhone adds it switched off. Open it in Shortcuts, tap ${email.presetSender} at the top and change it to ${email.sender ?? 'your bank’s alert address (the “From” of an alert email)'}. Then turn Automation on and Confirm Before Run off.`
+        ? `iPhone adds it switched off. Open it in Shortcuts, tap ${email.presetSender} at the top and change it to ${email.sender ?? 'your bank’s alert address (the “From” of an alert email)'}. Then turn Automation on and Confirm Before Run off.${rename(email.name)}`
         : appName && appName.name.toLowerCase() !== appName.presetApp.toLowerCase()
-          ? `iPhone adds it switched off and set to ${appName.presetApp}. Open it in Shortcuts, tap ${appName.presetApp} at the top and pick ${appName.name} instead, then turn Automation on. Leave Notify off.`
-          : 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
+          ? `iPhone adds it switched off and set to ${appName.presetApp}. Open it in Shortcuts, tap ${appName.presetApp} at the top and pick ${appName.name} instead, then turn Automation on. Leave Notify off.${rename(appName.name)}`
+          : appName
+            ? `iPhone adds it switched off. Open it in Shortcuts and, at the top, turn Automation on. Leave Notify off.${rename(appName.name)}`
+            : 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
       done: logged,
       action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void Linking.openURL('shortcuts://').catch(() => undefined)} />,
     },

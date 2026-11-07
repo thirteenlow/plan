@@ -13,16 +13,21 @@ export type Platform = 'ios' | 'android-app' | 'android-web' | 'desktop';
 export type Preset = Omit<AutoLogSource, 'id' | 'enabled'> & { platforms: Platform[]; hint: string };
 
 const PHONES: Platform[] = ['ios', 'android-app', 'android-web'];
+/**
+ * Apps listed on iPhone only when they have their own ready-made shortcut; others are added as "another app" there
+ * (the general App alerts shortcut). Android reads any app's notifications, so it lists them all.
+ */
+const ANDROID: Platform[] = ['android-app', 'android-web'];
 
 export const PRESETS: Preset[] = [
   { kind: 'tap', name: 'Apple Pay', match: 'Apple Pay', platforms: ['ios'], hint: 'Every tap with your iPhone' },
   { kind: 'app', name: 'Wallet', match: 'Wallet', platforms: ['ios'], hint: 'Wallet’s payment alerts, with the shop’s name' },
   { kind: 'tap', name: 'Google Wallet', match: 'Google Wallet', platforms: ['android-app', 'android-web'], hint: 'Every tap with Google Wallet' },
   { kind: 'tap', name: 'Samsung Wallet', match: 'Samsung Wallet', platforms: ['android-app', 'android-web'], hint: 'Every tap with Samsung Wallet' },
-  { kind: 'app', name: 'SimplyGo', match: 'SimplyGo', filter: 'Fare', platforms: PHONES, hint: 'Bus and train fares' },
-  { kind: 'app', name: 'PayLah!', match: 'PayLah!', platforms: PHONES, hint: 'DBS PayLah! payments' },
+  { kind: 'app', name: 'SimplyGo', match: 'SimplyGo', filter: 'Fare', platforms: ANDROID, hint: 'Bus and train fares' },
+  { kind: 'app', name: 'PayLah!', match: 'PayLah!', platforms: ANDROID, hint: 'DBS PayLah! payments' },
   { kind: 'app', name: 'Grab', match: 'Grab', filter: 'has been charged', platforms: PHONES, hint: 'Rides, food and GrabPay' },
-  { kind: 'app', name: 'YouTrip', match: 'YouTrip', platforms: PHONES, hint: 'Card payments abroad' },
+  { kind: 'app', name: 'YouTrip', match: 'YouTrip', platforms: ANDROID, hint: 'Card payments abroad' },
   { kind: 'email', name: 'DBS PayLah! emails', match: 'DBS PayLah! emails', sender: 'paylah.alert@dbs.com', filter: 'Transaction Alerts', platforms: ['ios'], hint: 'Transaction Alerts emails' },
 ];
 
@@ -78,7 +83,7 @@ export function passesFilter(source: Pick<AutoLogSource, 'kind' | 'match' | 'fil
 
 /** What a phone starts with the first time the Auto-log screen opens. */
 export function defaultSources(platform: Platform): AutoLogSource[] {
-  const names = platform === 'ios' ? ['Apple Pay', 'SimplyGo'] : platform === 'desktop' ? [] : ['Google Wallet', 'Samsung Wallet', 'SimplyGo'];
+  const names = platform === 'ios' ? ['Apple Pay'] : platform === 'desktop' ? [] : ['Google Wallet', 'Samsung Wallet', 'SimplyGo'];
   return PRESETS.filter((p) => names.includes(p.name)).map(newSource);
 }
 

@@ -37,12 +37,12 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
   it('the general shortcut asks for the app, and says to switch the trigger’s app when it’s not YouTrip', async () => {
     const ui = await render(<GetShortcut name="ShopBack" link="x" what="payment" logged={false} status="" appName={{ name: 'ShopBack', presetApp: 'YouTrip' }} />);
     expect(ui.getByText(/type ShopBack/)).toBeTruthy();
-    expect(ui.getByText(/tap YouTrip at the top and pick ShopBack/)).toBeTruthy();
+    expect(ui.getByText(/tap YouTrip at the top and pick ShopBack.*call it “Plan ShopBack”/)).toBeTruthy();
   });
 
   it('the general email shortcut asks for the name and says to change the sender', async () => {
     const ui = await render(<GetShortcut name="OCBC emails" link="x" what="payment" logged={false} status="" email={{ name: 'OCBC emails', presetSender: 'sender@bank.com' }} />);
     expect(ui.getByText(/type OCBC emails/)).toBeTruthy();
-    expect(ui.getByText(/tap sender@bank.com at the top/)).toBeTruthy();
+    expect(ui.getByText(/tap sender@bank.com at the top.*call it “Plan OCBC emails”/)).toBeTruthy();
   });
 });
