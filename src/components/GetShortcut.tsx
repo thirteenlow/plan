@@ -60,9 +60,9 @@ export function GetShortcut({
     }
   };
 
-  // Ticks: once a payment has come through, every step is done; before that, only "Get the shortcut" once tapped.
+  // Plan can only see the end result, so the steps tick together once a payment has come through.
   const steps: { icon: Icon; title: string; text: string; done: boolean; action?: React.ReactNode }[] = [
-    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: opened || logged },
+    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: logged },
     {
       icon: 'clipboard-outline',
       title: appName ? 'Paste your key, then the app' : email ? 'Paste your key, then the name' : 'Paste your key',
@@ -118,6 +118,14 @@ export function GetShortcut({
         {run ? 'You set it up once, then it’s one tap.' : 'Your iPhone does this in the background. You set it up once.'}
       </Txt>
 
+      {logged && (
+        <Row style={{ gap: 8, backgroundColor: colors.positiveSoft, borderRadius: 12, padding: 10 }}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.positive} />
+          <Txt variant="strong" style={{ flex: 1, color: colors.positive }}>
+            It’s working
+          </Txt>
+        </Row>
+      )}
       <View style={{ gap: 12 }}>
         {steps.map((s, i) => (
           <Row key={s.title} style={{ gap: 12, alignItems: 'flex-start' }}>
