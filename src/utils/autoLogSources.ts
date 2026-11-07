@@ -24,7 +24,7 @@ export const PRESETS: Preset[] = [
   { kind: 'app', name: 'Wallet', match: 'Wallet', platforms: ['ios'], hint: 'Wallet’s payment alerts, with the shop’s name' },
   { kind: 'tap', name: 'Google Wallet', match: 'Google Wallet', platforms: ['android-app', 'android-web'], hint: 'Every tap with Google Wallet' },
   { kind: 'tap', name: 'Samsung Wallet', match: 'Samsung Wallet', platforms: ['android-app', 'android-web'], hint: 'Every tap with Samsung Wallet' },
-  { kind: 'app', name: 'SimplyGo', match: 'SimplyGo', filter: 'Fare', platforms: ANDROID, hint: 'Bus and train fares' },
+  { kind: 'app', name: 'SimplyGo', match: 'SimplyGo', filter: 'Fare', platforms: PHONES, hint: 'Bus and train fares' },
   { kind: 'app', name: 'PayLah!', match: 'PayLah!', platforms: ANDROID, hint: 'DBS PayLah! payments' },
   { kind: 'app', name: 'Grab', match: 'Grab', filter: 'has been charged', platforms: PHONES, hint: 'Rides, food and GrabPay' },
   { kind: 'app', name: 'YouTrip', match: 'YouTrip', platforms: ANDROID, hint: 'Card payments abroad' },
@@ -40,6 +40,7 @@ export const SHORTCUT_LINKS: Record<string, string> = {
   Wallet: 'https://www.icloud.com/shortcuts/4eee7573f2854a33b0d98cf54f22c3e2',
   'DBS PayLah! emails': 'https://www.icloud.com/shortcuts/f323968a69834b7fa4398bcb57d9b376',
   Grab: 'https://www.icloud.com/shortcuts/ee98ff7c44f5467e9f9b2ed7860b14ab',
+  SimplyGo: 'https://www.icloud.com/shortcuts/9a114fbf00974b99a6ad2eb985a4a289',
 };
 
 /**
@@ -83,7 +84,7 @@ export function passesFilter(source: Pick<AutoLogSource, 'kind' | 'match' | 'fil
 
 /** What a phone starts with the first time the Auto-log screen opens. */
 export function defaultSources(platform: Platform): AutoLogSource[] {
-  const names = platform === 'ios' ? ['Apple Pay'] : platform === 'desktop' ? [] : ['Google Wallet', 'Samsung Wallet', 'SimplyGo'];
+  const names = platform === 'ios' ? ['Apple Pay', 'SimplyGo'] : platform === 'desktop' ? [] : ['Google Wallet', 'Samsung Wallet', 'SimplyGo'];
   return PRESETS.filter((p) => names.includes(p.name)).map(newSource);
 }
 

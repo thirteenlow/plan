@@ -21,6 +21,7 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
     expect(shortcutFor({ match: 'wallet' })).toMatch(/icloud/);
     expect(shortcutFor({ match: 'DBS PayLah! emails' })).toMatch(/icloud/);
     expect(shortcutFor({ match: 'Grab' })).toMatch(/icloud/);
+    expect(shortcutFor({ match: 'SimplyGo' })).toMatch(/icloud/);
     // Other apps use the general App alerts shortcut instead.
     expect(shortcutFor({ match: 'YouTrip' })).toBeUndefined();
   });
