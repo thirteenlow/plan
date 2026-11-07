@@ -21,6 +21,7 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
     expect(shortcutFor({ match: 'wallet' })).toMatch(/icloud/);
     expect(shortcutFor({ match: 'DBS PayLah! emails' })).toMatch(/icloud/);
     expect(shortcutFor({ match: 'Grab' })).toMatch(/icloud/);
+    // Other apps use the general App alerts shortcut instead.
     expect(shortcutFor({ match: 'YouTrip' })).toBeUndefined();
   });
 
@@ -31,5 +32,11 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://www.icloud.com/shortcuts/x'));
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith('k'.repeat(40));
     expect(ui.getByText('Open it again')).toBeTruthy();
+  });
+
+  it('the general shortcut asks for the app, and says to switch the trigger’s app when it’s not YouTrip', async () => {
+    const ui = await render(<GetShortcut name="ShopBack" link="x" what="payment" logged={false} status="" appName={{ name: 'ShopBack', presetApp: 'YouTrip' }} />);
+    expect(ui.getByText(/type ShopBack/)).toBeTruthy();
+    expect(ui.getByText(/tap YouTrip at the top and pick ShopBack/)).toBeTruthy();
   });
 });

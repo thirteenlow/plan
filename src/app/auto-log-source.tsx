@@ -11,7 +11,7 @@ import { sortedGroups } from '@/hooks/useBudget';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { AutoLogSource } from '@/store/types';
 import { useTheme } from '@/theme';
-import { filterOf, KIND_LABEL, lastCaught, shortcutFor, type Platform } from '@/utils/autoLogSources';
+import { APP_ALERTS_LINK, APP_ALERTS_PRESET_APP, filterOf, KIND_LABEL, lastCaught, shortcutFor, type Platform } from '@/utils/autoLogSources';
 import { GetShortcut } from '@/components/GetShortcut';
 import { goBack } from '@/utils/nav';
 import { SourceIcon, sourceStatus } from '@/components/AutoLogSource';
@@ -56,7 +56,10 @@ export default function AutoLogSourceScreen() {
   const platform = autoLogPlatform();
   const setup = setupFor(source, platform);
   // iPhone: a ready-made shortcut sets the whole thing up.
-  const oneTap = platform === 'ios' ? shortcutFor(source) : undefined;
+  // Apps without their own shortcut use the general App alerts one.
+  const ownShortcut = shortcutFor(source);
+  const general = platform === 'ios' && !ownShortcut && source.kind === 'app';
+  const oneTap = platform === 'ios' ? (ownShortcut ?? (general ? APP_ALERTS_LINK : undefined)) : undefined;
   const currency = data.settings.currency.code;
   const accounts = data.accounts.filter((a) => a.onBudget && !a.closed);
   const fallbackName = accounts.find((a) => a.id === accountForCard(data, null))?.name;
@@ -143,6 +146,7 @@ export default function AutoLogSourceScreen() {
             logged={!!lastCaught(data, source)}
             status={sourceStatus(data, source)}
             onManual={setup.route ? () => router.push(setup.route as never) : undefined}
+            appName={general ? { name: source.name, presetApp: APP_ALERTS_PRESET_APP } : undefined}
           />
         ) : (
           <Card style={{ gap: 10 }}>

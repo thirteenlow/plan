@@ -37,6 +37,13 @@ export const SHORTCUT_LINKS: Record<string, string> = {
   Grab: 'https://www.icloud.com/shortcuts/ee98ff7c44f5467e9f9b2ed7860b14ab',
 };
 
+/**
+ * Any other app's notifications: asks for the key and the app's name. It comes set to YouTrip, so for another app the
+ * user picks theirs in the trigger.
+ */
+export const APP_ALERTS_LINK = 'https://www.icloud.com/shortcuts/dbc90ab9c0d1466eb1d374ef058ab2f5';
+export const APP_ALERTS_PRESET_APP = 'YouTrip';
+
 /** Ready-made Scan Payment shortcut (no trigger: Back Tap or the Action Button runs it). */
 export const SCAN_SHORTCUT_LINK = 'https://www.icloud.com/shortcuts/41dba39f41b6456fa88d2f59a0e38460';
 
