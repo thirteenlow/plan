@@ -107,6 +107,24 @@ def scan_shortcut() -> dict:
     return wf
 
 
+def app_alerts_shortcut() -> dict:
+    """Any app's payment notifications: asks for the key and the app's name (sent as merchant, so Plan files it under
+    that source). The trigger's app is picked by the user after adding it."""
+    wf = shortcut(None, [], color=4292093695, glyph=59448)
+    key_uuid, app_uuid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    name = var({'Type': 'ActionOutput', 'OutputUUID': app_uuid, 'OutputName': 'Text'})
+    body = var(trigger_output(NOTIFY, 'Body'))
+    wf['WFWorkflowActions'] = [
+        key_action(key_uuid),
+        {'WFWorkflowActionIdentifier': 'is.workflow.actions.gettext', 'WFWorkflowActionParameters': {'UUID': app_uuid, 'WFTextActionText': ''}},
+        post_action(key_uuid, [('amount', body), ('merchant', name)]),
+    ]
+    wf['WFWorkflowImportQuestions'].append(
+        {'ActionIndex': 1, 'Category': 'Parameter', 'ParameterKey': 'WFTextActionText', 'DefaultValue': '', 'Text': 'Which app is this for? Type its name as it is in Plan (e.g. YouTrip).'}
+    )
+    return wf
+
+
 def notification_trigger(bundle: str, name: str, team: str, contains: str) -> dict:
     return {
         'WFTriggerIdentifier': 'WFNotificationTrigger',
@@ -199,6 +217,7 @@ SHORTCUTS = {
         glyph=59448,
     ),
     'Plan Scan Payment': scan_shortcut(),
+    'Plan App alerts': app_alerts_shortcut(),
     # DBS PayLah! Transaction Alerts emails: the whole email; Plan reads the amount and who was paid.
     'Plan PayLah emails': shortcut(
         email_trigger('paylah.alert@dbs.com', 'Transaction Alerts'),
