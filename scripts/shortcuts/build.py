@@ -76,6 +76,37 @@ def post_action(key_uuid: str, fields: list[tuple[str, dict]]) -> dict:
     }
 
 
+SCAN_URL = f"{env('EXPO_PUBLIC_SUPABASE_URL')}/functions/v1/scan-payment"
+
+
+def scan_shortcut() -> dict:
+    """Scan Payment: takes a screenshot and sends it (with the key) to the scan-payment function. No trigger: it runs
+    from Back Tap or the Action Button."""
+    key_uuid, shot_uuid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    token = var({'Type': 'ActionOutput', 'OutputUUID': key_uuid, 'OutputName': 'Text'})
+    image = {'Value': {'Value': {'Type': 'ActionOutput', 'OutputUUID': shot_uuid, 'OutputName': 'Screenshot'}, 'WFSerializationType': 'WFTextTokenAttachment'}, 'WFSerializationType': 'WFTokenAttachmentParameterState'}
+    wf = shortcut(None, [], color=3980825855, glyph=62322)
+    wf['WFWorkflowTypes'] = ['Watch', 'WFWorkflowTypeShowInSearch']
+    wf['WFWorkflowActions'] = [
+        key_action(key_uuid),
+        {'WFWorkflowActionIdentifier': 'is.workflow.actions.takescreenshot', 'WFWorkflowActionParameters': {'UUID': shot_uuid}},
+        {
+            'WFWorkflowActionIdentifier': 'is.workflow.actions.downloadurl',
+            'WFWorkflowActionParameters': {
+                'UUID': str(uuid.uuid4()).upper(),
+                'WFURL': SCAN_URL,
+                'WFHTTPMethod': 'POST',
+                'WFHTTPBodyType': 'Form',
+                'WFFormValues': {
+                    'Value': {'WFDictionaryFieldValueItems': [{'WFItemType': 0, 'WFKey': text('token'), 'WFValue': token}, {'WFItemType': 5, 'WFKey': text('image'), 'WFValue': image}]},
+                    'WFSerializationType': 'WFDictionaryFieldValue',
+                },
+            },
+        },
+    ]
+    return wf
+
+
 def notification_trigger(bundle: str, name: str, team: str, contains: str) -> dict:
     return {
         'WFTriggerIdentifier': 'WFNotificationTrigger',
@@ -122,7 +153,7 @@ def email_trigger(sender: str, subject: str) -> dict:
 INPUT_CLASSES = ['WFAppContentItem', 'WFArticleContentItem', 'WFContactContentItem', 'WFDateContentItem', 'WFEmailAddressContentItem', 'WFGenericFileContentItem', 'WFImageContentItem', 'WFLocationContentItem', 'WFPhoneNumberContentItem', 'WFRichTextContentItem', 'WFStringContentItem', 'WFURLContentItem']
 
 
-def shortcut(trigger: dict, fields: list[tuple[str, dict]], color: int, glyph: int) -> dict:
+def shortcut(trigger: dict | None, fields: list[tuple[str, dict]], color: int, glyph: int) -> dict:
     key_uuid = str(uuid.uuid4()).upper()
     return {
         'WFWorkflowClientVersion': '5114.0.8.3',
@@ -135,7 +166,7 @@ def shortcut(trigger: dict, fields: list[tuple[str, dict]], color: int, glyph: i
         'WFWorkflowHasOutputFallback': False,
         'WFWorkflowHasShortcutInputVariables': True,
         'WFQuickActionSurfaces': [],
-        'WFWorkflowTriggers': [trigger],
+        'WFWorkflowTriggers': [trigger] if trigger else [],
         'WFWorkflowImportQuestions': [
             {'ActionIndex': 0, 'Category': 'Parameter', 'ParameterKey': 'WFTextActionText', 'DefaultValue': '', 'Text': 'Paste your Plan key. Plan copied it for you: tap here, then Paste.'}
         ],
@@ -167,6 +198,7 @@ SHORTCUTS = {
         color=4292093695,
         glyph=59448,
     ),
+    'Plan Scan Payment': scan_shortcut(),
     # DBS PayLah! Transaction Alerts emails: the whole email; Plan reads the amount and who was paid.
     'Plan PayLah emails': shortcut(
         email_trigger('paylah.alert@dbs.com', 'Transaction Alerts'),

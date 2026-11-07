@@ -13,7 +13,26 @@ type Icon = React.ComponentProps<typeof Ionicons>['name'];
  * iPhone setup in a few taps: copies the Plan key, then opens the ready-made shortcut. Adding it asks for the key
  * (paste) and brings its trigger; iOS adds the automation switched off, so the user turns it on. `status`: what's been logged from this source so far.
  */
-export function GetShortcut({ name, link, what, logged, status, onManual }: { name: string; link: string; what: string; logged: boolean; status: string; onManual?: () => void }) {
+export function GetShortcut({
+  name,
+  link,
+  what,
+  logged,
+  status,
+  onManual,
+  run,
+  flow = ['You pay', 'iPhone tells Plan', 'It’s in Spending'],
+}: {
+  name: string;
+  link: string;
+  what: string;
+  logged: boolean;
+  status: string;
+  onManual?: () => void;
+  /** A shortcut with no trigger (Scan Payment): how to run it, instead of "Turn it on". */
+  run?: { title: string; text: string };
+  flow?: [string, string, string];
+}) {
   const { colors } = useTheme();
   const cloud = useCloud((s) => s.status);
   const [busy, setBusy] = useState(false);
@@ -38,14 +57,18 @@ export function GetShortcut({ name, link, what, logged, status, onManual }: { na
   const steps: { icon: Icon; title: string; text: string; done: boolean; action?: React.ReactNode }[] = [
     { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: opened },
     { icon: 'clipboard-outline', title: 'Paste your key', text: 'When it asks, tap the box and Paste.', done: opened && logged },
-    {
+    run
+      ? { icon: 'hand-left-outline', title: run.title, text: run.text, done: logged }
+      : {
       icon: 'toggle-outline',
       title: 'Turn it on',
       text: 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
       done: logged,
       action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void Linking.openURL('shortcuts://').catch(() => undefined)} />,
     },
-    { icon: 'checkmark-done-outline', title: 'Pay as usual', text: logged ? status : `Your next ${what} shows up in Spending to review.`, done: logged },
+    run
+      ? { icon: 'checkmark-done-outline', title: 'Try it', text: logged ? status : `On a payment screen, run it. The ${what} shows up in Spending to review.`, done: logged }
+      : { icon: 'checkmark-done-outline', title: 'Pay as usual', text: logged ? status : `Your next ${what} shows up in Spending to review.`, done: logged },
   ];
 
   return (
@@ -53,9 +76,9 @@ export function GetShortcut({ name, link, what, logged, status, onManual }: { na
       <Row style={{ justifyContent: 'center', gap: 8 }}>
         {(
           [
-            ['card-outline', 'You pay'],
-            ['phone-portrait-outline', 'iPhone tells Plan'],
-            ['receipt-outline', 'It’s in Spending'],
+            ['card-outline', flow[0]],
+            ['phone-portrait-outline', flow[1]],
+            ['receipt-outline', flow[2]],
           ] as [Icon, string][]
         ).map(([icon, label], i) => (
           <Row key={label} style={{ gap: 8 }}>
@@ -72,7 +95,7 @@ export function GetShortcut({ name, link, what, logged, status, onManual }: { na
         ))}
       </Row>
       <Txt variant="caption" tone="muted" center>
-        Your iPhone does this in the background. You set it up once.
+        {run ? 'You set it up once, then it’s one tap.' : 'Your iPhone does this in the background. You set it up once.'}
       </Txt>
 
       <View style={{ gap: 12 }}>

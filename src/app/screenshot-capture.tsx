@@ -14,6 +14,8 @@ import { accountForCard, createInboxKey, getInboxKey, importPayments, scanPaymen
 import { useActiveBudget, useStore } from '@/store/store';
 import { RADIUS, useTheme } from '@/theme';
 import { goBack } from '@/utils/nav';
+import { GetShortcut } from '@/components/GetShortcut';
+import { SCAN_SHORTCUT_LINK } from '@/utils/autoLogSources';
 
 type Mode = 'backTap' | 'actionButton';
 
@@ -55,6 +57,7 @@ export default function ScreenshotCaptureScreen() {
   }, [status]);
 
   const accounts = data.accounts.filter((a) => a.onBudget && !a.closed);
+  const scanned = data.transactions.some((t) => t.memo?.startsWith('From screenshot'));
   const fallback = accountForCard(data, null);
   const fallbackName = accounts.find((a) => a.id === fallback)?.name;
 
@@ -132,7 +135,7 @@ export default function ScreenshotCaptureScreen() {
             <Button title="Back" variant="soft" icon="chevron-back" style={{ flex: 1 }} onPress={() => setStep(step - 1)} />
             <Button title={isDone ? 'Done' : 'Next'} style={{ flex: 1.4 }} onPress={() => (isDone ? goBack() : setStep(step + 1))} />
           </Row>
-        ) : android ? undefined : (
+        ) : android || SCAN_SHORTCUT_LINK ? undefined : (
           <Button title={key ? 'Show me the iPhone steps' : 'Set up one-tap on iPhone'} loading={busy} onPress={() => void start()} />
         )
       }
@@ -177,6 +180,19 @@ export default function ScreenshotCaptureScreen() {
           ) : (
             <>
           <SectionTitle title="One tap on iPhone" />
+          {SCAN_SHORTCUT_LINK ? (
+            <GetShortcut
+              name="Scan Payment"
+              link={SCAN_SHORTCUT_LINK}
+              what="payment"
+              logged={scanned}
+              status="Your scans show up in Spending."
+              flow={['Payment screen', 'Triple-tap the back', 'It’s in Spending']}
+              run={{ title: 'Choose how to run it', text: 'Settings › Accessibility › Touch › Back Tap › Triple Tap, then pick Plan Scan Payment. Or Settings › Action Button › Shortcut.' }}
+              onManual={() => void start()}
+            />
+          ) : (
+            <>
           <Card style={{ gap: 14 }}>
             {(
               [
@@ -191,6 +207,8 @@ export default function ScreenshotCaptureScreen() {
               </Row>
             ))}
           </Card>
+            </>
+          )}
           <Row style={{ gap: 6, alignSelf: 'center', backgroundColor: colors.sunken, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 }}>
             <Ionicons name="logo-apple" size={13} color={colors.textSoft} />
             <Txt variant="caption" tone="soft">
