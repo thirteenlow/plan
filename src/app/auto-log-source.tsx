@@ -22,6 +22,15 @@ const FILTER_EXAMPLES: [string, string, string][] = [
   ['SimplyGo', 'Fare $1.28 - Bus 12 Blk 108 - Clementi Int', 'Fare'],
 ];
 
+/** What a source's ready-made shortcut is called once added, and its trigger (for the setup animations). */
+function shortcutLook(s: AutoLogSource, general: boolean, generalEmail: boolean): { shortcutName: string; trigger: { icon: 'card' | 'notifications' | 'mail'; text: string; value: string } } {
+  if (generalEmail) return { shortcutName: 'Plan Bank emails', trigger: { icon: 'mail', text: 'When I receive an email from', value: BANK_EMAILS_PRESET_SENDER } };
+  if (general) return { shortcutName: 'Plan App alerts', trigger: { icon: 'notifications', text: 'When I receive a notification from', value: APP_ALERTS_PRESET_APP } };
+  if (s.kind === 'tap') return { shortcutName: 'Plan Apple Pay', trigger: { icon: 'card', text: 'When', value: 'Any Card is tapped' } };
+  if (s.kind === 'email') return { shortcutName: 'Plan PayLah emails', trigger: { icon: 'mail', text: 'When I receive an email from', value: s.sender ?? 'your bank' } };
+  return { shortcutName: s.match === 'Wallet' ? 'Plan Wallet alerts' : `Plan ${s.name}`, trigger: { icon: 'notifications', text: 'When I receive a notification from', value: s.name } };
+}
+
 /** How to set a source up on this device: a guide to open, or a line saying what's needed. */
 function setupFor(s: AutoLogSource, platform: Platform): { route?: { pathname: string; params?: Record<string, string> }; note: string } {
   const reads = 'Nothing to set up: Plan reads its notifications. Keep Read notifications on.';
@@ -147,6 +156,7 @@ export default function AutoLogSourceScreen() {
             logged={!!lastCaught(data, source)}
             status={sourceStatus(data, source)}
             onManual={setup.route ? () => router.push(setup.route as never) : undefined}
+            {...shortcutLook(source, general, generalEmail)}
             appName={general ? { name: source.name, presetApp: APP_ALERTS_PRESET_APP } : undefined}
             email={generalEmail ? { name: source.name, sender: source.sender, presetSender: BANK_EMAILS_PRESET_SENDER } : undefined}
           />

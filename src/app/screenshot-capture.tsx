@@ -187,8 +187,9 @@ export default function ScreenshotCaptureScreen() {
               what="payment"
               logged={scanned}
               status="Your scans show up in Spending."
-              flow={['Payment screen', 'Triple-tap the back', 'It’s in Spending']}
-              run={{ title: 'Choose how to run it', text: 'Settings › Accessibility › Touch › Back Tap › Triple Tap, then pick Plan Scan Payment. Or Settings › Action Button › Shortcut.' }}
+              flow={['Payment screen', 'Triple-tap or Action Button', 'It’s in Spending']}
+              shortcutName="Plan Scan Payment"
+              run
               onManual={() => void start()}
             />
           ) : (

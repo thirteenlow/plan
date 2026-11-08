@@ -28,7 +28,7 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
 
   it('copies the key, then opens the shortcut', async () => {
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
-    const ui = await render(<GetShortcut name="Wallet" link="https://www.icloud.com/shortcuts/x" what="payment" logged={false} status="Nothing logged yet" />);
+    const ui = await render(<GetShortcut name="Wallet" shortcutName="Plan Wallet alerts" link="https://www.icloud.com/shortcuts/x" what="payment" logged={false} status="Nothing logged yet" />);
     await fireEvent.press(ui.getByText('Get the Wallet shortcut'));
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://www.icloud.com/shortcuts/x'));
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith('k'.repeat(40));
@@ -36,13 +36,13 @@ describe('Get the shortcut (iPhone one-tap setup)', () => {
   });
 
   it('the general shortcut asks for the app, and says to switch the trigger’s app when it’s not YouTrip', async () => {
-    const ui = await render(<GetShortcut name="ShopBack" link="x" what="payment" logged={false} status="" appName={{ name: 'ShopBack', presetApp: 'YouTrip' }} />);
+    const ui = await render(<GetShortcut name="ShopBack" shortcutName="Plan App alerts" link="x" what="payment" logged={false} status="" appName={{ name: 'ShopBack', presetApp: 'YouTrip' }} />);
     expect(ui.getByText(/type ShopBack/)).toBeTruthy();
     expect(ui.getByText(/tap YouTrip at the top and pick ShopBack.*call it “Plan ShopBack”/)).toBeTruthy();
   });
 
   it('the general email shortcut asks for the name and says to change the sender', async () => {
-    const ui = await render(<GetShortcut name="OCBC emails" link="x" what="payment" logged={false} status="" email={{ name: 'OCBC emails', presetSender: 'sender@bank.com' }} />);
+    const ui = await render(<GetShortcut name="OCBC emails" shortcutName="Plan Bank emails" link="x" what="payment" logged={false} status="" email={{ name: 'OCBC emails', presetSender: 'sender@bank.com' }} />);
     expect(ui.getByText(/type OCBC emails/)).toBeTruthy();
     expect(ui.getByText(/tap sender@bank.com at the top.*call it “Plan OCBC emails”/)).toBeTruthy();
   });

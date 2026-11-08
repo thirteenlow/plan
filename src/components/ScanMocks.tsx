@@ -280,7 +280,7 @@ const BACK_TAP: Page[] = [
       ['None', 'close', '#8E8E93'],
       ['Screenshot', 'crop', '#8E8E93'],
       ['Shake', 'phone-portrait', '#8E8E93'],
-      ['Scan Payment', 'layers', '#5E5CE6', '✓'],
+      ['Plan Scan Payment', 'layers', '#5E5CE6', '✓'],
     ],
     tap: 3,
   },
@@ -322,7 +322,7 @@ const ACTION_BUTTON: Page[] = [
     rows: [
       ['Text Last Image', 'layers', '#8E5CF5'],
       ['Play Music', 'layers', '#FF2D55'],
-      ['Scan Payment', 'layers', '#5E5CE6', '✓'],
+      ['Plan Scan Payment', 'layers', '#5E5CE6', '✓'],
     ],
     tap: 2,
   },

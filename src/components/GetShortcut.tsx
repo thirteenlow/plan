@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { Button, Card, haptic, notify, Row, Txt } from '@/components/ui';
+import { Button, Card, Chip, haptic, notify, Row, Tap, Txt } from '@/components/ui';
+import { AddShortcutScreen, LoggedScreen, QuestionsScreen, TurnOnScreen } from '@/components/GetShortcutMocks';
+import { ActivationScreen, AllSetScreen } from '@/components/ScanMocks';
 import { useCloud } from '@/cloud/cloudStore';
 import { createInboxKey, getInboxKey } from '@/cloud/inbox';
 import { useTheme } from '@/theme';
@@ -15,6 +17,8 @@ type Icon = React.ComponentProps<typeof Ionicons>['name'];
  */
 export function GetShortcut({
   name,
+  shortcutName,
+  trigger,
   link,
   what,
   logged,
@@ -26,13 +30,16 @@ export function GetShortcut({
   flow = ['You pay', 'iPhone tells Plan', 'It’s in Spending'],
 }: {
   name: string;
+  /** What the shortcut is called once added ("Plan Wallet alerts"), and its trigger, for the animations. */
+  shortcutName: string;
+  trigger?: { icon: Icon; text: string; value: string };
   link: string;
   what: string;
   logged: boolean;
   status: string;
   onManual?: () => void;
-  /** A shortcut with no trigger (Scan Payment): how to run it, instead of "Turn it on". */
-  run?: { title: string; text: string };
+  /** A shortcut with no trigger (Scan Payment): run with Back Tap or the Action Button, instead of "Turn it on". */
+  run?: boolean;
   /** The general App alerts shortcut: it also asks for the app's name, and comes set to another app unless it's this one. */
   appName?: { name: string; presetApp: string };
   /** The general Bank emails shortcut: it also asks for the source's name, and the sender is changed after adding. */
@@ -43,6 +50,15 @@ export function GetShortcut({
   const cloud = useCloud((s) => s.status);
   const [busy, setBusy] = useState(false);
   const [opened, setOpened] = useState(false);
+  // The step whose animation shows: plays through on its own until a step is tapped.
+  const [active, setActive] = useState(0);
+  const [pinned, setPinned] = useState(false);
+  const [mode, setMode] = useState<'backTap' | 'actionButton'>('backTap');
+  useEffect(() => {
+    if (pinned) return;
+    const t = setTimeout(() => setActive((a) => (a + 1) % 4), 7500);
+    return () => clearTimeout(t);
+  }, [active, pinned]);
 
   const get = async () => {
     if (cloud !== 'ready') return notify('Sign in first', 'Auto-log works through your Plan account.');
@@ -76,7 +92,15 @@ export function GetShortcut({
       done: logged,
     },
     run
-      ? { icon: 'hand-left-outline', title: run.title, text: run.text, done: logged }
+      ? {
+          icon: 'hand-left-outline',
+          title: 'Choose how to run it',
+          text:
+            mode === 'backTap'
+              ? `Settings › Accessibility › Touch › Back Tap › Triple Tap, then pick ${shortcutName}.`
+              : `Settings › Action Button, swipe to Shortcut, then pick ${shortcutName}.`,
+          done: logged,
+        }
       : {
       icon: 'toggle-outline',
       title: 'Turn it on',
@@ -91,9 +115,26 @@ export function GetShortcut({
       action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void Linking.openURL('shortcuts://').catch(() => undefined)} />,
     },
     run
-      ? { icon: 'checkmark-done-outline', title: 'Try it', text: logged ? status : `On a payment screen, run it. The ${what} shows up in Spending to review.`, done: logged }
+      ? { icon: 'checkmark-done-outline', title: 'Try it', text: logged ? status : `On a payment screen, ${mode === 'backTap' ? 'triple-tap the back of your iPhone' : 'press the Action Button'}. The ${what} shows up in Spending to review.`, done: logged }
       : { icon: 'checkmark-done-outline', title: 'Pay as usual', text: logged ? status : `Your next ${what} shows up in Spending to review.`, done: logged },
   ];
+
+  const changeTo = appName && appName.name.toLowerCase() !== appName.presetApp.toLowerCase() ? appName.name : email ? (email.sender ?? 'your bank’s address') : undefined;
+  const ask = appName ? { question: 'Which app is this for?', answer: appName.name } : email ? { question: 'What is this source called in Plan?', answer: email.name } : undefined;
+  const mocks = [
+    <AddShortcutScreen key="add" name={shortcutName} />,
+    <QuestionsScreen key="ask" name={shortcutName} ask={ask} />,
+    run ? (
+      <ActivationScreen key={mode} mode={mode} />
+    ) : (
+      <TurnOnScreen key="on" name={shortcutName} trigger={trigger ?? { icon: 'notifications', text: 'When I receive a notification from', value: name }} change={changeTo} rename={appName || email ? `Plan ${name}` : undefined} />
+    ),
+    run ? <AllSetScreen key={`set-${mode}`} mode={mode} /> : <LoggedScreen key="paid" what={what === 'tap' ? 'Paid with Apple Pay' : 'Payment successful'} />,
+  ];
+  const pick = (i: number) => {
+    setActive(i);
+    setPinned(true);
+  };
 
   return (
     <Card style={{ gap: 14 }}>
@@ -130,14 +171,30 @@ export function GetShortcut({
           </Txt>
         </Row>
       )}
-      <View style={{ gap: 12 }}>
+      {run && (
+        <Row style={{ gap: 8, justifyContent: 'center' }}>
+          <Chip label="Triple Tap" icon="hand-left-outline" active={mode === 'backTap'} onPress={() => setMode('backTap')} />
+          <Chip label="Action Button" icon="radio-button-on-outline" active={mode === 'actionButton'} onPress={() => setMode('actionButton')} />
+        </Row>
+      )}
+      <View key={active} style={{ alignItems: 'center' }}>
+        {mocks[active]}
+      </View>
+      <View style={{ gap: 6 }}>
         {steps.map((s, i) => (
-          <Row key={s.title} style={{ gap: 12, alignItems: 'flex-start' }}>
-            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: s.done ? colors.positive : colors.sunken, alignItems: 'center', justifyContent: 'center' }}>
+          <Tap
+            key={s.title}
+            onPress={() => pick(i)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active === i }}
+            accessibilityLabel={`Step ${i + 1}: ${s.title}. Show how`}
+            style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 8, borderRadius: 12, backgroundColor: active === i ? colors.accentSoft : 'transparent' }}
+          >
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: s.done ? colors.positive : active === i ? colors.accent : colors.sunken, alignItems: 'center', justifyContent: 'center' }}>
               {s.done ? (
                 <Ionicons name="checkmark" size={15} color="#fff" />
               ) : (
-                <Txt variant="label" tone="soft">
+                <Txt variant="label" style={{ color: active === i ? '#fff' : colors.textSoft }}>
                   {i + 1}
                 </Txt>
               )}
@@ -149,7 +206,7 @@ export function GetShortcut({
               </Txt>
               {s.action}
             </View>
-          </Row>
+          </Tap>
         ))}
       </View>
 
