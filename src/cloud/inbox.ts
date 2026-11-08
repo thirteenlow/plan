@@ -230,7 +230,10 @@ export function accountForCard(data: BudgetData, card: string | null): string | 
   const c = card ? norm(card) : '';
   const digits = card?.match(/\d{4}/)?.[0];
   const byName = c ? open.find((a) => norm(a.name) && (c.includes(norm(a.name)) || norm(a.name).includes(c) || (!!digits && a.name.includes(digits)))) : undefined;
-  return byName?.id ?? (open.some((a) => a.id === data.settings.payAccountId) ? data.settings.payAccountId : undefined) ?? (open.find((a) => isCreditType(a.type)) ?? open[0])?.id;
+  // "HSBC Bank Singapore Limited" (Wallet names the bank, not the card): the one account from that bank, if only one.
+  const bank = card?.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  const sameBank = !byName && bank.length >= 3 ? open.filter((a) => a.name.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') === bank) : [];
+  return byName?.id ?? (sameBank.length === 1 ? sameBank[0].id : undefined) ?? (open.some((a) => a.id === data.settings.payAccountId) ? data.settings.payAccountId : undefined) ?? (open.find((a) => isCreditType(a.type)) ?? open[0])?.id;
 }
 
 let importing = false;

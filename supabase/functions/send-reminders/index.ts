@@ -42,6 +42,28 @@ export function formatAmount(raw: string | undefined, c: Currency | null | undef
   return c.symbolFirst === false ? `${number} ${symbol}` : `${symbol}${number}`;
 }
 
+/**
+ * The amount and shop to show for a logged payment. Apple Pay sends them as they are; a forwarded notification
+ * ("<app>: <text>" in card) or an alert email sends its whole text, so pick them out (as the app does, in
+ * src/utils/walletNotification.ts): iPhone Wallet's title is the card's bank and its message is "Shop\n$4.50".
+ */
+export function describeLogged(b: { amount?: string; merchant?: string | null; card?: string | null }): { amount: string; merchant: string | null } {
+  const raw = (b.amount ?? '').trim();
+  if (/^-?\d+(?:[.,]\d+)?$/.test(raw)) return { amount: raw, merchant: b.merchant ?? null };
+  const forwarded = b.card?.match(/^([^:]{2,40}): ([\s\S]+)$/);
+  // A long notification arrives cut to 40 characters in amount, whole in card.
+  const whole = !forwarded && !!b.card && raw.length >= 10 && b.card.startsWith(raw.slice(0, 20)) ? b.card : null;
+  const text = forwarded?.[2] ?? whole ?? raw;
+  const money = text.match(/(?:[A-Z]{3}\s?|[A-Z]?\$\s?|[€£¥₹]\s?)\d[\d,]*(?:[.,]\d{1,2})?|\d[\d,]*[.,]\d{2}(?:\s?[A-Z]{3})?/);
+  const amount = money?.[0].trim() ?? '';
+  if (forwarded?.[1] === 'Wallet' && money && money.index! > 0) {
+    const shop = text.slice(0, money.index).replace(/[\s·|,:–—-]+$/, '').trim();
+    if (/\p{L}/u.test(shop) && shop.length <= 60) return { amount, merchant: shop };
+  }
+  // Another app: its title (or name); an email: just the amount (merchant is only the source's name).
+  return { amount, merchant: forwarded || whole ? (b.merchant ?? null) : null };
+}
+
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Sends one message; forgets devices that have unsubscribed. Returns 'sent' | 'dropped' | the error. */
@@ -84,9 +106,10 @@ Deno.serve(async (req) => {
     const test = body.merchant === 'Plan connection test';
     const lead = body.scanned ? 'Receipt logged' : 'Payment logged';
     // One title line, no message: iOS adds "from Plan" underneath, so this reads as two tidy lines.
+    const { amount, merchant } = describeLogged(body);
     const results = await Promise.all(
       ((data ?? []) as unknown as (Target & { details: boolean; currency?: Currency | null })[]).map((d) => {
-        const what = [formatAmount(body.amount, d.currency), body.merchant ? `at ${body.merchant}` : ''].filter(Boolean).join(' ');
+        const what = [formatAmount(amount, d.currency), merchant ? `at ${merchant}` : ''].filter(Boolean).join(' ');
         return push(d, {
           title: (test ? 'Notifications are working' : d.details && what ? `${lead} · ${what}` : lead).slice(0, 80),
           body: '',

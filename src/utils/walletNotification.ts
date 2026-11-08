@@ -265,6 +265,15 @@ export function notAPayment(text: string, amount: number): boolean {
   return PROMO.test(text) && !STRONG.test(text);
 }
 
+/** The shop in an iPhone Wallet message: the words before the amount ("TikTok\n$44.68" → "TikTok"). */
+export function appleWalletShop(text: string): string | null {
+  const amountAt = text.search(/(?:[A-Z]{3}\s?|[A-Z]?\$|[€£¥₹])\s?\d|\d[.,]\d{2}/);
+  // Starts with the amount ("S$6.80 with DBS Visa"): the shop is the title instead.
+  if (amountAt <= 0) return null;
+  const before = text.slice(0, amountAt).replace(/[\s·|,:–—-]+$/, '').trim();
+  return /[\p{L}]/u.test(before) && before.length <= 60 && !/^(you|paid|payment|purchase)\b/i.test(before) ? before : null;
+}
+
 function readForwarded(f: { wallet: string; text: string }, title: string, home?: string): WalletPayment {
   const other = !WALLET_NAME.test(f.wallet) && !/google|samsung|play services/i.test(f.wallet);
   if (other) {
@@ -285,6 +294,12 @@ function readForwarded(f: { wallet: string; text: string }, title: string, home?
     };
   }
   const wallet = WALLET_NAME.test(f.wallet) && !/play services/i.test(f.wallet) ? f.wallet : /samsung/i.test(f.wallet) ? 'Samsung Wallet' : 'Google Wallet';
+  // iPhone Wallet (the shared shortcut sends it as "Wallet"): the title is the card's bank ("HSBC Bank Singapore
+  // Limited") and the message is the shop, then the amount ("TikTok\n$44.68").
+  if (f.wallet === 'Wallet') {
+    const shop = appleWalletShop(f.text);
+    if (shop) return { wallet, amount: amountInText(f.text), merchant: shop, card: title && !WALLET_NAME.test(title) ? title : cardInText(f.text) };
+  }
   return {
     wallet,
     amount: amountInText(f.text),

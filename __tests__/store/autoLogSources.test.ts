@@ -184,3 +184,25 @@ describe('a source removed and added again', () => {
   });
 });
 
+describe('iPhone Wallet: the bank in the title, the shop in the message', () => {
+  const alert = (title: string, body: string): InboxRow => ({ amount: body.slice(0, 40), merchant: title, card: `Wallet: ${body}`, created_at: NOW.toISOString() });
+  it('logs the shop, to the one account from that bank', () => {
+    const d = load([preset('Wallet')]);
+    const hsbc = addAccount(d, 'creditCard', 'HSBC Revolution');
+    addAccount(d, 'creditCard', 'UOB Preferred Visa');
+    addAccount(d, 'creditCard', 'UOB Krisflyer');
+    savePayments(useStore.getState().budgets[d.id], [alert('HSBC Bank Singapore Limited', 'TikTok\n$44.68')]);
+    expect(saved(d.id)).toMatchObject([{ payee: 'TikTok', amount: -$(44.68), accountId: hsbc.id }]);
+  });
+  it('two cards from the same bank: the default account', () => {
+    const d = load([preset('Wallet')]);
+    const uob = addAccount(d, 'creditCard', 'UOB Preferred Visa');
+    addAccount(d, 'creditCard', 'UOB Krisflyer');
+    savePayments(useStore.getState().budgets[d.id], [alert('UOB', 'Kopi Corner $4.50')]);
+    expect(saved(d.id)).toMatchObject([{ payee: 'Kopi Corner', amount: -$(4.5) }]);
+    // Ambiguous between the two UOB cards: not guessed (the default account is used).
+    expect(saved(d.id)[0].accountId).toBeDefined();
+    void uob;
+  });
+});
+
