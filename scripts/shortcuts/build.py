@@ -44,6 +44,18 @@ def var(attachment: dict, before: str = '', after: str = '') -> dict:
     }
 
 
+def vars_text(parts: list) -> dict:
+    """A text field mixing plain text (str) and variables (dict), e.g. ['Wallet: ', subtitle, '\\n', body]."""
+    string, ranges = '', {}
+    for p in parts:
+        if isinstance(p, str):
+            string += p
+        else:
+            ranges[f'{{{len(string)}, 1}}'] = p
+            string += OBJ
+    return {'Value': {'string': string, 'attachmentsByRange': ranges}, 'WFSerializationType': 'WFTextTokenString'}
+
+
 def trigger_output(trigger: str, prop: str) -> dict:
     return {'Type': 'TriggerOutput', 'TriggerIdentifier': trigger, 'Aggrandizements': [{'Type': 'WFPropertyVariableAggrandizement', 'PropertyName': prop}]}
 
@@ -217,11 +229,16 @@ SHORTCUTS = {
         color=-2873601,
         glyph=59740,
     ),
-    # Wallet's payment notification: title = the shop, message = amount and card. Sent like MacroDroid does
-    # (merchant = title, card = "<app>: <message>"), so Plan reads it as a wallet notification.
+    # Wallet's payment notification on iPhone: title = the card's bank, subtitle = the shop, message = the amount.
+    # Sent like MacroDroid does (merchant = title, card = "<app>: <text>"), so Plan reads it as a wallet notification.
     'Plan Wallet alerts': shortcut(
         notification_trigger('com.apple.Passbook', 'Wallet', '0000000000', '.'),
-        [('amount', var(trigger_output(NOTIFY, 'Body'))), ('merchant', var(trigger_output(NOTIFY, 'Title'))), ('card', var(trigger_output(NOTIFY, 'Body'), before='Wallet: '))],
+        # Title: the card's bank. Subtitle: the shop. Body: the amount. Plan reads "Wallet: <shop>\n<amount>".
+        [
+            ('amount', var(trigger_output(NOTIFY, 'Body'))),
+            ('merchant', var(trigger_output(NOTIFY, 'Title'))),
+            ('card', vars_text(['Wallet: ', trigger_output(NOTIFY, 'Subtitle'), '\n', trigger_output(NOTIFY, 'Body')])),
+        ],
         color=-23508481,
         glyph=61974,
     ),
