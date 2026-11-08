@@ -8,6 +8,7 @@ import { ActivationScreen, AllSetScreen } from '@/components/ScanMocks';
 import { useCloud } from '@/cloud/cloudStore';
 import { createInboxKey, getInboxKey } from '@/cloud/inbox';
 import { useTheme } from '@/theme';
+import { openApp } from '@/utils/openLink';
 
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -112,7 +113,7 @@ export function GetShortcut({
             ? `iPhone adds it switched off. Open it in Shortcuts and, at the top, turn Automation on. Leave Notify off.${rename(appName.name)}`
             : 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
       done: logged,
-      action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void Linking.openURL('shortcuts://').catch(() => undefined)} />,
+      action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void openApp('shortcuts://').catch(() => undefined)} />,
     },
     run
       ? { icon: 'checkmark-done-outline', title: 'Try it', text: logged ? status : `On a payment screen, ${mode === 'backTap' ? 'triple-tap the back of your iPhone' : 'press the Action Button'}. The ${what} shows up in Spending to review.`, done: logged }

@@ -9,7 +9,8 @@ import {
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { AppState, View } from 'react-native';
+import { LoadingLogo } from '@/components/LoadingLogo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initCloud } from '@/cloud';
 import { importNativePayments, PaymentNotifications, syncListener } from '@/cloud/nativePayments';
@@ -67,7 +68,7 @@ export default function RootLayout() {
   if (!fontsLoaded || !hydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.accent} />
+        <LoadingLogo />
       </View>
     );
   }
