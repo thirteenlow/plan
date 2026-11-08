@@ -20,11 +20,33 @@ export function useKeyboard(): { inset: number; visibleHeight: number | null; he
       setState((s) => (s.inset === inset && s.visibleHeight === vv.height ? s : { inset: inset > 40 ? inset : 0, visibleHeight: vv.height }));
     };
     update();
-    vv.addEventListener('resize', update);
+    // iOS reports the keyboard's size while it's still sliding in (and scrolls the page to the text box afterwards),
+    // so the first reading is short. Keep measuring every frame for a moment after focus moves, until it settles.
+    let frame = 0;
+    let until = 0;
+    const follow = () => {
+      update();
+      if (performance.now() < until) frame = requestAnimationFrame(follow);
+    };
+    const settle = () => {
+      until = performance.now() + 900;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(follow);
+    };
+    // Things that use this often appear just as a text box takes focus, before these listeners exist.
+    settle();
+    vv.addEventListener('resize', settle);
     vv.addEventListener('scroll', update);
+    window.addEventListener('scroll', update);
+    document.addEventListener('focusin', settle);
+    document.addEventListener('focusout', settle);
     return () => {
-      vv.removeEventListener('resize', update);
+      cancelAnimationFrame(frame);
+      vv.removeEventListener('resize', settle);
       vv.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', update);
+      document.removeEventListener('focusin', settle);
+      document.removeEventListener('focusout', settle);
     };
   }, []);
   // On the web the keyboard's height is the part of the page it covers.
