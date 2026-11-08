@@ -120,7 +120,15 @@ export function PetSprite({
           ],
         }}
       >
-        <PixelPet kind={kind} mood={mood} size={size} frame={walking ? frame : 0} />
+        {/* Both leg positions are drawn once; walking only swaps which shows (redrawing the pixels every step was slow). */}
+        <View style={{ opacity: walking && frame ? 0 : 1 }}>
+          <PixelPet kind={kind} mood={mood} size={size} frame={0} />
+        </View>
+        {walking && (
+          <View style={{ position: 'absolute', left: 0, top: 0, opacity: frame ? 1 : 0 }}>
+            <PixelPet kind={kind} mood={mood} size={size} frame={1} />
+          </View>
+        )}
       </Animated.View>
       {/* Ground shadow */}
       <View style={{ position: 'absolute', bottom: -3, width: size * 0.6, height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)' }} />

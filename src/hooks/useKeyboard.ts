@@ -11,7 +11,12 @@ export function useKeyboard(): { inset: number; visibleHeight: number | null; he
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return;
     const update = () => {
-      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      // Measured from the app's own bottom edge, not the window's: in the iPhone Home Screen app the app is sized to
+      // the whole screen (--app-height, src/utils/webSetup.ts), which is taller than window.innerHeight, so measuring
+      // from the window left bars a status bar's height too low, behind the keyboard.
+      const root = document.getElementById('root')?.getBoundingClientRect().bottom ?? 0;
+      const bottom = Math.max(window.innerHeight, root);
+      const inset = Math.max(0, Math.round(bottom - vv.height - vv.offsetTop));
       setState((s) => (s.inset === inset && s.visibleHeight === vv.height ? s : { inset: inset > 40 ? inset : 0, visibleHeight: vv.height }));
     };
     update();

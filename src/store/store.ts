@@ -1,8 +1,8 @@
 import { produce, type Draft } from 'immer';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { nextOccurrence } from '@/engine/scheduled';
-import { encryptedStorage } from '@/security/encryptedStorage';
+import { batchedStorage } from './batchedStorage';
 import { setActiveDateFormat, today } from '@/utils/date';
 import { ACCOUNT_TYPE_INFO, isCreditType } from '@/utils/icons';
 import { uid } from '@/utils/id';
@@ -800,7 +800,7 @@ export const useStore = create<AppState>()(
       // Pre-rename key (the app was called Finch); kept so existing data still loads.
       name: 'finch-budget-v1',
       // Encrypted at rest with a key held in the Keychain / Keystore.
-      storage: createJSONStorage(() => encryptedStorage),
+      storage: batchedStorage<Pick<AppState, 'budgets' | 'activeBudgetId' | 'theme' | 'sync'>>(),
       partialize: (s) => ({ budgets: s.budgets, activeBudgetId: s.activeBudgetId, theme: s.theme, sync: s.sync }),
       onRehydrateStorage: () => (state) => {
         // Drop anything corrupted in storage rather than crashing, and repair currency formats.

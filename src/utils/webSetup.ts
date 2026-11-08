@@ -36,4 +36,12 @@ if (typeof document !== 'undefined') {
       }, 50);
     });
   }
+
+  // Keep the app's code on the device (public/sw.js) so it opens fast. Not on the dev server, where files change
+  // without new names.
+  if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+    const register = () => void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register);
+  }
 }

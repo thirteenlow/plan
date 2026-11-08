@@ -284,7 +284,7 @@ function build(kind: PetKind, mood: Mood, frame: 0 | 1): { grid: string[][]; pal
 }
 
 /** Renders a grid of palette letters as pixels, merging runs of the same colour into one rect. */
-export function PixelArt({ grid, palette, size }: { grid: string[][] | Grid; palette: Palette; size: number }) {
+export const PixelArt = React.memo(function PixelArt({ grid, palette, size }: { grid: string[][] | Grid; palette: Palette; size: number }) {
   const rows = grid.map((r) => (typeof r === 'string' ? r.split('') : r));
   const w = Math.max(...rows.map((r) => r.length));
   const rects: React.ReactNode[] = [];
@@ -303,12 +303,13 @@ export function PixelArt({ grid, palette, size }: { grid: string[][] | Grid; pal
       {rects}
     </Svg>
   );
-}
+});
 
-export function PixelPet({ kind, mood, size, frame = 0 }: { kind: PetKind; mood: Mood; size: number; frame?: 0 | 1 }) {
+/** Memoized: the pet's parent re-renders as it walks, and the pixels only change with kind, mood, size or frame. */
+export const PixelPet = React.memo(function PixelPet({ kind, mood, size, frame = 0 }: { kind: PetKind; mood: Mood; size: number; frame?: 0 | 1 }) {
   const { grid, palette } = useMemo(() => build(kind, mood, frame), [kind, mood, frame]);
   return <PixelArt grid={grid} palette={palette} size={size} />;
-}
+});
 
 /** Small pixel badges shown above the pet for some moods. */
 export const BADGES: Partial<Record<Mood, { grid: Grid; palette: Palette }>> = {
