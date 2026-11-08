@@ -103,12 +103,24 @@ export function listenerConfig(sources: AutoLogSource[] | undefined): { wallets:
   return { wallets: on.some((s) => s.kind === 'tap' && /google|samsung/i.test(s.match)), apps: on.filter((s) => s.kind === 'app').map((s) => s.match) };
 }
 
-/** The most recent payment logged from a source (its memo starts with the source's "via" name). */
+/** When an id from uid() was made (its base-36 time after the prefix); 0 if it isn't one. */
+export function idTime(id: string, prefix: string): number {
+  if (!id.startsWith(prefix)) return 0;
+  const t = parseInt(id.slice(prefix.length, prefix.length + 8), 36);
+  return Number.isFinite(t) && t > 1.5e12 && t < 4e12 ? t : 0;
+}
+
+/**
+ * The most recent payment logged from a source (its memo starts with the source's "via" name) since the source was
+ * added, so a source removed and added again starts over.
+ */
 export function lastCaught(data: BudgetData, source: AutoLogSource) {
   const v = norm(source.match);
+  const since = idTime(source.id, 'src');
   let best: BudgetData['transactions'][number] | undefined;
   for (const t of data.transactions) {
     if (!t.memo || !norm(t.memo.split(' · ')[0]).startsWith(v)) continue;
+    if (since && idTime(t.id, 't') < since) continue;
     if (!best || t.date > best.date || (t.date === best.date && t.id > best.id)) best = t;
   }
   return best;

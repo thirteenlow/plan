@@ -3,7 +3,7 @@ import { useCloud } from '@/cloud/cloudStore';
 import { secretStore } from '@/security/deviceKey';
 import { useStore } from '@/store/store';
 import type { AutoLogSource } from '@/store/types';
-import { defaultSources, filterOf, listenerConfig, newSource, PRESETS, sourceFor } from '@/utils/autoLogSources';
+import { defaultSources, filterOf, idTime, lastCaught, listenerConfig, newSource, PRESETS, sourceFor } from '@/utils/autoLogSources';
 import { $, addAccount, makeBudget, NOW } from '../helpers/budget';
 
 const preset = (name: string) => newSource(PRESETS.find((p) => p.name === name)!);
@@ -169,6 +169,18 @@ describe('iPhone Wallet notifications (the shared shortcut)', () => {
     const d = load([]);
     savePayments(useStore.getState().budgets[d.id], [{ amount: 'S$3.00', merchant: 'Kopi', card: '(optional)', created_at: NOW.toISOString() }]);
     expect(saved(d.id)).toMatchObject([{ payee: 'Kopi', amount: -$(3) }]);
+  });
+});
+
+describe('a source removed and added again', () => {
+  it('only counts payments logged after it was added', () => {
+    const d = load([preset('Grab')]);
+    savePayments(useStore.getState().budgets[d.id], [row('Grab', 'GrabFood', 'Your GrabPay Wallet has been charged S$9.00 for your order')]);
+    const logged = useStore.getState().budgets[d.id];
+    // Added again a minute later: starts over.
+    expect(lastCaught(logged, { ...preset('Grab'), id: `src${(Date.now() + 60_000).toString(36)}aaaaaa1` })).toBeUndefined();
+    const older = { ...preset('Grab'), id: `src${(idTime(logged.transactions.find((t) => !t.approved)!.id, 't') - 1000).toString(36)}aaaaaa1` };
+    expect(lastCaught(logged, older)).toBeDefined();
   });
 });
 
