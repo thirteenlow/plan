@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
+import { LoadingLogo } from '@/components/LoadingLogo';
 import { useStore } from '@/store/store';
 import { useTheme } from '@/theme';
 import { useCloud } from './cloudStore';
@@ -21,8 +22,8 @@ export function useAccountGate(): React.ReactElement | null {
   if (status === 'ready' && (hasBudgets || firstPullDone)) return null;
   if (status === 'ready' || status === 'starting' || status === 'loading') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
-        <ActivityIndicator color={colors.accent} />
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <LoadingLogo />
       </View>
     );
   }

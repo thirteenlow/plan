@@ -66,11 +66,16 @@
       .boot img {
         width: 72px;
         height: 72px;
-        animation: breathe 1.8s ease-in-out infinite;
+        /* Starts at page load (the app's LoadingLogo times itself from the same moment). */
+        animation: breathe 1.8s linear infinite;
         filter: drop-shadow(0 0 0 rgba(154, 92, 245, 0));
       }
+      /* A cosine breath (as LoadingLogo draws it): 0.92 → 1.04 → 0.92. */
       @keyframes breathe {
         0%, 100% { transform: scale(0.92); filter: drop-shadow(0 0 0 rgba(154, 92, 245, 0)); }
+        12.5%, 87.5% { transform: scale(0.9376); filter: drop-shadow(0 0 2.6px rgba(154, 92, 245, 0.066)); }
+        25%, 75% { transform: scale(0.98); filter: drop-shadow(0 0 9px rgba(154, 92, 245, 0.225)); }
+        37.5%, 62.5% { transform: scale(1.0224); filter: drop-shadow(0 0 15.4px rgba(154, 92, 245, 0.384)); }
         50% { transform: scale(1.04); filter: drop-shadow(0 0 18px rgba(154, 92, 245, 0.45)); }
       }
 

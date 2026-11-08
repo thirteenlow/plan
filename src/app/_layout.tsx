@@ -67,7 +67,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded || !hydrated) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <LoadingLogo />
       </View>
     );
