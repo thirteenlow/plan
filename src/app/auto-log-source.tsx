@@ -13,6 +13,7 @@ import type { AutoLogSource } from '@/store/types';
 import { useTheme } from '@/theme';
 import { APP_ALERTS_LINK, APP_ALERTS_PRESET_APP, BANK_EMAILS_LINK, BANK_EMAILS_PRESET_SENDER, filterOf, KIND_LABEL, lastCaught, shortcutFor, type Platform } from '@/utils/autoLogSources';
 import { GetShortcut } from '@/components/GetShortcut';
+import type { ShortcutTile } from '@/components/GetShortcutMocks';
 import { goBack } from '@/utils/nav';
 import { SourceIcon, sourceStatus } from '@/components/AutoLogSource';
 
@@ -23,12 +24,16 @@ const FILTER_EXAMPLES: [string, string, string][] = [
 ];
 
 /** What a source's ready-made shortcut is called once added, and its trigger (for the setup animations). */
-function shortcutLook(s: AutoLogSource, general: boolean, generalEmail: boolean): { shortcutName: string; trigger: { icon: 'card' | 'notifications' | 'mail'; text: string; value: string } } {
-  if (generalEmail) return { shortcutName: 'Plan Bank emails', trigger: { icon: 'mail', text: 'When I receive an email from', value: BANK_EMAILS_PRESET_SENDER } };
-  if (general) return { shortcutName: 'Plan App alerts', trigger: { icon: 'notifications', text: 'When I receive a notification from', value: APP_ALERTS_PRESET_APP } };
-  if (s.kind === 'tap') return { shortcutName: 'Plan Apple Pay', trigger: { icon: 'card', text: 'When', value: 'Any Card is tapped' } };
-  if (s.kind === 'email') return { shortcutName: 'Plan PayLah emails', trigger: { icon: 'mail', text: 'When I receive an email from', value: s.sender ?? 'your bank' } };
-  return { shortcutName: s.match === 'Wallet' ? 'Plan Wallet alerts' : `Plan ${s.name}`, trigger: { icon: 'notifications', text: 'When I receive a notification from', value: s.name } };
+type Look = { shortcutName: string; tile: ShortcutTile; trigger: { icon: 'card' | 'notifications' | 'mail'; text: string; value: string } };
+const NOTIFY = 'When I receive a notification from';
+const EMAIL = 'When I receive an email from';
+function shortcutLook(s: AutoLogSource, general: boolean, generalEmail: boolean): Look {
+  if (generalEmail) return { shortcutName: 'Plan Bank emails', tile: { color: '#F26464', icon: 'mail' }, trigger: { icon: 'mail', text: EMAIL, value: BANK_EMAILS_PRESET_SENDER } };
+  if (general) return { shortcutName: 'Plan App alerts', tile: { color: '#30C85A', icon: 'cash' }, trigger: { icon: 'notifications', text: NOTIFY, value: APP_ALERTS_PRESET_APP } };
+  if (s.kind === 'tap') return { shortcutName: 'Plan Apple Pay', tile: { color: '#30C85A', icon: 'logo-apple' }, trigger: { icon: 'card', text: 'When', value: 'Any Card is tapped' } };
+  if (s.kind === 'email') return { shortcutName: 'Plan PayLah emails', tile: { color: '#F26464', icon: 'qr-code' }, trigger: { icon: 'mail', text: EMAIL, value: s.sender ?? 'your bank' } };
+  const own: Record<string, Look['tile']> = { wallet: { color: '#F7A23B', icon: 'wallet' }, grab: { color: '#30C85A', icon: 'car' }, simplygo: { color: '#F26464', icon: 'train' } };
+  return { shortcutName: s.match === 'Wallet' ? 'Plan Wallet alerts' : `Plan ${s.name}`, tile: own[s.match.toLowerCase()] ?? { color: '#30C85A', icon: 'cash' }, trigger: { icon: 'notifications', text: NOTIFY, value: s.name } };
 }
 
 /** How to set a source up on this device: a guide to open, or a line saying what's needed. */
@@ -148,7 +153,14 @@ export default function AutoLogSourceScreen() {
           </Card>
         )}
 
-        {oneTap ? (
+        {general && source.name.trim().toLowerCase() === 'other app' ? (
+          <Card style={{ gap: 6, backgroundColor: colors.accentSoft }}>
+            <Txt variant="strong">First, name the app</Txt>
+            <Txt variant="caption" tone="soft">
+              Type its name above, as it shows on your phone (e.g. YouTrip). Then the setup steps appear here.
+            </Txt>
+          </Card>
+        ) : oneTap ? (
           <GetShortcut
             name={source.name}
             link={oneTap}

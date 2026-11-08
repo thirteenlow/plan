@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import React, { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { View } from 'react-native';
 import { Button, Card, Chip, haptic, notify, Row, Tap, Txt } from '@/components/ui';
-import { AddShortcutScreen, LoggedScreen, QuestionsScreen, TurnOnScreen } from '@/components/GetShortcutMocks';
+import { AddShortcutScreen, LoggedScreen, QuestionsScreen, type ShortcutTile, TurnOnScreen } from '@/components/GetShortcutMocks';
 import { ActivationScreen, AllSetScreen } from '@/components/ScanMocks';
 import { useCloud } from '@/cloud/cloudStore';
 import { createInboxKey, getInboxKey } from '@/cloud/inbox';
@@ -19,6 +19,7 @@ type Icon = React.ComponentProps<typeof Ionicons>['name'];
 export function GetShortcut({
   name,
   shortcutName,
+  tile = { color: '#30C85A', icon: 'cash' },
   trigger,
   link,
   what,
@@ -33,6 +34,7 @@ export function GetShortcut({
   name: string;
   /** What the shortcut is called once added ("Plan Wallet alerts"), and its trigger, for the animations. */
   shortcutName: string;
+  tile?: ShortcutTile;
   trigger?: { icon: Icon; text: string; value: string };
   link: string;
   what: string;
@@ -69,7 +71,7 @@ export function GetShortcut({
       await Clipboard.setStringAsync(key);
       haptic('success');
       setOpened(true);
-      await Linking.openURL(link);
+      await openApp(link);
     } catch (e) {
       notify('Couldn’t open the shortcut', e instanceof Error ? e.message : undefined);
     } finally {
@@ -81,15 +83,15 @@ export function GetShortcut({
   const rename = (source: string) => ` Then tap its name at the top › Rename, and call it “Plan ${source}”, so you can tell it apart.`;
   // Plan can only see the end result, so the steps tick together once a payment has come through.
   const steps: { icon: Icon; title: string; text: string; done: boolean; action?: React.ReactNode }[] = [
-    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it. Tap Add Shortcut.', done: logged },
+    { icon: 'download-outline', title: 'Get the shortcut', text: 'Plan copies your key, then opens it in Shortcuts. Tap Set Up Shortcut.', done: logged },
     {
       icon: 'clipboard-outline',
       title: appName ? 'Paste your key, then the app' : email ? 'Paste your key, then the name' : 'Paste your key',
       text: appName
-        ? `When it asks for your key, tap the box and Paste. When it asks which app, type ${appName.name}.`
+        ? `Tap the box, then Paste, and tap Next. When it asks which app, type ${appName.name} and tap Add Shortcut.`
         : email
-          ? `When it asks for your key, tap the box and Paste. When it asks what it’s called, type ${email.name}.`
-          : 'When it asks, tap the box and Paste.',
+          ? `Tap the box, then Paste, and tap Next. When it asks what it’s called, type ${email.name} and tap Add Shortcut.`
+          : 'Tap the box, then Paste, and tap Add Shortcut.',
       done: logged,
     },
     run
@@ -111,7 +113,7 @@ export function GetShortcut({
           ? `iPhone adds it switched off and set to ${appName.presetApp}. Open it in Shortcuts, tap ${appName.presetApp} at the top and pick ${appName.name} instead, then turn Automation on. Leave Notify off.${rename(appName.name)}`
           : appName
             ? `iPhone adds it switched off. Open it in Shortcuts and, at the top, turn Automation on. Leave Notify off.${rename(appName.name)}`
-            : 'iPhone adds it switched off. Open it in Shortcuts (its name starts with “Plan”) and, at the top, turn Automation on. Leave Notify (or Confirm Before Run) off.',
+            : 'iPhone adds it switched off (“Automation is turned off”). Open it in Shortcuts and turn Automation on, at the bottom of the trigger. Leave Notify (or Confirm Before Run) off. Optional: tap its name at the top to Rename it or Choose Icon.',
       done: logged,
       action: <Button title="Open Shortcuts" variant="soft" small icon="open-outline" style={{ alignSelf: 'flex-start', marginTop: 6 }} onPress={() => void openApp('shortcuts://').catch(() => undefined)} />,
     },
@@ -123,12 +125,12 @@ export function GetShortcut({
   const changeTo = appName && appName.name.toLowerCase() !== appName.presetApp.toLowerCase() ? appName.name : email ? (email.sender ?? 'your bank’s address') : undefined;
   const ask = appName ? { question: 'Which app is this for?', answer: appName.name } : email ? { question: 'What is this source called in Plan?', answer: email.name } : undefined;
   const mocks = [
-    <AddShortcutScreen key="add" name={shortcutName} />,
-    <QuestionsScreen key="ask" name={shortcutName} ask={ask} />,
+    <AddShortcutScreen key="add" name={shortcutName} tile={tile} />,
+    <QuestionsScreen key="ask" ask={ask} />,
     run ? (
       <ActivationScreen key={mode} mode={mode} />
     ) : (
-      <TurnOnScreen key="on" name={shortcutName} trigger={trigger ?? { icon: 'notifications', text: 'When I receive a notification from', value: name }} change={changeTo} rename={appName || email ? `Plan ${name}` : undefined} />
+      <TurnOnScreen key="on" name={shortcutName} tile={tile} trigger={trigger ?? { icon: 'notifications', text: 'When I receive a notification from', value: name }} change={changeTo} rename={appName || email ? `Plan ${name}` : undefined} />
     ),
     run ? <AllSetScreen key={`set-${mode}`} mode={mode} /> : <LoggedScreen key="paid" what={what === 'tap' ? 'Paid with Apple Pay' : 'Payment successful'} />,
   ];

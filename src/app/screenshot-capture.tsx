@@ -189,6 +189,7 @@ export default function ScreenshotCaptureScreen() {
               status="Your scans show up in Spending."
               flow={['Payment screen', 'Triple-tap or Action Button', 'It’s in Spending']}
               shortcutName="Plan Scan Payment"
+              tile={{ color: '#F07BD0', icon: 'logo-usd' }}
               run
               onManual={() => void start()}
             />
