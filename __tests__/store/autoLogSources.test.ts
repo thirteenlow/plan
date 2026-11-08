@@ -206,3 +206,16 @@ describe('iPhone Wallet: the bank in the title, the shop in the message', () => 
   });
 });
 
+describe('iPhone Wallet, with the subtitle (the shop) sent', () => {
+  const alert = (title: string, subtitle: string, body: string): InboxRow => ({ amount: body, merchant: title, card: `Wallet: ${subtitle}\n${body}`, created_at: NOW.toISOString() });
+  it('logs the shop and amount; leaves out passes and other Wallet notices', () => {
+    const d = load([preset('Wallet')]);
+    const hsbc = addAccount(d, 'creditCard', 'HSBC Revolution');
+    savePayments(useStore.getState().budgets[d.id], [
+      alert('HSBC Bank Singapore Limited', 'TikTok', '$44.68'),
+      alert('Singapore Airlines', 'Boarding pass updated', 'Gate changed to B7'),
+    ]);
+    expect(saved(d.id)).toEqual([expect.objectContaining({ payee: 'TikTok', amount: -$(44.68), accountId: hsbc.id })]);
+  });
+});
+

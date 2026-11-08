@@ -45,7 +45,8 @@ function forwarded(amount: string | null, card: string | null, merchant: string 
   // Words in lowercase mean a sentence, not an Apple Pay amount like "SGD 4.50".
   if (!card?.trim()) return merchant?.trim() && (amount ?? '').trim().length >= 10 && /[a-z]{3}/.test(amount ?? '') && /\s/.test(amount!.trim()) ? { wallet: merchant.trim(), text: amount!.trim() } : null;
   const m = card.match(/^([^:]{2,40}): ([\s\S]+)$/);
-  if (m && m[2].trim().startsWith(head)) return { wallet: m[1].trim(), text: m[2].trim() };
+  // The text either starts with what came as the amount, or (iPhone Wallet: "Wallet: <shop>\n<amount>") contains it.
+  if (m && (m[2].trim().startsWith(head) || m[2].includes(head))) return { wallet: m[1].trim(), text: m[2].trim() };
   // Same text in both, with words in it (not just "4.50"): a whole notification.
   if (merchant?.trim() && /[a-z]{2}/i.test(head) && card.trim().startsWith(head)) return { wallet: merchant.trim(), text: card.trim() };
   return null;
@@ -297,6 +298,8 @@ function readForwarded(f: { wallet: string; text: string }, title: string, home?
   // iPhone Wallet (the shared shortcut sends it as "Wallet"): the title is the card's bank ("HSBC Bank Singapore
   // Limited") and the message is the shop, then the amount ("TikTok\n$44.68").
   if (f.wallet === 'Wallet') {
+    // Wallet also posts boarding passes, transit cards and order updates: only ones with an amount are payments.
+    if (!amountInText(f.text)) return { wallet, amount: 0, merchant: null, card: null, kind: 'skip' };
     const shop = appleWalletShop(f.text);
     if (shop) return { wallet, amount: amountInText(f.text), merchant: shop, card: title && !WALLET_NAME.test(title) ? title : cardInText(f.text) };
   }

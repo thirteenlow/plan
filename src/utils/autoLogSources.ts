@@ -37,7 +37,7 @@ export const PRESETS: Preset[] = [
  */
 export const SHORTCUT_LINKS: Record<string, string> = {
   'Apple Pay': 'https://www.icloud.com/shortcuts/21a0ef15589d4883a0849f419ce0d72e',
-  Wallet: 'https://www.icloud.com/shortcuts/4eee7573f2854a33b0d98cf54f22c3e2',
+  Wallet: 'https://www.icloud.com/shortcuts/cf40a89baded44b88c7b88232aba67e7',
   'DBS PayLah! emails': 'https://www.icloud.com/shortcuts/f323968a69834b7fa4398bcb57d9b376',
   Grab: 'https://www.icloud.com/shortcuts/ee98ff7c44f5467e9f9b2ed7860b14ab',
   SimplyGo: 'https://www.icloud.com/shortcuts/9a114fbf00974b99a6ad2eb985a4a289',
