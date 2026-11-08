@@ -54,7 +54,10 @@ const userId = () => {
 /** This device's copy of the inbox key, if auto-logging was set up here. */
 export const getInboxKey = async () => (await secretStore.get(keyName(userId()))) ?? null;
 
-/** Makes a new key (replacing any old one, which stops working) and keeps it on this device. */
+/**
+ * Makes a new key and keeps it on this device. An account can have several (supabase/016_several_keys.sql), so
+ * this no longer turns off other devices' keys or the shortcuts that use them.
+ */
 export async function createInboxKey(): Promise<string> {
   const sb = getSupabase();
   if (!sb) throw new Error('Cloud sync isn’t set up.');
@@ -64,6 +67,35 @@ export async function createInboxKey(): Promise<string> {
   await secretStore.set(keyName(userId()), token);
   return token;
 }
+
+let registered = false;
+
+/**
+ * Tells the server this device's key is still the account's (it may have been replaced by another device before
+ * accounts could have several). Once per session, and again when a key is refused. True if a key was sent.
+ */
+export async function registerInboxKey(force = false): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb || (registered && !force) || !useCloud.getState().user) return false;
+  const key = await getInboxKey().catch(() => null);
+  if (!key) return false;
+  const { error } = await sb.rpc('set_inbox_key', { p_hash: sha256Hex(key) });
+  registered = !error;
+  return !error;
+}
+
+/** Runs a request with this device's key; if the key is refused, registers it again and tries once more. */
+async function withKey<T>(run: (token: string) => Promise<T>): Promise<T> {
+  const token = (await getInboxKey()) ?? (await createInboxKey());
+  try {
+    return await run(token);
+  } catch (e) {
+    if (!(e instanceof KeyRefused) || !(await registerInboxKey(true))) throw e instanceof KeyRefused ? new Error(e.message) : e;
+    return run(token);
+  }
+}
+
+class KeyRefused extends Error {}
 
 /** Turns auto-logging off: the key stops working and anything still waiting is deleted. */
 export async function removeInboxKey() {
@@ -75,7 +107,7 @@ export async function removeInboxKey() {
 }
 
 /** Posts a test payment exactly the way the Shortcut does, so a successful test proves the setup. */
-export async function sendTestPayment(token: string) {
+export async function sendTestPayment(token: string, retried = false): Promise<void> {
   const res = await fetch(logPaymentUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,6 +115,7 @@ export async function sendTestPayment(token: string) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    if (/invalid key/i.test(text) && !retried && (await registerInboxKey(true))) return sendTestPayment(token, true);
     throw new Error(
       /invalid key/i.test(text) ? 'Key not accepted. Make a new one and update your automation.' : `The server said no (${res.status}).`,
     );
@@ -93,7 +126,9 @@ export async function sendTestPayment(token: string) {
  * Sends a screenshot the same way the Scan Payment Shortcut does. On success the payment waits in the inbox
  * like any other; returns what was read.
  */
-export async function scanScreenshot(token: string, image: { uri: string; name: string; type: string; file?: Blob }) {
+type ScanResult = { error?: string; amount?: string; merchant?: string | null; currency?: string; usage?: { model: string; input_tokens: number; output_tokens: number } };
+
+export async function scanScreenshot(token: string, image: { uri: string; name: string; type: string; file?: Blob }, retried = false): Promise<ScanResult> {
   const form = new FormData();
   form.append('token', token);
   // Web hands us a File; native FormData takes { uri, name, type }.
@@ -107,6 +142,8 @@ export async function scanScreenshot(token: string, image: { uri: string; name: 
     usage?: { model: string; input_tokens: number; output_tokens: number };
   };
   if (res.status === 404) throw new Error('The scan-payment function isn’t deployed yet.');
+  // Refused: this device's key may have been replaced elsewhere; register it again and try once more.
+  if (res.status === 401 && !retried && (await registerInboxKey(true))) return scanScreenshot(token, image, true);
   if (!res.ok) throw new Error(body.error ?? `The server said no (${res.status}).`);
   return body;
 }
@@ -119,16 +156,19 @@ export type ReceiptRead = { amount: string; merchant: string | null; currency: s
 
 /** `hints`: the names of the user's categories and accounts, so the AI picks from them (see scanHints). */
 export async function readReceipt(dataUrl: string, hints?: { categories: string[]; accounts: string[] }): Promise<ReceiptRead> {
-  const token = (await getInboxKey()) ?? (await createInboxKey());
-  const res = await fetch(scanPaymentUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, image: dataUrl, mode: 'read', ...hints }),
+  const body = await withKey(async (token) => {
+    const res = await fetch(scanPaymentUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, image: dataUrl, mode: 'read', ...hints }),
+    });
+    const b = (await res.json().catch(() => ({}))) as { error?: string } & Partial<Record<keyof ReceiptRead, string | null>>;
+    if (res.status === 404) throw new Error('Receipt scanning isn’t set up on the server yet.');
+    if (res.status === 401) throw new KeyRefused(b.error ?? 'Key not accepted.');
+    if (!res.ok || !b.amount) throw new Error(b.error ?? `The server said no (${res.status}).`);
+    return b;
   });
-  const body = (await res.json().catch(() => ({}))) as { error?: string } & Partial<Record<keyof ReceiptRead, string | null>>;
-  if (res.status === 404) throw new Error('Receipt scanning isn’t set up on the server yet.');
-  if (!res.ok || !body.amount) throw new Error(body.error ?? `The server said no (${res.status}).`);
-  return { amount: body.amount, merchant: body.merchant ?? null, currency: body.currency ?? '', date: body.date ?? null, category: body.category ?? null, account: body.account ?? null };
+  return { amount: body.amount ?? '', merchant: body.merchant ?? null, currency: body.currency ?? '', date: body.date ?? null, category: body.category ?? null, account: body.account ?? null };
 }
 
 /** The text behind a forwarded payment: an alert email's full text, or a notification's ("App: text"). */
@@ -356,6 +396,8 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
   if (!sb || !data || importing) return { imported: 0, tests: 0, claimed: 0 };
   importing = true;
   try {
+    // Keep this device's key working (another device may have replaced it before accounts could have several).
+    await registerInboxKey().catch(() => false);
     const { data: rows, error } = await sb.rpc('claim_payments');
     if (error) {
       // Not set up on the server yet: nothing to import.
