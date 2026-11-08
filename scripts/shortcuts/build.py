@@ -80,20 +80,40 @@ SCAN_URL = f"{env('EXPO_PUBLIC_SUPABASE_URL')}/functions/v1/scan-payment"
 
 
 def scan_shortcut() -> dict:
-    """Scan Payment: takes a screenshot and sends it (with the key) to the scan-payment function. No trigger: it runs
-    from Back Tap or the Action Button."""
-    key_uuid, shot_uuid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    """Scan Payment: takes a screenshot, makes it a JPEG and sends it (with the key) to the scan-payment function, then
+    shows what came back. No trigger: it runs from Back Tap or the Action Button.
+
+    The JPEG step matters: a full-screen iPhone screenshot is a PNG that's often over the function's 3.7 MB limit, and
+    the function then turns it away (413). The notification matters too: without it, every result (logged, key not
+    accepted, no payment found, too large) is silent, so a failed scan looks like nothing happened."""
+    key_uuid, shot_uuid, jpeg_uuid, post_uuid = (str(uuid.uuid4()).upper() for _ in range(4))
     token = var({'Type': 'ActionOutput', 'OutputUUID': key_uuid, 'OutputName': 'Text'})
-    image = {'Value': {'Value': {'Type': 'ActionOutput', 'OutputUUID': shot_uuid, 'OutputName': 'Screenshot'}, 'WFSerializationType': 'WFTextTokenAttachment'}, 'WFSerializationType': 'WFTokenAttachmentParameterState'}
+    attach = lambda v: {'Value': v, 'WFSerializationType': 'WFTextTokenAttachment'}
+    shot = {'Type': 'ActionOutput', 'OutputUUID': shot_uuid, 'OutputName': 'Screenshot'}
+    jpeg = {'Type': 'ActionOutput', 'OutputUUID': jpeg_uuid, 'OutputName': 'Converted Image'}
+    image = {'Value': attach(jpeg), 'WFSerializationType': 'WFTokenAttachmentParameterState'}
+
+    def reply(key: str) -> dict:
+        return {'Type': 'ActionOutput', 'OutputUUID': post_uuid, 'OutputName': 'Contents of URL', 'Aggrandizements': [{'Type': 'WFDictionaryValueVariableAggrandizement', 'DictionaryKey': key}]}
+
+    # Success has "message" ("Logged SGD 12.50 at Grab"), a failure has "error"; only one is set, so show both.
+    shown = {
+        'Value': {'string': f'{OBJ}{OBJ}', 'attachmentsByRange': {'{0, 1}': reply('message'), '{1, 1}': reply('error')}},
+        'WFSerializationType': 'WFTextTokenString',
+    }
     wf = shortcut(None, [], color=3980825855, glyph=62322)
     wf['WFWorkflowTypes'] = ['Watch', 'WFWorkflowTypeShowInSearch']
     wf['WFWorkflowActions'] = [
         key_action(key_uuid),
         {'WFWorkflowActionIdentifier': 'is.workflow.actions.takescreenshot', 'WFWorkflowActionParameters': {'UUID': shot_uuid}},
         {
+            'WFWorkflowActionIdentifier': 'is.workflow.actions.image.convert',
+            'WFWorkflowActionParameters': {'UUID': jpeg_uuid, 'WFInput': attach(shot), 'WFImageFormat': 'JPEG', 'WFImageCompressionQuality': 0.7, 'WFImagePreserveMetadata': False},
+        },
+        {
             'WFWorkflowActionIdentifier': 'is.workflow.actions.downloadurl',
             'WFWorkflowActionParameters': {
-                'UUID': str(uuid.uuid4()).upper(),
+                'UUID': post_uuid,
                 'WFURL': SCAN_URL,
                 'WFHTTPMethod': 'POST',
                 'WFHTTPBodyType': 'Form',
@@ -102,6 +122,10 @@ def scan_shortcut() -> dict:
                     'WFSerializationType': 'WFDictionaryFieldValue',
                 },
             },
+        },
+        {
+            'WFWorkflowActionIdentifier': 'is.workflow.actions.notification',
+            'WFWorkflowActionParameters': {'UUID': str(uuid.uuid4()).upper(), 'WFNotificationActionTitle': text('Plan'), 'WFNotificationActionBody': shown, 'WFNotificationActionSound': False},
         },
     ]
     return wf
