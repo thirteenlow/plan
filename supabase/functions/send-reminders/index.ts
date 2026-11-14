@@ -107,6 +107,9 @@ Deno.serve(async (req) => {
     const lead = body.scanned ? 'Receipt logged' : 'Payment logged';
     // One title line, no message: iOS adds "from Plan" underneath, so this reads as two tidy lines.
     const { amount, merchant } = describeLogged(body);
+    // An iPhone Wallet notice with no amount (a boarding pass, a transit card, an order update) isn't logged by the
+    // app, so don't say "Payment logged" for it.
+    if (!test && !amount && /^Wallet: /.test(body.card ?? '')) return json(200, { type: 'logged', skipped: 'not a payment' });
     const results = await Promise.all(
       ((data ?? []) as unknown as (Target & { details: boolean; currency?: Currency | null })[]).map((d) => {
         const what = [formatAmount(amount, d.currency), merchant ? `at ${merchant}` : ''].filter(Boolean).join(' ');

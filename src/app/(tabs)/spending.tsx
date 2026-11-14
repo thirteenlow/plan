@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { useCloud } from '@/cloud/cloudStore';
 import { HeaderPill, Screen } from '@/components/Screen';
 import { PickerSheet } from '@/components/Sheet';
 import { TabMenu } from '@/components/TabMenu';
@@ -42,6 +43,8 @@ export default function SpendingScreen() {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sheet, setSheet] = useState<'filter' | 'category' | null>(null);
+  // What happened to payments logged automatically (opened from a "Payment logged" notification, this says so).
+  const paymentNotice = useCloud((s) => s.paymentNotice);
 
   const onBudget = useMemo(() => new Set(data.accounts.filter((a) => a.onBudget).map((a) => a.id)), [data.accounts]);
 
@@ -165,6 +168,17 @@ export default function SpendingScreen() {
 
   return (
     <Screen largeTitle title="Spending" right={right} belowHeader={selectBar} tabBarPadding>
+      {!!paymentNotice && (
+        <Row style={{ gap: 10, padding: 12, borderRadius: RADIUS.md, marginBottom: 12, backgroundColor: colors.accentSoft }}>
+          <Ionicons name="information-circle" size={18} color={colors.accent} />
+          <Txt variant="caption" style={{ flex: 1, color: colors.accent }}>
+            {paymentNotice}
+          </Txt>
+          <Tap onPress={() => useCloud.setState({ paymentNotice: null })} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+            <Ionicons name="close" size={16} color={colors.muted} />
+          </Tap>
+        </Row>
+      )}
       {searching && <TextField maxLength={LIMITS.search} icon="search" placeholder="Search payee, category, account, memo" value={q} onChangeText={setQ} autoFocus autoCorrect={false} containerStyle={{ marginBottom: 12 }} />}
 
       {filter !== 'all' && (

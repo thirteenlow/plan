@@ -304,6 +304,9 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
   let unreadable = 0;
   let noAccount = 0;
   let merged = 0;
+  // Claimed but not logged, and why: said in the notice, so a "Payment logged" notification never comes to nothing.
+  const leftOut: string[] = [];
+  const leave = (from: string, why: string) => leftOut.push(`${from} (${why})`);
   for (const raw of rows) {
     // A card field left as the guide's placeholder is no card.
     const row = /^\(?optional\)?$/i.test(raw.card?.trim() ?? '') ? { ...raw, card: null } : raw;
@@ -316,15 +319,31 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
     const wallet = row.read ?? readWalletPayment(row, data.settings.currency.code);
     // A free trip ("Fare $0.00 - …", e.g. a transfer): nothing was spent, so nothing to log. Same for a top-up or
     // a declined payment.
-    if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) continue;
-    if (wallet?.kind === 'skip') continue;
+    const from = wallet?.wallet ?? (row.merchant?.trim() || 'Apple Pay');
+    if (wallet && !wallet.amount && /(?:^|[^\d.,])0[.,]00(?!\d)/.test(row.card ?? '')) {
+      leave(from, 'nothing was charged');
+      continue;
+    }
+    if (wallet?.kind === 'skip') {
+      leave(from, 'not a payment');
+      continue;
+    }
     const scannedRow = row.source === 'screenshot' || row.card === SCREENSHOT_CARD;
     // The Auto-log source it came from, with its own options. Turned off: leave it out.
     const source = scannedRow ? undefined : sourceFor(data.settings.autoLogSources, wallet?.wallet ?? 'Apple Pay');
-    if (source && !source.enabled) continue;
+    if (source && !source.enabled) {
+      leave(source.name, 'turned off in Auto-log');
+      continue;
+    }
     // Not one of the alerts the user wants from this app (its filter words, e.g. Grab's "has been charged").
-    if (source && !passesFilter(source, [row.merchant, row.amount, row.card].filter(Boolean).join(' '))) continue;
-    if (source?.moneyIn === 'ignore' && wallet?.kind === 'in') continue;
+    if (source && !passesFilter(source, [row.merchant, row.amount, row.card].filter(Boolean).join(' '))) {
+      leave(source.name, 'didn’t match its filter words in Auto-log');
+      continue;
+    }
+    if (source?.moneyIn === 'ignore' && wallet?.kind === 'in') {
+      leave(source.name, 'money in is set to be ignored');
+      continue;
+    }
     // Money in (a friend's transfer, a refund) is logged as an inflow, not spending.
     const sign = wallet?.kind === 'in' ? 1 : -1;
     const amount = wallet ? wallet.amount : Math.abs(parseAmountText(row.amount));
@@ -385,6 +404,7 @@ export function savePayments(data: BudgetData, rows: InboxRow[]): { imported: nu
     unreadable ? `${unreadable === 1 ? 'One amount' : `${unreadable} amounts`} couldn’t be read, so ${unreadable === 1 ? 'it was' : 'they were'} logged as 0.` : '',
     merged ? `${merged === 1 ? 'One payment was' : `${merged} payments were`} already logged from another source, so ${merged === 1 ? 'it was' : 'they were'} combined.` : '',
     noAccount ? `${noAccount} ${noAccount === 1 ? 'payment' : 'payments'} couldn’t be logged: add an account first.` : '',
+    leftOut.length ? `Left out ${leftOut.length === 1 ? 'one notification' : `${leftOut.length} notifications`}: ${leftOut.join(', ')}.` : '',
   ].filter(Boolean);
   return { imported, tests, notes };
 }
@@ -408,12 +428,11 @@ export async function importPayments(): Promise<{ imported: number; tests: numbe
       throw error;
     }
     const { imported, tests, notes } = savePayments(data, await readUnclearWithAI(data, (rows ?? []) as InboxRow[]));
-    if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     if (expectingSince && Date.now() - expectingSince < 120_000) {
       if (!(rows ?? []).length) notes.push('Nothing new here. Another device may have logged it; it’ll appear after syncing.');
       expectingSince = 0;
-      if (notes.length) useCloud.setState({ notice: notes.join(' ') });
     }
+    if (notes.length) useCloud.setState({ paymentNotice: notes.join(' ') });
     return { imported, tests, claimed: (rows ?? []).length };
   } finally {
     importing = false;

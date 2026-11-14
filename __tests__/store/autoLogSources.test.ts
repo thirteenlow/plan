@@ -217,5 +217,12 @@ describe('iPhone Wallet, with the subtitle (the shop) sent', () => {
     ]);
     expect(saved(d.id)).toEqual([expect.objectContaining({ payee: 'TikTok', amount: -$(44.68), accountId: hsbc.id })]);
   });
+  it('says what was left out and why, so a notification never comes to nothing', () => {
+    const d = load([preset('Wallet')]);
+    addAccount(d, 'creditCard', 'HSBC Revolution');
+    const { imported, notes } = savePayments(useStore.getState().budgets[d.id], [alert('Singapore Airlines', 'Boarding pass updated', 'Gate changed to B7')]);
+    expect(imported).toBe(0);
+    expect(notes.join(' ')).toMatch(/Left out one notification: Wallet \(not a payment\)/);
+  });
 });
 

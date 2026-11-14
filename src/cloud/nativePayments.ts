@@ -50,7 +50,7 @@ export async function importNativePayments(): Promise<number> {
     // Ones Plan can't read itself may go to the AI (when signed in and the source allows it).
     const { imported, notes } = savePayments(data, await readUnclearWithAI(data, rows));
     PaymentNotifications.ack(queued[queued.length - 1].id);
-    if (notes.length) useCloud.setState({ notice: notes.join(' ') });
+    if (notes.length) useCloud.setState({ paymentNotice: notes.join(' ') });
     return imported;
   } finally {
     importing = false;

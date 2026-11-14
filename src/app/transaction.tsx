@@ -193,14 +193,34 @@ export default function TransactionScreen() {
   // Left to split, by size (positive = still to split, negative = the lines add up to more than the amount).
   const splitLeft = Math.abs(total) - Math.abs(splitTotal);
 
+  // Which way each payee's money has gone: an inflow lists the payees money came from (pay, refunds, friends), spending
+  // the ones it went to. A payee with no history yet, or both, is in both lists.
+  const payeeFlows = useMemo(() => {
+    const flows = new Map<string, { in: boolean; out: boolean }>();
+    for (const t of data.transactions) {
+      if (!t.payeeId || t.transferAccountId || t.isStartingBalance || !t.amount) continue;
+      const f = flows.get(t.payeeId) ?? { in: false, out: false };
+      if (t.amount > 0) f.in = true;
+      else f.out = true;
+      flows.set(t.payeeId, f);
+    }
+    return flows;
+  }, [data.transactions]);
+
   // Transfers have their own type now, so the payee list is just payees.
   const payeeItems = useMemo<PickerItem[]>(
     () =>
       data.payees
         .filter((p) => p.name !== 'Starting Balance' && p.name !== 'Reconciliation Balance Adjustment')
+        .filter((p) => {
+          if (p.id === payeeId) return true;
+          const f = payeeFlows.get(p.id);
+          if (!f) return direction === 'in' ? p.lastCategoryId === RTA || !p.lastCategoryId : p.lastCategoryId !== RTA;
+          return direction === 'in' ? f.in : f.out;
+        })
         .map((p) => ({ key: p.id, title: p.name, subtitle: p.lastCategoryId ? categoryLabel(p.lastCategoryId) : undefined })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.payees],
+    [data.payees, payeeFlows, direction, payeeId],
   );
   const accountItems = (list: typeof openAccounts) =>
     list.map((a) => ({

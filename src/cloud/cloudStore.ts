@@ -29,13 +29,15 @@ export const useCloud = create<{
   lastSyncAt: string | null;
   error: string | null;
   notice: string | null;
+  /** What happened to automatically logged payments (logged, combined, left out): shown in Spending */
+  paymentNotice: string | null;
   /** Budgets on the account that can't be decrypted with this identity */
   locked: number;
   /** The first download of the account's budgets after signing in has finished */
   firstPullDone: boolean;
   /** Signed in with an emailed reset code: asking for a new password before going on */
   settingPassword: boolean;
-}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, locked: 0, firstPullDone: false, settingPassword: false }));
+}>(() => ({ status: 'starting', user: null, profile: null, syncing: false, lastSyncAt: null, error: null, notice: null, paymentNotice: null, locked: 0, firstPullDone: false, settingPassword: false }));
 
 export const friendlyError = (e: unknown): string => {
   const msg = e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : String(e);
