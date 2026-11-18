@@ -138,9 +138,9 @@ export function weekdayCount(month: MonthKey, weekday: number): number {
 
 export const monthLabel = (m: MonthKey) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 /** "14 Nov – 13 Dec" (or "Nov 14 – Dec 13"): the dates of a budget month that isn't a calendar month; null if it is. */
-export function monthDates(m: MonthKey, starts: MonthStart[] = monthStarts, fmt: DateFormat = activeDateFormat): string | null {
+export function monthDates(m: MonthKey, starts: MonthStart[] = monthStarts, fmt: DateFormat = activeDateFormat, always = false): string | null {
   const [from, to] = [monthStartDate(m, starts), monthEndDate(m, starts)];
-  if (from === `${m}-01` && to === `${m}-${pad(daysInMonth(m))}`) return null;
+  if (!always && from === `${m}-01` && to === `${m}-${pad(daysInMonth(m))}`) return null;
   const day = (d: ISODate) => {
     const dt = parseISO(d);
     return fmt === 'MDY' || fmt === 'YMD' ? `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}` : `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`;

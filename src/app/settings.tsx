@@ -93,7 +93,7 @@ export default function SettingsScreen() {
             ]}
           />
         </View>
-        <Item icon="calendar-outline" label="Month starts on" value={monthStart === 1 ? 'The 1st' : `The ${ordinal(monthStart)}`} onPress={() => setPickingStart(true)} />
+        <Item icon="calendar-outline" label="Months run" value={monthStart === 1 ? 'Calendar months' : `From pay day · ${ordinal(monthStart)}`} onPress={() => setPickingStart(true)} />
         <Item icon="cash-outline" label="Currency & formats" value={`${data.settings.currency.code} · ${formatMoney(1234567, { c: data.settings.currency })} · ${shortDate(today(), data.settings.dateFormat)}`} onPress={() => router.push('/format')} />
       </Group>
 
