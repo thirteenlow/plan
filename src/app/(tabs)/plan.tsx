@@ -19,7 +19,7 @@ import { MAX_FUTURE_MONTHS, type PlanFilter, sortedGroups, useBudgetResult, useM
 import { useActiveBudget, useStore } from '@/store/store';
 import type { Category } from '@/store/types';
 import { FONT, RADIUS, useLayout, useTheme } from '@/theme';
-import { addMonths, currentMonth, monthLabel, monthPickerOrder, monthRange, monthShort } from '@/utils/date';
+import { addMonths, currentMonth, monthDates, monthLabel, monthOf, monthPickerOrder, monthRange, monthShort } from '@/utils/date';
 import { noWebOutline } from '@/utils/layout';
 import { formatMoney, formatNumber, getActiveCurrency, parseMoney, signedInput } from '@/utils/money';
 import { filterAmountTyping, LIMITS } from '@/utils/validation';
@@ -69,7 +69,7 @@ export default function PlanScreen() {
   };
 
   const groups = useMemo(() => sortedGroups(data), [data]);
-  const minMonth = result.first < data.createdAt.slice(0, 7) ? result.first : data.createdAt.slice(0, 7);
+  const minMonth = result.first < monthOf(data.createdAt) ? result.first : monthOf(data.createdAt);
   const maxMonth = addMonths(currentMonth(), MAX_FUTURE_MONTHS);
   const allCats = groups.flatMap((g) => g.categories);
 
@@ -153,9 +153,17 @@ export default function PlanScreen() {
       </HeaderPill>
     ),
     center: (
-      <Tap onPress={() => setSheet('month')} accessibilityRole="button" accessibilityLabel={`Month: ${monthLabel(month)}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 }}>
-        <Txt variant="h2">{isCompact ? monthShort(month) : `${monthLabel(month).slice(0, 3)} ${month.slice(0, 4)}`}</Txt>
-        <Ionicons name="chevron-down" size={18} color={colors.text} />
+      <Tap onPress={() => setSheet('month')} accessibilityRole="button" accessibilityLabel={`Month: ${monthLabel(month)}${monthDates(month) ? `, ${monthDates(month)}` : ''}`} style={{ alignItems: 'center', paddingHorizontal: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Txt variant="h2">{isCompact ? monthShort(month) : `${monthLabel(month).slice(0, 3)} ${month.slice(0, 4)}`}</Txt>
+          <Ionicons name="chevron-down" size={18} color={colors.text} />
+        </View>
+        {/* A month that starts on pay day: which dates it covers. */}
+        {!!monthDates(month) && (
+          <Txt variant="label" tone="muted">
+            {monthDates(month)}
+          </Txt>
+        )}
       </Tap>
     ),
     right: (
@@ -312,7 +320,7 @@ export default function PlanScreen() {
         items={monthPickerOrder(monthRange(minMonth, maxMonth), currentMonth()).map((m) => ({
           key: m,
           title: monthLabel(m),
-          subtitle: m === currentMonth() ? 'This month' : m > currentMonth() ? 'Future' : undefined,
+          subtitle: [m === currentMonth() ? 'This month' : m > currentMonth() ? 'Future' : '', monthDates(m) ?? ''].filter(Boolean).join(' · ') || undefined,
           section: m.slice(0, 4) === currentMonth().slice(0, 4) ? `${m.slice(0, 4)} · This year` : m.slice(0, 4),
         }))}
         onSelect={(k) => {

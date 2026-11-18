@@ -9,7 +9,7 @@ import { getSupabase } from '@/cloud/supabase';
 import { syncPushPrefs } from '@/notifications/push';
 import { useStore } from '@/store/store';
 import type { BudgetData, ReminderPrefs } from '@/store/types';
-import { addDays, currentMonth, toISO, today } from '@/utils/date';
+import { addDays, addMonths, currentMonth, monthStartDate, parseISO, toISO, today } from '@/utils/date';
 import { formatMoney } from '@/utils/money';
 
 export const DEFAULT_REMINDERS: ReminderPrefs = {
@@ -132,9 +132,10 @@ export function computeReminders(data: BudgetData, prefs: ReminderPrefs, now = n
     }
   }
 
-  // Monthly recap on the 1st.
+  // Monthly recap on the first day of the next budget month (the 1st, or the budget's start day).
   if (prefs.recap) {
-    const first = new Date(now.getFullYear(), now.getMonth() + 1, 1, 9, 0);
+    const first = parseISO(monthStartDate(addMonths(month, 1)));
+    first.setHours(9, 0, 0, 0);
     add(first, 'recap', 'Your month in review is ready', undefined, '/reflect');
   }
 

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { RADIUS, useTheme } from '@/theme';
-import { addDays, addMonths, daysInMonth, monthOf, parseISO, today, WEEKDAYS_SHORT } from '@/utils/date';
+import { addDays, addMonths, calendarMonth, daysInMonth, parseISO, today, WEEKDAYS_SHORT } from '@/utils/date';
 import type { ISODate } from '@/store/types';
 import { Sheet } from './Sheet';
 import { Button, Chip, IconButton, Row, Tap, Txt } from './ui';
@@ -19,7 +19,7 @@ export function CalendarSheet({ visible, onClose, value, onChange, title = 'Date
 
 function CalendarBody({ value, onChange, onClose }: { value: ISODate; onChange: (d: ISODate) => void; onClose: () => void }) {
   const { colors } = useTheme();
-  const [month, setMonth] = useState(monthOf(value));
+  const [month, setMonth] = useState(calendarMonth(value));
   // Tap the month or the year in the header to jump straight to it, instead of paging month by month.
   const [mode, setMode] = useState<'days' | 'months' | 'years'>('days');
   const year = Number(month.slice(0, 4));
@@ -56,7 +56,7 @@ function CalendarBody({ value, onChange, onClose }: { value: ISODate; onChange: 
       {mode === 'months' ? (
         <Grid
           items={MONTHS_SHORT.map((label, i) => ({ key: `${year}-${String(i + 1).padStart(2, '0')}`, label, a11y: `${label} ${year}` }))}
-          selected={monthOf(value)}
+          selected={calendarMonth(value)}
           current={month}
           onPick={(m) => {
             setMonth(m);

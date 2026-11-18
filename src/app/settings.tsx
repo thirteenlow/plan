@@ -6,7 +6,7 @@ import { Screen } from '@/components/Screen';
 import { signOutEverywhereOnDevice } from '@/cloud';
 import { useCloud } from '@/cloud/cloudStore';
 import { DeleteBudgetSheet } from '@/components/DeleteBudgetSheet';
-import { Sheet } from '@/components/Sheet';
+import { PickerSheet, Sheet } from '@/components/Sheet';
 import { Button, Card, confirm, Divider, notify, Row, Segmented, Tap, TextField, Txt } from '@/components/ui';
 import { petInfo } from '@/engine/pet';
 import { useUi } from '@/hooks/useBudget';
@@ -14,7 +14,7 @@ import { LIMITS } from '@/utils/validation';
 import { useActiveBudget, useStore } from '@/store/store';
 import type { ThemePref } from '@/store/types';
 import { useTheme } from '@/theme';
-import { shortDate, today } from '@/utils/date';
+import { activeMonthStarts, addMonths, currentMonth, monthDates, ordinal, shortDate, startDayFor, today, withMonthStart } from '@/utils/date';
 import { exportBudget, pickImport } from '@/utils/importExport';
 import { formatMoney } from '@/utils/money';
 import type { IconName } from '@/utils/icons';
@@ -26,6 +26,23 @@ export default function SettingsScreen() {
   const updateSettings = useStore((s) => s.updateSettings);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pickingStart, setPickingStart] = useState(false);
+  // The day months start on from next month (this one keeps the start it has). The change applies from this month
+  // on: earlier months never move, so what was spent and assigned in them stays put.
+  const thisMonth = currentMonth();
+  const monthStart = startDayFor(addMonths(thisMonth, 1));
+  const startsWith = (day: number) => withMonthStart(activeMonthStarts(), thisMonth, day);
+  const dates = (m: string, day: number) => monthDates(m, startsWith(day)) ?? 'calendar month';
+  const chooseMonthStart = async (day: number) => {
+    setPickingStart(false);
+    if (day === monthStart) return;
+    const ok = await confirm(
+      day === 1 ? 'Go back to calendar months?' : `Start each month on the ${ordinal(day)}?`,
+      `This month runs ${dates(thisMonth, day)}, then ${dates(addMonths(thisMonth, 1), day)}${day === 1 ? '' : ' and so on'}. Earlier months stay as they are. You can change this any time.`,
+      'Change',
+    );
+    if (ok) updateSettings({ monthStarts: startsWith(day) });
+  };
   const cloud = useCloud();
   // Signed in, including while still finishing setup or unlocking.
   const canLogOut = !!cloud.user && cloud.status !== 'signedOut' && cloud.status !== 'unconfigured';
@@ -89,6 +106,7 @@ export default function SettingsScreen() {
             ]}
           />
         </View>
+        <Item icon="calendar-outline" label="Month starts on" value={monthStart === 1 ? 'The 1st' : `The ${ordinal(monthStart)}`} onPress={() => setPickingStart(true)} />
         <Item icon="cash-outline" label="Currency & formats" value={`${data.settings.currency.code} · ${formatMoney(1234567, { c: data.settings.currency })} · ${shortDate(today(), data.settings.dateFormat)}`} onPress={() => router.push('/format')} />
       </Group>
 
@@ -133,6 +151,20 @@ export default function SettingsScreen() {
         />
       )}
       <Button title="Delete this budget" variant="danger" icon="trash-outline" style={{ marginTop: canLogOut ? 10 : 24 }} onPress={() => setDeleting(true)} />
+      <PickerSheet
+        visible={pickingStart}
+        onClose={() => setPickingStart(false)}
+        title="Month starts on"
+        searchable={false}
+        selectedKey={String(monthStart)}
+        items={Array.from({ length: 28 }, (_, i) => i + 1).map((day) => ({
+          key: String(day),
+          title: day === 1 ? 'The 1st' : `The ${ordinal(day)}`,
+          subtitle: `This month: ${dates(thisMonth, day)} · next: ${dates(addMonths(thisMonth, 1), day)}`,
+          section: day === 1 ? 'Default' : 'Start on pay day',
+        }))}
+        onSelect={(k) => void chooseMonthStart(Number(k))}
+      />
       <DeleteBudgetSheet budget={deleting ? data : null} onClose={() => setDeleting(false)} />
 
       <Txt variant="caption" tone="muted" center style={{ marginTop: 18 }}>

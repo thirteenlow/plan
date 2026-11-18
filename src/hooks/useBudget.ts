@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { accountBalances, ageOfMoney } from '@/engine/accounts';
 import { computeBudget, getMonth } from '@/engine/budget';
-import { useActiveBudget, useBudgetData } from '@/store/store';
+import { useActiveBudget, useBudgetData, useStore } from '@/store/store';
 import type { BudgetData, Category, CategoryGroup, MonthKey } from '@/store/types';
 import { addMonths, currentMonth } from '@/utils/date';
 
@@ -28,6 +28,16 @@ export const useUi = create<{
   setSpendingFilter: (spendingFilter) => set({ spendingFilter }),
   assigning: false,
 }));
+
+// "This month" depends on the budget's start day, known only once the budget is loaded and changed in Settings: when it
+// moves, the shown month moves with it if it was on this month.
+let shownCurrent = currentMonth();
+useStore.subscribe(() => {
+  const now = currentMonth();
+  if (now === shownCurrent) return;
+  if (useUi.getState().month === shownCurrent) useUi.setState({ month: now });
+  shownCurrent = now;
+});
 
 export const MAX_FUTURE_MONTHS = 12;
 

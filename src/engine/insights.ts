@@ -6,7 +6,7 @@ import { categoryMonth, computeBudget, getMonth } from '@/engine/budget';
 import { accountBalances } from '@/engine/accounts';
 import { dailySpending, earliestMonth, incomeVsExpense, spendingByCategory } from '@/engine/reports';
 import { RTA, type BudgetData, type Milli, type MonthKey } from '@/store/types';
-import { addMonths, daysInMonth } from '@/utils/date';
+import { addMonths, dayInMonth, monthLength, monthOf } from '@/utils/date';
 import { isCreditType } from '@/utils/icons';
 
 /** Earlier months to compare against ("usual"): up to 3, never before the budget's first month. */
@@ -58,12 +58,12 @@ export interface SpendingPace {
 const cumulative = (xs: Milli[]) => xs.reduce<Milli[]>((acc, x) => [...acc, (acc[acc.length - 1] ?? 0) + x], []);
 
 export function spendingPace(data: BudgetData, month: MonthKey, todayISO: string): SpendingPace {
-  const days = daysInMonth(month);
-  const isCurrent = todayISO.slice(0, 7) === month;
-  const dayNow = isCurrent ? Number(todayISO.slice(8, 10)) : days;
+  const days = monthLength(month);
+  const isCurrent = monthOf(todayISO) === month;
+  const dayNow = isCurrent ? dayInMonth(todayISO) : days;
   const current = cumulative(dailySpending(data, month, days)).slice(0, dayNow);
   const prevMonth = addMonths(month, -1);
-  const previous = cumulative(dailySpending(data, prevMonth, daysInMonth(prevMonth)));
+  const previous = cumulative(dailySpending(data, prevMonth, monthLength(prevMonth)));
   const spentSoFar = current[current.length - 1] ?? 0;
   return {
     days,

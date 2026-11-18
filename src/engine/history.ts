@@ -1,5 +1,5 @@
 import type { BudgetData, ISODate, MonthKey, Transaction } from '@/store/types';
-import { addMonths, daysInMonth, monthDiff, monthOf } from '@/utils/date';
+import { addMonths, monthDiff, monthEndDate, monthOf, monthStartDate } from '@/utils/date';
 
 /** Every transaction for one category or one payee: what the History screen lists. */
 export type HistoryOf = { categoryId: string } | { payeeId: string };
@@ -20,10 +20,10 @@ export interface HistoryPeriod {
 
 /** The period for a range ending this month (`now`); `month` for 'month', `custom` for 'custom'. */
 export function periodFor(range: HistoryRange, now: MonthKey, month?: MonthKey, custom?: HistoryPeriod): HistoryPeriod {
-  const whole = (m: MonthKey) => ({ from: `${m}-01`, to: `${m}-${String(daysInMonth(m)).padStart(2, '0')}` });
+  const whole = (m: MonthKey) => ({ from: monthStartDate(m), to: monthEndDate(m) });
   if (range === 'month') return whole(month ?? now);
-  if (range === '3m') return { from: `${addMonths(now, -2)}-01` };
-  if (range === '12m') return { from: `${addMonths(now, -11)}-01` };
+  if (range === '3m') return { from: monthStartDate(addMonths(now, -2)) };
+  if (range === '12m') return { from: monthStartDate(addMonths(now, -11)) };
   if (range === 'custom') return custom ?? {};
   return {};
 }

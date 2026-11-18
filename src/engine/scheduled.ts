@@ -1,4 +1,4 @@
-import { addDays, addMonthsToDate, daysInMonth, monthOf } from '@/utils/date';
+import { addDays, addMonthsToDate, calendarMonth, daysInMonth } from '@/utils/date';
 import type { Frequency, ISODate } from '@/store/types';
 
 export const FREQUENCIES: { value: Frequency; label: string }[] = [
@@ -35,7 +35,7 @@ export function nextOccurrence(date: ISODate, f: Frequency): ISODate | null {
     case 'twiceAMonth': {
       // 15th and last day of month pattern, anchored on the current day.
       const day = Number(date.slice(8, 10));
-      const m = monthOf(date);
+      const m = calendarMonth(date);
       if (day < 15) return `${m}-15`;
       const last = daysInMonth(m);
       if (day < last) return `${m}-${String(last).padStart(2, '0')}`;

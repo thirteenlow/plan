@@ -1,4 +1,4 @@
-import type { DateFormat, ISODate, MonthKey } from '@/store/types';
+import type { DateFormat, ISODate, MonthKey, MonthStart } from '@/store/types';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -7,6 +7,42 @@ let activeDateFormat: DateFormat = 'MDY';
 export const setActiveDateFormat = (f: DateFormat) => {
   activeDateFormat = f;
 };
+
+
+let monthStarts: MonthStart[] = [];
+/**
+ * The active budget's month starts (e.g. pay day on the 14th). A budget month is named by the calendar month it starts
+ * in, and starts on the day the previous month's rule says, so changing the day never moves earlier months: switching
+ * from the 1st to the 14th in November makes November run 1 Nov – 13 Dec, then 14 Dec – 13 Jan and so on.
+ * Set by the store, like the date format.
+ */
+export const setActiveMonthStarts = (starts: unknown) => {
+  monthStarts = validMonthStarts(starts);
+};
+export const activeMonthStarts = () => monthStarts;
+/** A start day the budget can use: a whole day from 1 to 28 (every month has those). */
+export const isMonthStartDay = (day: unknown): day is number => typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 28;
+/** Well-formed month starts, oldest first, one per month, without ones that change nothing. */
+export function validMonthStarts(starts: unknown): MonthStart[] {
+  if (!Array.isArray(starts)) return [];
+  const byMonth = new Map<MonthKey, number>();
+  for (const x of starts as Partial<MonthStart>[]) {
+    if (x && typeof x.from === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(x.from) && isMonthStartDay(x.day)) byMonth.set(x.from, x.day);
+  }
+  const out: MonthStart[] = [];
+  for (const [from, day] of [...byMonth].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    if (day !== (out.at(-1)?.day ?? 1)) out.push({ from, day });
+  }
+  return out;
+}
+/** The start day in force for budget month `m`. */
+export const startDayFor = (m: MonthKey, starts: MonthStart[] = monthStarts): number => {
+  let day = 1;
+  for (const s of starts) if (s.from <= m) day = s.day;
+  return day;
+};
+/** The month starts after choosing `day` from budget month `from` on. */
+export const withMonthStart = (starts: MonthStart[], from: MonthKey, day: number): MonthStart[] => validMonthStarts([...starts.filter((s) => s.from < from), { from, day }]);
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3));
@@ -23,8 +59,22 @@ export function parseISO(s: ISODate): Date {
 }
 
 export const today = (): ISODate => toISO(new Date());
-export const monthOf = (d: ISODate): MonthKey => d.slice(0, 7);
+/** The calendar month a date is in, whatever the budget's start day (for calendars and calendar arithmetic). */
+export const calendarMonth = (d: ISODate): MonthKey => d.slice(0, 7);
+/** The budget month a date belongs to (see setActiveMonthStarts). */
+export const monthOf = (d: ISODate, starts: MonthStart[] = monthStarts): MonthKey => {
+  const cal = d.slice(0, 7);
+  return !starts.length || d >= monthStartDate(cal, starts) ? cal : addMonths(cal, -1);
+};
 export const currentMonth = (): MonthKey => monthOf(today());
+
+/** The first and last day of a budget month, both inclusive. A month starts on the day the month before's rule says. */
+export const monthStartDate = (m: MonthKey, starts: MonthStart[] = monthStarts): ISODate => `${m}-${pad(startDayFor(addMonths(m, -1), starts))}`;
+export const monthEndDate = (m: MonthKey, starts: MonthStart[] = monthStarts): ISODate => addDays(monthStartDate(addMonths(m, 1), starts), -1);
+/** How many days a budget month has. */
+export const monthLength = (m: MonthKey, starts: MonthStart[] = monthStarts): number => daysBetween(monthStartDate(m, starts), monthEndDate(m, starts)) + 1;
+/** Day 1, 2, … of its budget month a date is. */
+export const dayInMonth = (d: ISODate, starts: MonthStart[] = monthStarts): number => daysBetween(monthStartDate(monthOf(d, starts), starts), d) + 1;
 
 export function addMonths(month: MonthKey, n: number): MonthKey {
   const [y, m] = month.split('-').map(Number);
@@ -58,7 +108,7 @@ export function addDays(d: ISODate, n: number): ISODate {
 
 /** Adds months, clamping the day to the end of the target month. */
 export function addMonthsToDate(d: ISODate, n: number): ISODate {
-  const target = addMonths(monthOf(d), n);
+  const target = addMonths(calendarMonth(d), n);
   const day = Math.min(Number(d.slice(8, 10)), daysInMonth(target));
   return `${target}-${pad(day)}`;
 }
@@ -87,6 +137,16 @@ export function weekdayCount(month: MonthKey, weekday: number): number {
 }
 
 export const monthLabel = (m: MonthKey) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+/** "14 Nov – 13 Dec" (or "Nov 14 – Dec 13"): the dates of a budget month that isn't a calendar month; null if it is. */
+export function monthDates(m: MonthKey, starts: MonthStart[] = monthStarts, fmt: DateFormat = activeDateFormat): string | null {
+  const [from, to] = [monthStartDate(m, starts), monthEndDate(m, starts)];
+  if (from === `${m}-01` && to === `${m}-${pad(daysInMonth(m))}`) return null;
+  const day = (d: ISODate) => {
+    const dt = parseISO(d);
+    return fmt === 'MDY' || fmt === 'YMD' ? `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}` : `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`;
+  };
+  return `${day(from)} – ${day(to)}`;
+}
 export const monthShort = (m: MonthKey) => `${MONTHS_SHORT[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
 
 export function formatDate(d: ISODate, fmt: DateFormat = activeDateFormat): string {

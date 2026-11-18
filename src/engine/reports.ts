@@ -1,4 +1,4 @@
-import { addMonths, monthOf, monthRange } from '@/utils/date';
+import { addMonths, dayInMonth, monthOf, monthRange } from '@/utils/date';
 import { ACCOUNT_TYPE_INFO, isCreditType } from '@/utils/icons';
 import { RTA, type BudgetData, type Milli, type MonthKey } from '@/store/types';
 
@@ -60,7 +60,7 @@ export function spendingByCategory(data: BudgetData, from: MonthKey, to: MonthKe
   return [...totals.values()].filter((s) => s.amount > 0).sort((a, b) => b.amount - a.amount);
 }
 
-/** Spending per day of `month` (index 0 = the 1st), counted the same way as spendingByCategory. */
+/** Spending per day of `month` (index 0 = its first day), counted the same way as spendingByCategory. */
 export function dailySpending(data: BudgetData, month: MonthKey, days: number): Milli[] {
   const cats = new Map(data.categories.map((c) => [c.id, c]));
   const out = Array.from({ length: days }, () => 0);
@@ -68,7 +68,7 @@ export function dailySpending(data: BudgetData, month: MonthKey, days: number): 
     if (l.month !== month || l.starting || !l.categoryId || l.categoryId === RTA) continue;
     const cat = cats.get(l.categoryId);
     if (!cat || cat.linkedAccountId) continue;
-    const d = Number(l.date.slice(8, 10)) - 1;
+    const d = dayInMonth(l.date) - 1;
     if (d >= 0 && d < days) out[d] -= l.amount;
   }
   return out;

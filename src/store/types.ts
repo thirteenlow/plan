@@ -152,9 +152,17 @@ export interface CurrencyFormat {
 
 export type PetKind = 'cat' | 'dog' | 'bunny' | 'fox' | 'panda' | 'frog' | 'penguin' | 'hamster';
 
+/** From budget month `from` on, months start on `day` (1–28). Earlier months keep the rule they had. */
+export interface MonthStart {
+  from: MonthKey;
+  day: number;
+}
+
 export interface BudgetSettings {
   currency: CurrencyFormat;
   dateFormat: DateFormat;
+  /** When budget months start on a day other than the 1st (e.g. pay day), from which month on. See setActiveMonthStarts. */
+  monthStarts?: MonthStart[];
   /** Used to greet the user on Home */
   ownerName?: string;
   pinnedCategoryIds?: string[];

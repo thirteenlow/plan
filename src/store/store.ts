@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { nextOccurrence } from '@/engine/scheduled';
 import { batchedStorage } from './batchedStorage';
-import { setActiveDateFormat, today } from '@/utils/date';
+import { setActiveDateFormat, setActiveMonthStarts, today, validMonthStarts } from '@/utils/date';
 import { ACCOUNT_TYPE_INFO, isCreditType } from '@/utils/icons';
 import { uid } from '@/utils/id';
 import { CURRENCIES, DEFAULT_CURRENCY, NUMBER_FORMATS, setActiveCurrency } from '@/utils/money';
@@ -134,6 +134,7 @@ const DATE_FORMATS = ['DMY', 'MDY', 'YMD'];
 function activateFormats(settings: BudgetSettings | undefined) {
   setActiveCurrency(settings?.currency ?? DEFAULT_CURRENCY);
   setActiveDateFormat(settings?.dateFormat ?? 'MDY');
+  setActiveMonthStarts(settings?.monthStarts);
 }
 
 /** Coerces a currency format into something the formatter and parser can always handle. */
@@ -380,6 +381,7 @@ export const useStore = create<AppState>()(
           const clean: Partial<BudgetSettings> = { ...patch };
           if ('currency' in patch) clean.currency = normalizeCurrency(patch.currency);
           if ('dateFormat' in patch && !DATE_FORMATS.includes(patch.dateFormat as string)) delete clean.dateFormat;
+          if ('monthStarts' in patch) clean.monthStarts = validMonthStarts(patch.monthStarts).length ? validMonthStarts(patch.monthStarts) : undefined;
           if ('ownerName' in patch) clean.ownerName = sanitizeText(patch.ownerName, LIMITS.ownerName) || undefined;
           mutate((b) => {
             Object.assign(b.settings, clean);

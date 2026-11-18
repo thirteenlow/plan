@@ -11,7 +11,7 @@ import { sortedGroups } from '@/hooks/useBudget';
 import { useActiveBudget } from '@/store/store';
 import { RTA } from '@/store/types';
 import { useTheme } from '@/theme';
-import { addMonths, currentMonth, friendlyDate, monthLabel, today } from '@/utils/date';
+import { addMonths, currentMonth, friendlyDate, monthLabel, monthStartDate, today } from '@/utils/date';
 import { formatMoney } from '@/utils/money';
 import { LIMITS } from '@/utils/validation';
 
@@ -43,7 +43,7 @@ function History({ of, month: startMonth }: { of: HistoryOf; month?: string }) {
   const now = currentMonth();
   const [range, setRange] = useState<HistoryRange>(startMonth ? 'month' : '12m');
   const [month, setMonth] = useState(startMonth ?? now);
-  const [custom, setCustom] = useState<{ from: string; to: string }>(() => ({ from: `${addMonths(now, -2)}-01`, to: today() }));
+  const [custom, setCustom] = useState<{ from: string; to: string }>(() => ({ from: monthStartDate(addMonths(now, -2)), to: today() }));
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const period: HistoryPeriod = useMemo(() => periodFor(range, now, month, custom), [range, now, month, custom]);
   const [limit, setLimit] = useState(PAGE);
